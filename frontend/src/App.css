@@ -320,6 +320,7 @@ body {
 
 /* Chat */
 .chat-room { display: flex; flex-direction: column; height: 60vh; }
+.chat-status { align-self: center; margin-bottom: 0.5rem; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--muted); }
 .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding-right: 0.25rem; margin-bottom: 0.5rem; }
 .chat-message { padding: 0.35rem 0.7rem; border-radius: 8px; font-size: 0.9rem; max-width: 85%; background: var(--chip-bg); color: var(--body); }
 .chat-message.own { align-self: flex-end; background: var(--accent-soft); }

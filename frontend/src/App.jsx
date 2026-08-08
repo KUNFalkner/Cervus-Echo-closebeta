@@ -152,13 +152,65 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar}) => {
 const RulesModal = ({onClose}) => <div className="modal-overlay" onClick={onClose}><div className="glass-card modal-card rules-modal login-rules-modal" onClick={e=>e.stopPropagation()}><h2>📜 社区规则</h2><p className="rules-subtitle">欢迎来到校园树洞！请仔细阅读以下规则：</p><div className="rules-content"><p><strong>1. 友善交流</strong> — 尊重他人，禁止辱骂、人身攻击。</p><p><strong>2. 保护隐私</strong> — 请勿公开他人真实姓名、联系方式等隐私信息。</p><p><strong>3. 合理发言</strong> — 禁止发布违法、色情、暴力等不良信息。</p><p><strong>4. 举报机制</strong> — 发现违规内容请及时举报，管理员会尽快处理。</p><p><strong>5. 共同维护</strong> — 让我们一起营造温暖、安全的校园社区。</p></div><button className="glass-button btn-primary" onClick={onClose}>我已阅读，开始使用</button></div></div>
 
 // ── ChatRoom ──
+const fmtChatTime = ts => { if(!ts) return ''; const d = new Date(String(ts).includes('Z')||String(ts).includes('+')?ts:ts+'Z'); return isNaN(d) ? '' : d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) }
+
 const ChatRoom = () => {
-  const [msgs,setMsgs] = useState([]); const [input,setInput] = useState(''); const [ws,setWs] = useState(null); const endRef = useRef(null)
+  const [msgs,setMsgs] = useState([]); const [input,setInput] = useState('')
+  const [status,setStatus] = useState('connecting')   // connecting | online | offline
+  const wsRef = useRef(null); const endRef = useRef(null); const aliveRef = useRef(true); const retryRef = useRef(0)
   const usr = JSON.parse(localStorage.getItem('user')||'{}')
-  useEffect(()=>{ const s=new WebSocket(`${WS_BASE}/chat/main`); s.onopen=()=>setWs(s); s.onmessage=e=>{try{setMsgs(p=>[...p,JSON.parse(e.data)])}catch{}}; return ()=>s.close() },[])
+
+  useEffect(()=>{
+    aliveRef.current = true
+    let timer = null
+    const connect = () => {
+      if(!aliveRef.current) return
+      setStatus('connecting')
+      const s = new WebSocket(`${WS_BASE}/chat/main`)
+      wsRef.current = s
+      s.onopen = () => { retryRef.current = 0; setStatus('online') }
+      s.onmessage = e => { try{ const m=JSON.parse(e.data); setMsgs(p=>p.some(x=>x.id&&x.id===m.id)?p:[...p,m]) }catch{} }
+      s.onclose = () => {
+        if(!aliveRef.current) return
+        setStatus('offline')
+        const delay = Math.min(1000 * 2 ** retryRef.current, 15000)
+        retryRef.current += 1
+        timer = setTimeout(connect, delay)
+      }
+      s.onerror = () => s.close()
+    }
+    connect()
+    return () => { aliveRef.current = false; clearTimeout(timer); wsRef.current?.close() }
+  },[])
+
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}) },[msgs])
-  const send = e=>{ e.preventDefault(); if(!input.trim()||!ws) return; ws.send(JSON.stringify({user_id:usr.id,nickname:usr.nickname,content:input,timestamp:new Date().toISOString()})); setInput('') }
-  return <div className="chat-room"><div className="chat-messages">{msgs.length===0?<Empty icon="💬" title="暂无消息" desc="来说点什么吧"/>:msgs.map((m,i)=><div key={i} className={`chat-message ${m.user_id===usr.id?'own':''}`}><span className="chat-nickname">{m.nickname}</span><span className="chat-content">{m.content}</span><span className="chat-time">{new Date(m.timestamp).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}</span></div>)}<div ref={endRef}/></div><form onSubmit={send} className="chat-input-form"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="输入消息..." className="glass-input chat-input"/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()}>发送</button></form></div>
+
+  const send = e => {
+    e.preventDefault()
+    const s = wsRef.current
+    if(!input.trim() || !s || s.readyState !== WebSocket.OPEN) return
+    s.send(JSON.stringify({user_id:usr.id, nickname:usr.nickname, content:input}))
+    setInput('')
+  }
+
+  const online = status === 'online'
+  return <div className="chat-room">
+    {!online && <div className="chat-status">{status==='connecting'?'连接中…':'已断开，正在重连…'}</div>}
+    <div className="chat-messages">
+      {msgs.length===0
+        ? <Empty icon="💬" title="暂无消息" desc="来说点什么吧"/>
+        : msgs.map((m,i)=><div key={m.id ?? `local-${i}`} className={`chat-message ${m.user_id===usr.id?'own':''}`}>
+            <span className="chat-nickname">{m.nickname}</span>
+            <span className="chat-content">{m.content}</span>
+            <span className="chat-time">{fmtChatTime(m.timestamp)}</span>
+          </div>)}
+      <div ref={endRef}/>
+    </div>
+    <form onSubmit={send} className="chat-input-form">
+      <input value={input} onChange={e=>setInput(e.target.value)} placeholder={online?'输入消息...':'连接断开，无法发送'} className="glass-input chat-input" disabled={!online}/>
+      <button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||!online}>发送</button>
+    </form>
+  </div>
 }
 
 // ── AdminPage ──
