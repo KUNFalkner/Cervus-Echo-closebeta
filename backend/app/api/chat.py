@@ -22,7 +22,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-@router.websocket("/ws/{room_id}")
+@router.websocket("/ws/{room_id:path}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
     await manager.connect(websocket)
     try:

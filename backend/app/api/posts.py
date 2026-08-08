@@ -85,6 +85,7 @@ def read_posts(
     category: Optional[str] = Query(None, description="按分类筛选"),
     forum: Optional[str] = Query(None, description="按论坛筛选"),
     search: Optional[str] = Query(None, description="搜索标题和内容"),
+    sort: Optional[str] = Query(None, description="排序：latest(默认) / hot(按星标数降序，社区自治)"),
     user_id: Optional[int] = Query(None, description="用户ID（用于权限过滤）"),
     db: Session = Depends(get_db)
 ):
@@ -133,7 +134,11 @@ def read_posts(
             (PostModel.title.contains(search)) | (PostModel.content.contains(search))
         )
 
-    posts = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc()).offset(skip).limit(limit).all()
+    if sort == "hot":
+        query = query.order_by(PostModel.is_announcement.desc(), PostModel.star_count.desc(), PostModel.created_at.desc())
+    else:
+        query = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc())
+    posts = query.offset(skip).limit(limit).all()
     return posts
 
 @router.get("/{post_id}", response_model=PostSchema)
@@ -179,7 +184,34 @@ def star_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
         author.karma += 1
         author.star_count += 1
     db.commit()
-    return {"message": "加星成功", "star_count": post.star_count}
+    return {"message": "加星成功", "star_count": post.star_count, "starred": True}
+
+@router.delete("/{post_id}/star")
+def unstar_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
+    if not user_id:
+        raise HTTPException(status_code=400, detail="需要用户ID")
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    # 查找并移除自己的星标
+    star = db.query(UserStar).filter(
+        UserStar.user_id == user_id,
+        UserStar.post_id == post_id
+    ).first()
+    if not star:
+        raise HTTPException(status_code=400, detail="你还没有给这个帖子加星")
+    db.delete(star)
+    if post.star_count > 0:
+        post.star_count -= 1
+    # 回退作者 karma 与 star_count
+    author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
+    if author:
+        if author.karma > 0:
+            author.karma -= 1
+        if author.star_count > 0:
+            author.star_count -= 1
+    db.commit()
+    return {"message": "已取消星标", "star_count": post.star_count, "starred": False}
 
 @router.post("/{post_id}/comments", response_model=CommentSchema)
 def create_comment(post_id: int, comment: CommentCreate, db: Session = Depends(get_db)):

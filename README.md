@@ -6,7 +6,7 @@
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| 前端 | Vue 3 + Vite | Composition API, Pinia, Vue Router |
+| 前端 | React 18 + Vite | 单文件 `src/App.jsx`（React 18 + Hooks），动画用 anime.js + GSAP |
 | 后端 | Python + FastAPI | 异步 REST API, WebSocket |
 | 数据库 | SQLite + SQLAlchemy | 轻量级，零配置 |
 | 认证 | JWT + 微信 OAuth | 支持用户名密码/微信登录 |
@@ -49,36 +49,43 @@ npm run dev
 | `GET /api/posts/` | 帖子列表 (分页/分类/搜索) |
 | `GET /api/posts/:id` | 帖子详情 |
 | `POST /api/posts/:id/comments` | 评论 |
-| `POST /api/posts/:id/star` | 加星 (Karma +1) |
+| `POST /api/posts/:id/star` | 加星（star_count +1；Karma 计分待完善） |
 | `POST /api/reports/` | 举报帖子/评论 |
-| `GET /api/admin/reports` | 管理端举报列表 |
+| `GET /api/schools/` | 学校列表（12 所昆山高中） |
+| `GET /api/messages/` | 消息相关接口 |
+| `GET /api/admin/stats` `users` `reports` | 管理端：数据/用户/举报 |
 | `WS /ws/chat/main` | WebSocket 聊天室 |
 
 ## 项目结构
 
 ```
-├── frontend/            # Vue 3 前端
-│   └── src/
-│       ├── views/       # 页面 (Login, Home, PostDetail, Chat, Admin, Profile)
-│       ├── components/  # 组件 (PostCard, Toast, ReportModal)
-│       ├── stores/      # Pinia 状态管理
-│       ├── utils/       # API + 动画工具
-│       └── styles/      # 全局样式 (DESIGN.md 令牌)
-├── backend/             # FastAPI 后端
+├── frontend/                  # React 18 + Vite 前端（单文件架构）
+│   ├── src/
+│   │   ├── App.jsx            # 全部页面/组件/逻辑（Login, Home, PostDetail, Chat, Admin, Profile…）
+│   │   ├── App.css            # 全局样式（液态玻璃令牌）
+│   │   ├── index.css          # 基础样式
+│   │   └── main.jsx           # 入口
+│   ├── index.html
+│   └── package.json           # 版本 0.1.9
+├── backend/                   # FastAPI 后端（版本 0.1.8）
 │   └── app/
-│       ├── api/         # 路由 (posts, users, chat, admin, reports)
-│       ├── models/      # SQLAlchemy 模型
-│       ├── schemas/     # Pydantic 验证
-│       ├── services/    # 敏感词过滤
-│       ├── auth.py      # JWT 认证
-│       └── wechat.py    # 微信 OAuth
-├── DESIGN.md            # 设计系统
-└── PRODUCT.md           # 产品定义
+│       ├── api/               # 路由 (posts, users, chat, messages, reports, admin, schools)
+│       ├── models/            # SQLAlchemy 模型 (user, post, report, school, star, message)
+│       ├── schemas/           # Pydantic 验证
+│       ├── services/          # 敏感词过滤
+│       ├── auth.py            # JWT 认证
+│       └── wechat.py          # 微信 OAuth（当前为 dev stub）
+├── DESIGN.md                  # 设计系统
+├── PRODUCT.md                 # 产品定义
+└── .codegraph/                # CodeGraph 代码索引（本地，已 gitignore）
 ```
 
 ## 待办
 
-- [x] Beta v0.1.0: 发帖、评论、举报、Star/Karma、敏感词过滤
-- [x] Beta v0.2.0: JWT 认证、微信登录桩、Vue 3 重写
+- [x] Beta v0.1.0: 发帖、评论、举报、Star、敏感词过滤
+- [x] Beta v0.1.8: JWT 认证、微信登录桩、12 所学校/大使体系、液态玻璃 UI
+- [x] v0.2.x: Star/Karma 内容治理机制（加星/取消可切换、Karma 计分、热门排序治理）
 - [ ] v0.3.0: 微信登录（真实 AppID）、校园大使后台增强
 - [ ] v1.0.0: 塔罗占卜、AI 心理咨询
+
+> 注意：本 README 此前误写为 "Vue 3 重写"，实际前端为 **React 18 单文件架构**（见上方项目结构）。
