@@ -1,12 +1,13 @@
 /* ── Theme tokens ──
    Night = 星夜低语 (default, :root)
-   Day   = 黛蓝信纸 (body[data-time="day"])
+   Day   = 暖橘晨光 (body[data-time="day"])
    The canvas (useStarfield) sets body[data-time] each frame. */
 :root {
   --ink:#e9ecf7; --body:#a8b0cc; --muted:#8f98b8; --faint:#77809f;
   --accent:#8fa6ff; --on-accent:#0b0f1f;
   --card-bg:rgba(20,24,46,0.5); --card-bd:rgba(255,255,255,0.12);
   --card-hover-bg:rgba(255,255,255,0.12); --card-shadow:0 8px 32px rgba(0,0,0,0.4);
+  --card-hover-shadow:0 10px 30px rgba(74,95,196,0.28);
   --nav-bg:rgba(11,16,36,0.62); --nav-bd:rgba(255,255,255,0.12);
   --nav-fg:rgba(233,236,247,0.8); --nav-fg-strong:#fff;
   --input-bg:rgba(255,255,255,0.06); --input-bd:rgba(255,255,255,0.16); --input-fg:#fff;
@@ -24,25 +25,26 @@
   --dropdown-bg:rgba(30,30,60,0.95);
 }
 body[data-time="day"] {
-  --ink:#16202e; --body:#2e3c4e; --muted:#46597a; --faint:#42547a;
-  --accent:#345b9c; --on-accent:#eef4fb;
-  --card-bg:rgba(255,255,255,0.62); --card-bd:rgba(22,32,46,0.12);
-  --card-hover-bg:rgba(255,255,255,0.78); --card-shadow:0 8px 30px rgba(31,38,135,0.12);
-  --nav-bg:rgba(231,237,244,0.82); --nav-bd:rgba(22,32,46,0.15);
-  --nav-fg:rgba(22,32,46,0.7); --nav-fg-strong:#16202e;
-  --input-bg:rgba(255,255,255,0.6); --input-bd:rgba(22,32,46,0.22); --input-fg:#16202e;
-  --input-ph:rgba(45,60,78,0.5); --input-fc:rgba(52,91,156,0.7);
-  --chip-bg:rgba(255,255,255,0.45); --chip-bd:rgba(22,32,46,0.14); --chip-fg:rgba(45,60,78,0.78);
-  --chip-active-bg:rgba(52,91,156,0.16); --chip-active-fg:#16202e; --chip-active-bd:rgba(52,91,156,0.5);
-  --cat-active-bg:rgba(52,91,156,0.18); --cat-active-bd:rgba(52,91,156,0.55);
-  --accent-soft:rgba(52,91,156,0.22);
-  --divider:rgba(22,32,46,0.1);
-  --scroll-thumb:rgba(22,32,46,0.2);
-  --toast-bg:rgba(22,32,46,0.85);
-  --btn-fg:#16202e;
-  --primary-grad:linear-gradient(135deg,#3f6cb0,#5a7bc0);
-  --btn-primary-fg:#eef4fb;
-  --dropdown-bg:rgba(231,237,244,0.97);
+  --ink:#2a2018; --body:#4a3a2c; --muted:#6a5644; --faint:#6f5a46;
+  --accent:#a3461a; --on-accent:#fff5ec;
+  --card-bg:rgba(255,255,255,0.6); --card-bd:rgba(90,64,40,0.14);
+  --card-hover-bg:rgba(255,255,255,0.78); --card-shadow:0 8px 30px rgba(140,95,45,0.14);
+  --card-hover-shadow:0 10px 30px rgba(140,95,45,0.22);
+  --nav-bg:rgba(251,238,222,0.82); --nav-bd:rgba(90,64,40,0.16);
+  --nav-fg:rgba(42,32,24,0.7); --nav-fg-strong:#2a2018;
+  --input-bg:rgba(255,255,255,0.58); --input-bd:rgba(90,64,40,0.24); --input-fg:#2a2018;
+  --input-ph:rgba(74,58,44,0.52); --input-fc:rgba(163,70,26,0.7);
+  --chip-bg:rgba(255,255,255,0.45); --chip-bd:rgba(90,64,40,0.16); --chip-fg:rgba(74,58,44,0.8);
+  --chip-active-bg:rgba(163,70,26,0.14); --chip-active-fg:#2a2018; --chip-active-bd:rgba(163,70,26,0.5);
+  --cat-active-bg:rgba(163,70,26,0.16); --cat-active-bd:rgba(163,70,26,0.55);
+  --accent-soft:rgba(163,70,26,0.22);
+  --divider:rgba(90,64,40,0.12);
+  --scroll-thumb:rgba(90,64,40,0.22);
+  --toast-bg:rgba(42,32,24,0.85);
+  --btn-fg:#2a2018;
+  --primary-grad:linear-gradient(135deg,#a8481a,#b85420);
+  --btn-primary-fg:#fff5ec;
+  --dropdown-bg:rgba(251,238,222,0.97);
 }
 
 /* Base */
@@ -469,19 +471,19 @@ body[data-time="day"] .setting-row input,
 body[data-time="day"] .custom-select {
   border-radius: 14px;
   border: 1px solid var(--input-bd);
-  box-shadow: inset 0 1px 3px rgba(22,32,46,0.07);
+  box-shadow: inset 0 1px 3px rgba(90,64,40,0.08);
 }
 body[data-time="day"] .glass-input:focus,
 body[data-time="day"] .glass-textarea:focus,
 body[data-time="day"] .comment-input:focus,
 body[data-time="day"] .login-input:focus {
   border-color: var(--input-fc);
-  box-shadow: inset 0 1px 3px rgba(22,32,46,0.07), 0 0 0 3px rgba(52,91,156,0.14);
+  box-shadow: inset 0 1px 3px rgba(90,64,40,0.08), 0 0 0 3px rgba(163,70,26,0.14);
 }
 
 /* ── Micro-interactions (liquid-glass feel) ── */
 .post-card { will-change: transform; }
-.post-card:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(102,126,234,.28); }
+.post-card:hover { transform: translateY(-4px); box-shadow: var(--card-hover-shadow); }
 .glass-button:active { transform: scale(.96); }
 .login-btn { transition: transform .12s ease, opacity .15s ease; }
 .login-btn:active { transform: scale(.97); }
