@@ -56,25 +56,33 @@ const ReportModal = ({type,tid,uid,onClose}) => {
 }
 
 // ── Starfield canvas (shared, time-aware) ──
+// 夜晚 = 星夜低语（深蓝渐变 + 柔光星云 + 稀疏星点 + 偶尔流星）
+// 白天 = 黛蓝信纸（冷调纸面 + 左上柔光 + 颗粒 + 浮动尘埃）
 function useStarfield(canvasRef) {
   useEffect(() => { const c=canvasRef.current; if(!c) return; const ctx=c.getContext('2d'); let w=c.width=window.innerWidth,h=c.height=window.innerHeight;
-    const stars=Array.from({length:350},()=>({x:Math.random()*w,y:Math.random()*h,r:Math.random()*2+.3,a:Math.random(),phase:Math.random()*Math.PI*2,ts:Math.random()*.04+.01}));
-    const nebulae=[{x:w*.15,y:h*.25,r:350,c:[80,80,200],ox:0,oy:0,sx:.00015,sy:.0001},{x:w*.75,y:h*.65,r:300,c:[160,80,200],ox:0,oy:0,sx:.0001,sy:.00018},{x:w*.5,y:h*.45,r:450,c:[60,100,220],ox:0,oy:0,sx:.00008,sy:.00012},{x:w*.3,y:h*.8,r:250,c:[120,60,180],ox:0,oy:0,sx:.0002,sy:.00008}];
-    const meteors=[]; let time=0,anim;
-    const isNight=()=>{const hr=new Date().getHours();return hr>=19||hr<6;};
+    const stars=Array.from({length:200},()=>({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.6+.3,a:Math.random(),phase:Math.random()*Math.PI*2,ts:Math.random()*.04+.01}));
+    const nebulae=[{x:w*.25,y:h*.3,r:Math.max(w,h)*.55,c:[92,110,220],ox:0,oy:0,sx:.00012,sy:.0001},{x:w*.72,y:h*.72,r:Math.max(w,h)*.5,c:[150,100,210],ox:0,oy:0,sx:.0001,sy:.00016}];
+    const dust=Array.from({length:46},()=>({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.4+.6,sp:Math.random()*.4+.15,ph:Math.random()*Math.PI*2,sw:Math.random()*.025+.008,a:Math.random()*.1+.04}));
+    const grains=Array.from({length:900},()=>({x:Math.random()*w,y:Math.random()*h,s:Math.random()*1+.5,a:Math.random()*.08+.03}));
+    const meteors=[]; let time=0,anim,prevNight=null;
+    const forced=typeof location!=='undefined'?new URLSearchParams(location.search).get('theme'):null;
+    const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; const hr=new Date().getHours();return hr>=19||hr<6; };
     const draw=()=>{const night=isNight();
+      if(prevNight!==night){ document.body.dataset.time=night?'night':'day'; prevNight=night; }
       if(night){
-        const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#050510');bg.addColorStop(.5,'#0a0a20');bg.addColorStop(1,'#0d0818');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
-        nebulae.forEach(n=>{n.ox+=Math.sin(time*n.sx)*.5;n.oy+=Math.cos(time*n.sy)*.3;const nx=n.x+n.ox,ny=n.y+n.oy,p=1+Math.sin(time*.001)*.1,g=ctx.createRadialGradient(nx,ny,0,nx,ny,n.r*p);const[r,gb,b]=n.c;g.addColorStop(0,`rgba(${r},${gb},${b},.04)`);g.addColorStop(.5,`rgba(${r},${gb},${b},.02)`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)});
-        stars.forEach(s=>{s.a=.3+.7*Math.abs(Math.sin(time*s.ts+s.phase));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${s.a})`;ctx.fill();if(s.r>1.3){ctx.beginPath();ctx.arc(s.x,s.y,s.r*4,0,Math.PI*2);ctx.fillStyle=`rgba(200,220,255,${s.a*.1})`;ctx.fill()}});
+        const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#080b18');bg.addColorStop(.5,'#0b1024');bg.addColorStop(1,'#0a0916');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+        nebulae.forEach(n=>{n.ox+=Math.sin(time*n.sx)*.5;n.oy+=Math.cos(time*n.sy)*.3;const nx=n.x+n.ox,ny=n.y+n.oy,p=1+Math.sin(time*.001)*.1,g=ctx.createRadialGradient(nx,ny,0,nx,ny,n.r*p);const[r,gb,b]=n.c;g.addColorStop(0,`rgba(${r},${gb},${b},.06)`);g.addColorStop(.5,`rgba(${r},${gb},${b},.03)`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,w,h)});
+        stars.forEach(s=>{s.a=.3+.7*Math.abs(Math.sin(time*s.ts+s.phase));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(233,236,247,${s.a})`;ctx.fill();if(s.r>1.1){ctx.beginPath();ctx.arc(s.x,s.y,s.r*3,0,Math.PI*2);ctx.fillStyle=`rgba(143,166,255,${s.a*.12})`;ctx.fill()}});
       } else {
-        const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#aee3ff');bg.addColorStop(.5,'#cdeaff');bg.addColorStop(1,'#ffe6c2');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
-        const sx=w*.82,sy=h*.16,sr=Math.min(w,h)*.24,g=ctx.createRadialGradient(sx,sy,0,sx,sy,sr);g.addColorStop(0,'rgba(255,248,224,.95)');g.addColorStop(.45,'rgba(255,232,176,.5)');g.addColorStop(1,'rgba(255,232,176,0)');ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
+        ctx.fillStyle='#e7edf4';ctx.fillRect(0,0,w,h);
+        const lg=ctx.createRadialGradient(w*.05,h*.02,0,w*.4,h*.35,Math.max(w,h)*.9);lg.addColorStop(0,'rgba(255,255,255,.75)');lg.addColorStop(.5,'rgba(236,243,250,.22)');lg.addColorStop(1,'rgba(206,218,232,0)');ctx.fillStyle=lg;ctx.fillRect(0,0,w,h);
+        ctx.fillStyle='#9fb0c4';grains.forEach(g=>{ctx.globalAlpha=g.a;ctx.fillRect(g.x,g.y,g.s,g.s)});ctx.globalAlpha=1;
+        dust.forEach(d=>{d.y-=d.sp;d.x+=Math.sin(time*d.sw+d.ph)*.3;if(d.y<-10){d.y=h+10;d.x=Math.random()*w;}ctx.fillStyle=`rgba(90,112,140,${d.a})`;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,Math.PI*2);ctx.fill()});
       }
-      if(night&&meteors.length<4&&Math.random()<.015) meteors.push({x:Math.random()*w*1.5-w*.25,y:-10,len:Math.random()*120+60,speed:Math.random()*8+5,angle:Math.PI/4+(Math.random()-.5)*.3,a:1,life:1});
+      if(night&&meteors.length<3&&Math.random()<.012) meteors.push({x:Math.random()*w*1.5-w*.25,y:-10,len:Math.random()*120+60,speed:Math.random()*8+5,angle:Math.PI/4+(Math.random()-.5)*.3,a:1,life:1});
       for(let i=meteors.length-1;i>=0;i--){const m=meteors[i];m.x+=Math.cos(m.angle)*m.speed;m.y+=Math.sin(m.angle)*m.speed;m.life-=.015;m.a=m.life;if(m.life<=0||m.y>h+50){meteors.splice(i,1);continue}const tx=m.x-Math.cos(m.angle)*m.len,ty=m.y-Math.sin(m.angle)*m.len,g=ctx.createLinearGradient(tx,ty,m.x,m.y);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.7,`rgba(200,220,255,${m.a*.4})`);g.addColorStop(1,`rgba(255,255,255,${m.a*.9})`);ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(m.x,m.y);ctx.strokeStyle=g;ctx.lineWidth=1.5;ctx.stroke();ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${m.a})`;ctx.fill()}
       time++;anim=requestAnimationFrame(draw)};draw();
-    const resize=()=>{w=c.width=window.innerWidth;h=c.height=window.innerHeight;stars.forEach(s=>{s.x=Math.random()*w;s.y=Math.random()*h})};window.addEventListener('resize',resize);
+    const resize=()=>{w=c.width=window.innerWidth;h=c.height=window.innerHeight;stars.forEach(s=>{s.x=Math.random()*w;s.y=Math.random()*h});dust.forEach(d=>{if(d.x>w)d.x=Math.random()*w;if(d.y>h)d.y=Math.random()*h});grains.forEach(g=>{g.x=Math.random()*w;g.y=Math.random()*h})};window.addEventListener('resize',resize);
     return ()=>{cancelAnimationFrame(anim);window.removeEventListener('resize',resize)}},[])
 }
 
@@ -180,7 +188,20 @@ const ProfilePage = ({user,setUser}) => {
 
 // ── App main ──
 function App() {
-  const [curPage,setCurPage] = useState('home'); const [user,setUser] = useState(null); const [posts,setPosts] = useState([]); const [selectedPost,setSelectedPost] = useState(null); const [loading,setLoading] = useState(false); const [error,setError] = useState(null); const [activeCat,setActiveCat] = useState('all'); const [activeForum,setActiveForum] = useState('main'); const [searchQ,setSearchQ] = useState(''); const [debouncedQ,setDebouncedQ] = useState('');   const [isRegister,setIsRegister] = useState(false); const [showRules,setShowRules] = useState(false); const [activeSort,setActiveSort] = useState('latest'); const [myStars,setMyStars] = useState({})
+  const [curPage,setCurPage] = useState('home')
+  const [user,setUser] = useState(null)
+  const [posts,setPosts] = useState([])
+  const [selectedPost,setSelectedPost] = useState(null)
+  const [loading,setLoading] = useState(false)
+  const [error,setError] = useState(null)
+  const [activeCat,setActiveCat] = useState('all')
+  const [activeForum,setActiveForum] = useState('main')
+  const [searchQ,setSearchQ] = useState('')
+  const [debouncedQ,setDebouncedQ] = useState('')
+  const [isRegister,setIsRegister] = useState(false)
+  const [showRules,setShowRules] = useState(false)
+  const [activeSort,setActiveSort] = useState('latest')
+  const [myStars,setMyStars] = useState({})
 
   const fetchPosts = useCallback(async()=>{ setLoading(true); try{ let url=`${API_BASE}/posts/?user_id=${user?.id||''}`; if(activeCat!=='all')url+=`&category=${activeCat}`; if(activeForum!=='all')url+=`&forum=${activeForum}`; if(activeSort==='hot')url+=`&sort=hot`; if(debouncedQ.trim())url+=`&search=${encodeURIComponent(debouncedQ.trim())}`; const r=await fetch(url); if(!r.ok)throw new Error('获取帖子失败'); setPosts(await r.json()) }catch(e){setError(e.message)}finally{setLoading(false)} },[activeCat,activeForum,activeSort,debouncedQ,user])
 
