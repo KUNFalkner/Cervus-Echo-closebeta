@@ -137,6 +137,19 @@ const PostCard = ({post,user,onRefresh}) => {
     <div className="post-footer"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions">{(user?.id===post.user_id||user?.role==='founder'||(user?.role==='ambassador'&&post.user_school===user.school_id))&&<button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;fetch(`${API_BASE}/posts/${post.id}?user_id=${user.id}`,{method:'DELETE'}).then(onRefresh)}} className="action-btn delete-btn">🗑️</button>}<button onClick={star} className="action-btn star-btn">⭐ {post.star_count||0}</button><span className="action-text">💬 {post.comment_count}</span></div></div></div>
 }
 
+// ── StarButton（点赞/星标，带 GSAP 弹跳动效；替代原来整列表重绘导致的闪烁）──
+const StarButton = ({post, starred, count, onToggle}) => {
+  const ref = useRef(null)
+  const handle = (e) => {
+    e.stopPropagation()
+    if(ref.current && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      gsap.fromTo(ref.current, {scale:1}, {scale:1.35, duration:.16, ease:'back.out(3)', yoyo:true, repeat:1, clearProps:'transform'})
+    }
+    onToggle(post)
+  }
+  return <button ref={ref} onClick={handle} className={`action-btn star-btn ${starred?'starred':''}`}>{starred?'⭐':'☆'} {count||0}</button>
+}
+
 // ── PostDetail ──
 const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar}) => {
   const toast=useToast(); const [comments,setComments]=useState([]); const [nc,setNc]=useState(''); const [loading,setLoading]=useState(false); const [err,setErr]=useState(null); const [submitting,setSubmitting]=useState(false); const [showR,setShowR]=useState(false); const [rt,setRt]=useState({type:'post',id:0});
@@ -145,7 +158,7 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar}) => {
   useEffect(()=>{fc()},[fc]);
   useEffect(()=>{const h=e=>{if(e.key==='Escape')onBack()};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[onBack]);
   const submitComment=async e=>{e.preventDefault();if(!nc.trim())return;setSubmitting(true);const dn=user?.role==='founder'||user?.role==='ambassador'?user.nickname:genNick();try{const r=await fetch(`${API_BASE}/posts/${post.id}/comments`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:nc,user_id:user.id,post_id:post.id,display_name:dn,user_uid:user.uid})});if(!r.ok)throw new Error('评论失败');setNc('');fc();onRefresh?.();toast.success('评论成功')}catch(e){toast.error(e.message)}finally{setSubmitting(false)}}
-  return <div className="post-detail"><button className="back-btn" onClick={onBack}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><span className="post-author-name">{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><p className="post-content">{post.content}</p><div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><button onClick={()=>onToggleStar(post)} className={`action-btn star-btn ${myStars[post.id]?'starred':''}`}>{myStars[post.id]?'⭐':'☆'} {post.star_count||0}</button><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<button onClick={async()=>{if(!confirm('确定删除？'))return;await fetch(`${API_BASE}/posts/${post.id}?user_id=${user.id}`,{method:'DELETE'});toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={e=>setNc(e.target.value)} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className="glass-card comment-card"><div className="comment-header"><div className="comment-author-info"><span className="comment-author">{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<button onClick={async()=>{await fetch(`${API_BASE}/posts/${post.id}/comments/${c.id}?user_id=${user.id}`,{method:'DELETE'});fc()}} className="action-btn delete-btn">🗑️</button>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div><p className="comment-content">{c.content}</p></div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} uid={user?.id} onClose={()=>setShowR(false)}/>}</div>
+  return <div className="post-detail"><button className="back-btn" onClick={onBack}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><span className="post-author-name">{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><p className="post-content">{post.content}</p><div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><StarButton post={post} starred={!!myStars[post.id]} count={post.star_count} onToggle={onToggleStar}/><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<button onClick={async()=>{if(!confirm('确定删除？'))return;await fetch(`${API_BASE}/posts/${post.id}?user_id=${user.id}`,{method:'DELETE'});toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={e=>setNc(e.target.value)} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className="glass-card comment-card"><div className="comment-header"><div className="comment-author-info"><span className="comment-author">{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<button onClick={async()=>{await fetch(`${API_BASE}/posts/${post.id}/comments/${c.id}?user_id=${user.id}`,{method:'DELETE'});fc()}} className="action-btn delete-btn">🗑️</button>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div><p className="comment-content">{c.content}</p></div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} uid={user?.id} onClose={()=>setShowR(false)}/>}</div>
 }
 
 // ── RulesModal ──
@@ -157,7 +170,7 @@ const fmtChatTime = ts => { if(!ts) return ''; const d = new Date(String(ts).inc
 const ChatRoom = () => {
   const [msgs,setMsgs] = useState([]); const [input,setInput] = useState('')
   const [status,setStatus] = useState('connecting')   // connecting | online | offline
-  const wsRef = useRef(null); const endRef = useRef(null); const aliveRef = useRef(true); const retryRef = useRef(0)
+  const wsRef = useRef(null); const endRef = useRef(null); const aliveRef = useRef(true); const retryRef = useRef(0); const listRef = useRef(null)
   const usr = JSON.parse(localStorage.getItem('user')||'{}')
 
   useEffect(()=>{
@@ -193,10 +206,18 @@ const ChatRoom = () => {
     setInput('')
   }
 
+  // 新消息入场弹入（只动最后一条，不重绘整列）；尊重 prefers-reduced-motion
+  useEffect(()=>{
+    if(!listRef.current) return
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const el = listRef.current.querySelector('.chat-message:last-child')
+    if(el) gsap.fromTo(el, {opacity:0, y:8}, {opacity:1, y:0, duration:.25, ease:'power2.out', clearProps:'opacity,transform'})
+  },[msgs.length])
+
   const online = status === 'online'
   return <div className="chat-room">
     {!online && <div className="chat-status">{status==='connecting'?'连接中…':'已断开，正在重连…'}</div>}
-    <div className="chat-messages">
+    <div className="chat-messages" ref={listRef}>
       {msgs.length===0
         ? <Empty icon="💬" title="暂无消息" desc="来说点什么吧"/>
         : msgs.map((m,i)=><div key={m.id ?? `local-${i}`} className={`chat-message ${m.user_id===usr.id?'own':''}`}>
@@ -284,8 +305,9 @@ function App() {
   const [showRules,setShowRules] = useState(false)
   const [activeSort,setActiveSort] = useState('latest')
   const [myStars,setMyStars] = useState({})
+  const [listKey,setListKey] = useState(0)   // 仅在一次真实的帖子列表加载后 +1，避免点赞/取消星标触发整列表重播动画
 
-  const fetchPosts = useCallback(async()=>{ setLoading(true); try{ let url=`${API_BASE}/posts/?user_id=${user?.id||''}`; if(activeCat!=='all')url+=`&category=${activeCat}`; if(activeForum!=='all')url+=`&forum=${activeForum}`; if(activeSort==='hot')url+=`&sort=hot`; if(debouncedQ.trim())url+=`&search=${encodeURIComponent(debouncedQ.trim())}`; const r=await fetch(url); if(!r.ok)throw new Error('获取帖子失败'); setPosts(await r.json()) }catch(e){setError(e.message)}finally{setLoading(false)} },[activeCat,activeForum,activeSort,debouncedQ,user])
+  const fetchPosts = useCallback(async()=>{ setLoading(true); try{ let url=`${API_BASE}/posts/?user_id=${user?.id||''}`; if(activeCat!=='all')url+=`&category=${activeCat}`; if(activeForum!=='all')url+=`&forum=${activeForum}`; if(activeSort==='hot')url+=`&sort=hot`; if(debouncedQ.trim())url+=`&search=${encodeURIComponent(debouncedQ.trim())}`; const r=await fetch(url); if(!r.ok)throw new Error('获取帖子失败'); const data=await r.json(); setPosts(data); setListKey(k=>k+1) }catch(e){setError(e.message)}finally{setLoading(false)} },[activeCat,activeForum,activeSort,debouncedQ,user])
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(searchQ),300); return ()=>clearTimeout(t) },[searchQ])
   useEffect(()=>{ const el=document.querySelector('.main-content'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; gsap.fromTo(el,{opacity:0,y:12},{opacity:1,y:0,duration:.3,ease:'power2.out'}) },[curPage])
@@ -298,6 +320,7 @@ function App() {
   useEffect(()=>{ if(!user){ setMyStars({}); return } const k='treehole_stars_'+user.id; try{ setMyStars(JSON.parse(localStorage.getItem(k)||'{}')) }catch{ setMyStars({}) } },[user])
 
   // 帖子卡片错落入场（GSAP stagger）；尊重 prefers-reduced-motion
+  // 依赖 listKey 而非 posts：点赞只改 posts 数组引用，不应让整列重新闪一下
   useEffect(()=>{
     if(!posts.length) return;
     if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -305,7 +328,7 @@ function App() {
       gsap.from('.post-card',{opacity:0,y:18,duration:.45,ease:'power2.out',stagger:.06,clearProps:'opacity,transform'});
     });
     return ()=>ctx.revert();
-  },[posts])
+  },[listKey])
 
   const isAdmin = user && (user.role==='founder'||user.role==='ambassador')
 
@@ -355,7 +378,7 @@ function App() {
           <div className="search-bar"><input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="搜索帖子..." className="glass-input search-input"/>{searchQ&&<button className="search-clear" onClick={()=>setSearchQ('')}>✕</button>}</div>
           <div className="category-tabs"><button className={`category-tab ${activeCat==='all'?'active':''}`} onClick={()=>setActiveCat('all')}>全部</button>{CATEGORIES.map(c=><button key={c.id} className={`category-tab ${activeCat===c.id?'active':''}`} onClick={()=>setActiveCat(c.id)}><span className="category-icon">{c.icon}</span><span className="category-name">{c.name}</span></button>)}</div>
           <div className="category-tabs"><button className={`category-tab ${activeSort==='latest'?'active':''}`} onClick={()=>setActiveSort('latest')}>🕒 最新</button><button className={`category-tab ${activeSort==='hot'?'active':''}`} onClick={()=>setActiveSort('hot')}>🔥 热门</button></div>
-          {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>:<div className="posts-list">{posts.map((p,i)=><div key={p.id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><span className="post-author-name-small">{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>CATEGORIES.find(x=>x.id===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p><div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;fetch(`${API_BASE}/posts/${p.id}?user_id=${user.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button>}<button onClick={e=>{e.stopPropagation();toggleStar(p)}} className={`action-btn star-btn ${myStars[p.id]?'starred':''}`}>{myStars[p.id]?'⭐':'☆'} {p.star_count||0}</button><span className="action-text">💬 {p.comment_count}</span></div></div></div>)}</div>}
+          {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>:<div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><span className="post-author-name-small">{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>CATEGORIES.find(x=>x.id===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p><div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;fetch(`${API_BASE}/posts/${p.id}?user_id=${user.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button>}<StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div></div>)}</div>}
         </div>}
         {curPage==='chat'&&<div className="chat-page"><div className="glass-card chat-container"><ChatRoom/></div></div>}
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
