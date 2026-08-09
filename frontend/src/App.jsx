@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react'
+import { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from 'react'
 import gsap from 'gsap'
 import './App.css'
-import { TAROT_DECK, TAROT_POSITIONS } from './tarotData'
+import { TAROT_DECK, TAROT_POSITIONS, ELEMENT_THEME } from './tarotData'
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : `http://${window.location.hostname || 'localhost'}:8000/api`
 const WS_BASE = import.meta.env.DEV ? 'ws://localhost:8000/ws' : `ws://${window.location.hostname || 'localhost'}:8000/ws`
@@ -309,66 +309,118 @@ const TarotPage = () => {
   const todayKey = 'treehole_tarot_' + new Date().toISOString().slice(0, 10)
   const [drawn, setDrawn] = useState(() => { try { return JSON.parse(localStorage.getItem(todayKey) || 'null') } catch { return null } })
   const [revealed, setRevealed] = useState(() => drawn ? [true, true, true] : [false, false, false])
+  const [openIdx, setOpenIdx] = useState(-1)
+  const [shuffling, setShuffling] = useState(false)
   const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
   const cardRefs = [r0, r1, r2]
   const reduce = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  const themeOf = (card) => ELEMENT_THEME[card.arcana === 'major' ? 'major' : card.suit]
+  const stars = useMemo(() => Array.from({ length: 40 }, () => ({
+    top: Math.random() * 100, left: Math.random() * 100,
+    size: Math.random() * 2 + 1, dur: 2 + Math.random() * 3, delay: Math.random() * 3
+  })), [])
+
   const draw = () => {
-    const deck = [...TAROT_DECK]
-    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]] }
-    const picks = deck.slice(0, 3).map(c => ({ ...c, reversed: Math.random() < 0.5 }))
-    setDrawn(picks); setRevealed([false, false, false])
-    try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
+    if (shuffling) return
+    setShuffling(true)
     setTimeout(() => {
-      if (reduce()) return
-      cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, scale: .5, y: -130, rotation: -10, duration: .55, delay: i * .12, ease: 'back.out(1.5)', clearProps: 'opacity,transform' }) })
-    }, 30)
+      const deck = [...TAROT_DECK]
+      for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]] }
+      const picks = deck.slice(0, 3).map(c => ({ ...c, reversed: Math.random() < 0.5 }))
+      setDrawn(picks); setRevealed([false, false, false]); setOpenIdx(-1); setShuffling(false)
+      try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
+      setTimeout(() => {
+        if (reduce()) return
+        cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, scale: .4, y: -170, rotation: -12, duration: .6, delay: i * .14, ease: 'back.out(1.6)', clearProps: 'opacity,transform' }) })
+      }, 30)
+    }, 560)
   }
 
   const flip = (i) => {
-    if (!drawn || revealed[i]) return
-    setRevealed(p => { const n = [...p]; n[i] = true; return n })
-    if (!reduce() && cardRefs[i].current) gsap.fromTo(cardRefs[i].current, { scale: .92 }, { scale: 1, duration: .4, ease: 'back.out(2)' })
+    if (!drawn) return
+    if (!revealed[i]) {
+      setRevealed(p => { const n = [...p]; n[i] = true; return n })
+      if (!reduce() && cardRefs[i].current) gsap.fromTo(cardRefs[i].current, { scale: .9 }, { scale: 1, duration: .45, ease: 'back.out(2)' })
+    } else {
+      setOpenIdx(openIdx === i ? -1 : i)
+    }
   }
 
   const guidance = !drawn ? '' : (() => {
     const rev = drawn.filter(c => c.reversed).length
     const now = drawn[1]
-    const head = rev === 0 ? '三牌皆正位，' : rev === 3 ? '三牌皆逆位，' : rev === 1 ? '一牌轻逆，' : '两牌逆位，'
-    const tail = now.reversed ? `当下「${now.name}」逆位，宜缓不宜急。` : `当下「${now.name}」正位，顺势而行。`
+    const head = rev === 0 ? '三牌皆正位，气运通透——' : rev === 3 ? '三牌皆逆位，宜守不宜攻——' : rev === 1 ? '一牌轻逆，留意暗流——' : '两牌逆位，先安内再向外——'
+    const tail = now.reversed
+      ? `当下「${now.name}」逆位，缓步而行、回头看看被忽略的线索。`
+      : `当下「${now.name}」正位，顺势而为、把握眼前机缘。`
     return head + tail
   })()
 
   return <div className="tarot-page">
+    <div className="tarot-stars" aria-hidden>
+      {stars.map((s, k) => <i key={k} style={{ top: s.top + '%', left: s.left + '%', width: s.size + 'px', height: s.size + 'px', animationDuration: s.dur + 's', animationDelay: s.delay + 's' }} />)}
+    </div>
     <div className="glass-card tarot-hero">
       <h2>🔮 塔罗占卜</h2>
       <p className="tarot-sub">静下心，想着你此刻的疑问——为「过去 · 现在 · 未来」各抽一张牌。</p>
       {!drawn
-        ? <button className="glass-button btn-primary tarot-start" onClick={draw}>开始抽牌</button>
+        ? <button className="glass-button btn-primary tarot-start" onClick={draw} disabled={shuffling}>
+            {shuffling ? <span className="tarot-shuffle"><span className="dot" /> 洗牌中…</span> : '开始抽牌'}
+          </button>
         : <>
             <div className="tarot-spread">
-              {drawn.map((card, i) => (
-                <div className="tarot-col" key={i}>
-                  <div className="tarot-pos">{TAROT_POSITIONS[i]}</div>
-                  <div className={`tarot-card ${revealed[i] ? 'flipped' : ''}`} onClick={() => flip(i)} ref={cardRefs[i]}>
-                    <div className="tarot-inner">
-                      <div className="tarot-face tarot-back"><span className="tarot-back-sym">🔮</span><span className="tarot-back-hint">点击翻牌</span></div>
-                      <div className="tarot-face tarot-front">
-                        <div className="tarot-icon">{card.icon}</div>
-                        <div className="tarot-name">{card.name}</div>
-                        <div className={`tarot-ori ${card.reversed ? 'rev' : ''}`}>{card.reversed ? '逆位' : '正位'}</div>
-                        <div className="tarot-mean">{card.reversed ? card.reversed : card.upright}</div>
+              {drawn.map((card, i) => {
+                const th = themeOf(card)
+                return (
+                  <div className="tarot-col" key={i}>
+                    <div className="tarot-pos">{TAROT_POSITIONS[i]}</div>
+                    <div
+                      className={`tarot-card ${revealed[i] ? 'flipped' : ''} ${card.reversed ? 'is-rev' : ''}`}
+                      style={{ '--glow': th.glow, '--edge': th.color }}
+                      onClick={() => flip(i)} ref={cardRefs[i]}
+                    >
+                      <div className="tarot-inner">
+                        <div className="tarot-face tarot-back"><span className="tarot-back-sym">🔮</span><span className="tarot-back-hint">点击翻牌</span></div>
+                        <div className="tarot-face tarot-front">
+                          <span className="tarot-corner">{th.label.split(' ')[0]}</span>
+                          <div className="tarot-top">
+                            <span className="tarot-icon">{card.icon}</span>
+                            <span className={`tarot-ori ${card.reversed ? 'rev' : ''}`}>{card.reversed ? '逆位' : '正位'}</span>
+                          </div>
+                          <div className="tarot-name">{card.name}</div>
+                          <div className="tarot-en">{card.en}</div>
+                          <div className="tarot-mean">{card.reversed ? card.reversed : card.upright}</div>
+                          <div className="tarot-chips">
+                            {(card.reversed ? card.keywordsRev : card.keywordsUp).slice(0, 5).map((k, ki) => (
+                              <span className="tarot-chip" key={ki}>{k}</span>
+                            ))}
+                          </div>
+                          {revealed[i] && openIdx === i && (
+                            <div className="tarot-detail">
+                              <div className="tarot-detail-row"><b>英文释义</b><span>{card.reversed ? card.meaningRev : card.meaningUp}</span></div>
+                              <div className="tarot-detail-row"><b>💗 爱情</b><span>{card.love}</span></div>
+                              <div className="tarot-detail-row"><b>💼 事业</b><span>{card.career}</span></div>
+                              <div className="tarot-detail-row"><b>🌤 情绪</b><span>{card.mood}</span></div>
+                              <div className="tarot-detail-row"><b>✨ 灵性</b><span>{card.spiritual}</span></div>
+                              <div className="tarot-detail-row"><b>星象</b><span>{[card.element, card.planet, card.zodiac].filter(Boolean).join(' · ')}</span></div>
+                              <div className="tarot-detail-row"><b>是非占</b><span>{card.reversed ? card.yesNoRev : card.yesNo}</span></div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    {revealed[i] && <button className="tarot-toggle" onClick={(e) => { e.stopPropagation(); setOpenIdx(openIdx === i ? -1 : i) }}>{openIdx === i ? '收起详情 ▴' : '展开详情 ▾'}</button>}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             <div className="tarot-summary">
-              今日牌阵：{drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}`).join('　')}
+              今日牌阵：{drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}${c.reversed ? '(逆)' : ''}`).join('　')}
             </div>
             {guidance && <div className="tarot-guidance">✦ {guidance}</div>}
-            <button className="glass-button tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); toast.success('已重新洗牌') }}>重新洗牌</button>
+            <div className="tarot-hint">点击卡牌翻面 · 再点「展开详情」查看英文释义与爱情 / 事业 / 情绪 / 灵性参考</div>
+            <button className="glass-button tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); setOpenIdx(-1); toast.success('已重新洗牌') }}>重新洗牌</button>
           </>}
     </div>
   </div>
