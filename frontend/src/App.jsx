@@ -339,7 +339,7 @@ function App() {
     } catch(e){ alert('操作失败，请重试') }
   }
 
-  if(isRegister&&!user) return <ToastProvider><RegisterForm onSwitch={()=>setIsRegister(false)}/></ToastProvider>
+  if(isRegister&&!user) return <ToastProvider><Starfield/><RegisterForm onSwitch={()=>setIsRegister(false)}/></ToastProvider>
 
   return <ToastProvider>
     <Starfield/>
