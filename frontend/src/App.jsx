@@ -3,8 +3,8 @@ import gsap from 'gsap'
 import './App.css'
 import { TAROT_DECK, TAROT_POSITIONS } from './tarotData'
 
-const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : `http://${window.location.hostname}:8000/api`
-const WS_BASE = import.meta.env.DEV ? 'ws://localhost:8000/ws' : `ws://${window.location.hostname}:8000/ws`
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : `http://${window.location.hostname || 'localhost'}:8000/api`
+const WS_BASE = import.meta.env.DEV ? 'ws://localhost:8000/ws' : `ws://${window.location.hostname || 'localhost'}:8000/ws`
 
 const CATEGORIES = [
   { id: 'general', name: '综合', icon: '📝' }, { id: 'study', name: '学习', icon: '📚' },
@@ -120,7 +120,7 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
   const submit=async e=>{e.preventDefault(); if(!user?.id){toast.error('登录已失效，请重新登录');return;} const title=tRef.current?.value?.trim(),content=cRef.current?.value?.trim(); if(!title||!content)return; setSubmitting(true);
     const dn=isAdmin?user.nickname:(isAnon?genNick():user.nickname);
     const hu=isAdmin?false:(isAnon||hideUid);
-    try{const r=await fetch(`${API_BASE}/posts/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,category:cats.join(','),forum,user_id:user.id,display_name:dn,user_uid:user.uid,user_school:user.school_id,hide_uid:hu,is_announcement:false})});if(!r.ok){const d=await r.json().catch(()=>({}));const msg=Array.isArray(d.detail)?d.detail.map(x=>x.msg||(x.loc||[]).join('.')).join('；'):(typeof d.detail==='string'?d.detail:'发布失败');throw new Error(msg)}tRef.current.value='';cRef.current.value='';setCats(['general']);setHideUid(false);onPostCreated();toast.success('发布成功')}catch(e){toast.error(e.message)}finally{setSubmitting(false)}}
+    try{const r=await fetch(`${API_BASE}/posts/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,category:cats.join(','),forum,user_id:user.id,display_name:dn,user_uid:user.uid,user_school:user.school_id,hide_uid:hu,is_announcement:false})});if(!r.ok){const d=await r.json().catch(()=>({}));const msg=Array.isArray(d.detail)?d.detail.map(x=>x.msg||(x.loc||[]).join('.')).join('；'):(typeof d.detail==='string'?d.detail:'发布失败');throw new Error(msg)}tRef.current.value='';cRef.current.value='';setCats(['general']);setHideUid(false);onPostCreated();toast.success('发布成功')}catch(e){toast.error((e&&e.name==='TypeError')?'网络异常：无法连接服务器，请确认后端已启动于 localhost:8000':(e&&e.message||'发布失败'))}finally{setSubmitting(false)}}
   return <div className="glass-card create-post-card"><h3>发布新帖子</h3><form onSubmit={submit} className="create-post-form"><input ref={tRef} type="text" placeholder="帖子标题" className="glass-input" required/><textarea ref={cRef} placeholder="分享你的想法..." className="glass-textarea" required rows={4}/><div className="forum-select"><label className="forum-label">发布到：</label><div className="forum-options">{visibleForums.map(f=><button key={f.code} type="button" className={`forum-option ${forum===f.code?'active':''}`} onClick={()=>setForum(f.code)}>{f.code==='main'?'🏠 ':'🏫 '}{f.name}</button>)}</div></div>{!isAdmin&&<div className="post-options"><label className="checkbox-label"><input type="checkbox" checked={isAnon} onChange={e=>setIsAnon(e.target.checked)}/><span>匿名发布</span></label><label className="checkbox-label"><input type="checkbox" checked={hideUid} onChange={e=>setHideUid(e.target.checked)}/><span>隐藏 UID</span></label></div>}<div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting}>{submitting?'发布中...':'发布'}</button></form></div>
 }
 
