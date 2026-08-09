@@ -235,9 +235,10 @@ const ChatRoom = () => {
 
 // ── AdminPage ──
 const AdminPage = ({user}) => {
-  const toast=useToast(); const [stats,setStats]=useState(null); const [ulist,setUlist]=useState([]); const [reports,setReports]=useState([]); const [tab,setTab]=useState('stats'); const [loading,setLoading]=useState(true); const [muteMins,setMuteMins]=useState(60)
-  useEffect(()=>{ const f=async()=>{ setLoading(true); try{ const [sr,ur,rr]=await Promise.all([fetch(`${API_BASE}/admin/stats?user_id=${user.id}`),fetch(`${API_BASE}/admin/users?user_id=${user.id}`),fetch(`${API_BASE}/admin/reports?user_id=${user.id}`)]); if(sr.ok)setStats(await sr.json()); if(ur.ok)setUlist(await ur.json()); if(rr.ok)setReports(await rr.json()) }catch(e){toast.error('加载失败')} finally{setLoading(false)} }; f() },[])
-  const updReport = async(id,st)=>{ try{ await fetch(`${API_BASE}/admin/reports/${id}/status?user_id=${user.id}&status=${st}`,{method:'PUT'}); setReports(rs=>rs.map(x=>x.id===id?{...x,status:st}:x)); toast.success('状态已更新') }catch{toast.error('更新失败')} }
+  const toast=useToast(); const [stats,setStats]=useState(null); const [ulist,setUlist]=useState([]); const [reports,setReports]=useState([]); const [plist,setPlist]=useState([]); const [psearch,setPsearch]=useState(''); const [tab,setTab]=useState('stats'); const [loading,setLoading]=useState(true); const [muteMins,setMuteMins]=useState(60)
+  useEffect(()=>{ const f=async()=>{ setLoading(true); try{ const [sr,ur,rr,pr]=await Promise.all([fetch(`${API_BASE}/admin/stats?user_id=${user.id}`),fetch(`${API_BASE}/admin/users?user_id=${user.id}`),fetch(`${API_BASE}/admin/reports?user_id=${user.id}`),fetch(`${API_BASE}/admin/posts?user_id=${user.id}`)]); if(sr.ok)setStats(await sr.json()); if(ur.ok)setUlist(await ur.json()); if(rr.ok)setReports(await rr.json()); if(pr.ok)setPlist(await pr.json()) }catch(e){toast.error('加载失败')} finally{setLoading(false)} }; f() },[])
+  const updReport = async(id,st,action='none')=>{ try{ const url=`${API_BASE}/admin/reports/${id}/status?user_id=${user.id}&status=${st}`+(action!=='none'?`&action=${action}`:''); await fetch(url,{method:'PUT'}); setReports(rs=>rs.map(x=>x.id===id?{...x,status:st}:x)); toast.success(action!=='none'?'已删除内容并处理举报':'状态已更新') }catch(e){toast.error(e.message||'更新失败')} }
+  const delPost = async(id)=>{ if(!confirm('确认删除该帖子？此操作不可恢复'))return; try{ const r=await fetch(`${API_BASE}/posts/${id}?user_id=${user.id}`,{method:'DELETE'}); if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'删除失败')} setPlist(ps=>ps.filter(x=>x.id!==id)); toast.success('帖子已删除') }catch(e){toast.error(e.message)} }
   // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
   const isAdminRole = user.role==='founder'||user.role==='ambassador'
   const canManage = (u)=> isAdminRole && u.role==='student' && (user.role==='founder' || u.school_id===user.school_id)
@@ -248,7 +249,7 @@ const AdminPage = ({user}) => {
   const unmuteUser = async(u)=>{ try{ const r=await fetch(`${API_BASE}/admin/users/${u.id}/unmute?user_id=${user.id}`,{method:'PUT'}); if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'解禁失败')} setMuted(u.id,null); toast.success('已解除禁言') }catch(e){toast.error(e.message)} }
   if(loading) return <Spinner/>
   return <div className="admin-page"><h2 className="admin-title">管理后台</h2>
-  <div className="admin-tabs"><button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button></div>
+  <div className="admin-tabs"><button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button><button className={`admin-tab ${tab==='content'?'active':''}`} onClick={()=>setTab('content')}>内容 ({plist.length})</button></div>
   {tab==='stats'&&stats&&<div className="admin-stats"><div className="glass-card stat-card"><span className="stat-number">{stats.total_users}</span><span className="stat-desc">注册用户</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_posts}</span><span className="stat-desc">帖子总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_comments}</span><span className="stat-desc">评论总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.pending_reports}</span><span className="stat-desc">待处理举报</span></div></div>}
   {tab==='users'&&<div className="admin-list">
     <div className="mute-bar">禁言时长：
@@ -273,7 +274,19 @@ const AdminPage = ({user}) => {
       </div>}
     </div>)}
   </div>}
-  {tab==='reports'&&<div className="admin-list">{reports.length===0?<Empty icon="✅" title="暂无举报" desc="一切正常"/>:reports.map(r=><div key={r.id} className="glass-card admin-report-card"><div className="report-header"><span className={`report-status ${r.status}`}>{r.status==='pending'?'待处理':r.status==='reviewed'?'已审核':'已解决'}</span><span className="report-time">{r.created_at?new Date(r.created_at).toLocaleString('zh-CN'):'-'}</span></div><div className="report-body"><p><strong>举报者:</strong> {r.reporter_nickname} ({r.reporter_uid})</p><p><strong>目标:</strong> {r.target_type==='post'?'帖子':'评论'} #{r.target_id}</p><p><strong>原因:</strong> {r.reason}</p></div>{r.status==='pending'&&<div className="report-actions"><button className="save-btn" onClick={()=>updReport(r.id,'reviewed')}>标记已审核</button><button className="save-btn" onClick={()=>updReport(r.id,'resolved')}>标记已解决</button></div>}</div>)}</div>}
+  {tab==='reports'&&<div className="admin-list">{reports.length===0?<Empty icon="✅" title="暂无举报" desc="一切正常"/>:reports.map(r=><div key={r.id} className="glass-card admin-report-card"><div className="report-header"><span className={`report-status ${r.status}`}>{r.status==='pending'?'待处理':r.status==='reviewed'?'已审核':'已解决'}</span><span className="report-time">{r.created_at?new Date(r.created_at).toLocaleString('zh-CN'):'-'}</span></div><div className="report-body"><p><strong>举报者:</strong> {r.reporter_nickname} ({r.reporter_uid})</p><p><strong>目标:</strong> {r.target_type==='post'?'帖子':'评论'} #{r.target_id}</p><p><strong>原因:</strong> {r.reason}</p></div>{r.status==='pending'&&<div className="report-actions"><button className="save-btn" onClick={()=>updReport(r.id,'reviewed')}>标记已审核</button><button className="save-btn" onClick={()=>updReport(r.id,'resolved')}>标记已解决</button>{(r.target_type==='post'||r.target_type==='comment')&&<button className="danger-btn" onClick={()=>updReport(r.id,'resolved',r.target_type==='post'?'delete_post':'delete_comment')}>删除内容并解决</button>}</div>}</div>)}</div>}
+  {tab==='content'&&<div className="admin-list">
+    <div className="mute-bar"><input className="glass-input" placeholder="搜索标题/内容" value={psearch} onChange={e=>setPsearch(e.target.value)} />
+      <span className="mute-hint">仅可管理{user.role==='founder'?'全部':'本校'}内容</span>
+    </div>
+    {plist.filter(p=>!psearch.trim()||(p.title||'').includes(psearch.trim())||(p.content||'').includes(psearch.trim())).length===0?<Empty icon="📭" title="暂无内容" desc="本校暂无帖子"/>:plist.filter(p=>!psearch.trim()||(p.title||'').includes(psearch.trim())||(p.content||'').includes(psearch.trim())).map(p=><div key={p.id} className="glass-card admin-post-card">
+      <div className="admin-post-info"><span className="admin-post-school">{getSchoolName(p.user_school)}</span><span className="admin-post-cat">{p.category}</span><span className="admin-post-time">{p.created_at?new Date(p.created_at).toLocaleString('zh-CN'):'-'}</span></div>
+      <div className="admin-post-title">{p.title||'(无标题)'}</div>
+      <div className="admin-post-content">{p.content?.slice(0,120)}{p.content&&p.content.length>120?'…':''}</div>
+      <div className="admin-post-meta"><span>💬 {p.comment_count}</span><span>⭐ {p.star_count}</span></div>
+      <div className="report-actions"><button className="danger-btn" onClick={()=>delPost(p.id)}>删除帖子</button></div>
+    </div>)}
+  </div>}
   </div>
 }
 

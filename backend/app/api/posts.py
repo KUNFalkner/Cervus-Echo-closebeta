@@ -50,6 +50,12 @@ def can_post_announcement(user: Optional[UserModel], forum_code: str) -> bool:
         return forum_code == user.school_id
     return False
 
+
+def _check_admin_content_scope(admin: UserModel, target_school: str):
+    """校验管理员能否处置某内容：founder 全局；大使仅限本校(user_school 匹配)。"""
+    if admin.role == "ambassador" and target_school != admin.school_id:
+        raise HTTPException(status_code=403, detail="大使只能管理本校内容")
+
 @router.post("/", response_model=PostSchema)
 def create_post(post: PostCreate, db: Session = Depends(get_db)):
     # 获取用户信息
@@ -258,6 +264,8 @@ def delete_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)
     is_owner = post.user_id == user_id
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="无权删除此帖子")
+    if is_admin:
+        _check_admin_content_scope(user, post.user_school)
     db.delete(post)
     db.commit()
     return {"message": "删除成功"}
@@ -267,14 +275,16 @@ def delete_comment(post_id: int, comment_id: int, user_id: int = None, db: Sessi
     comment = db.query(CommentModel).filter(CommentModel.id == comment_id, CommentModel.post_id == post_id).first()
     if comment is None:
         raise HTTPException(status_code=404, detail="评论不存在")
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
     # 检查权限：本人或管理员
     user = db.query(UserModel).filter(UserModel.id == user_id).first() if user_id else None
     is_admin = user and user.role in ["founder", "ambassador"]
     is_owner = comment.user_id == user_id
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="无权删除此评论")
+    if is_admin:
+        _check_admin_content_scope(user, post.user_school if post else None)
     # 更新帖子评论数
-    post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post and post.comment_count > 0:
         post.comment_count -= 1
     db.delete(comment)
