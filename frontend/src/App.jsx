@@ -33,10 +33,9 @@ function canSeeUid(viewer, post) { if(!viewer||!post) return false; if(viewer.ro
 const ToastCtx = createContext()
 export const useToast = () => useContext(ToastCtx)
 const ToastProvider = ({children}) => {
-  const [toasts, setToasts] = useState([]); let tid = 0
-  const toast = { success: m => { const id=++tid; setToasts(p=>[...p,{id,msg:m,type:'success'}]); setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000) },
-    error: m => { const id=++tid; setToasts(p=>[...p,{id,msg:m,type:'error'}]); setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000) },
-    info: m => { const id=++tid; setToasts(p=>[...p,{id,msg:m,type:'info'}]); setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000) } }
+  const [toasts, setToasts] = useState([]); const tidRef = useRef(0)
+  const push = (type, m) => { const id = ++tidRef.current; setToasts(p=>[...p,{id,msg:m,type}]); setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),3000) }
+  const toast = { success: m => push('success', m), error: m => push('error', m), info: m => push('info', m) }
   return <ToastCtx.Provider value={toast}>{children}<div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}</div></ToastCtx.Provider>
 }
 
@@ -182,7 +181,7 @@ const ChatRoom = () => {
       const s = new WebSocket(`${WS_BASE}/chat/main`)
       wsRef.current = s
       s.onopen = () => { retryRef.current = 0; setStatus('online') }
-      s.onmessage = e => { try{ const m=JSON.parse(e.data); setMsgs(p=>p.some(x=>x.id&&x.id===m.id)?p:[...p,m]) }catch{} }
+      s.onmessage = e => { try{ const m=JSON.parse(e.data); if(!m||m.type==='error')return; setMsgs(p=>p.some(x=>x.id&&x.id===m.id)?p:[...p,m]) }catch{} }
       s.onclose = () => {
         if(!aliveRef.current) return
         setStatus('offline')
@@ -280,13 +279,14 @@ const AdminPage = ({user}) => {
 
 // ── ProfilePage ──
 const ProfilePage = ({user,setUser}) => {
-  const toast=useToast(); const [nick,setNick]=useState(user.nickname); const [pw,setPw]=useState(''); const isAdmin=user.role==='founder'||user.role==='ambassador'; const [isAnon,setIsAnon]=useState(isAdmin?false:user.is_anonymous!==false)
+  const toast=useToast(); const [nick,setNick]=useState(user.nickname); const [pw,setPw]=useState('');   const isAdmin=user.role==='founder'||user.role==='ambassador'; const [isAnon,setIsAnon]=useState(isAdmin?false:user.is_anonymous!==false)
+  const _tk=localStorage.getItem('token'); const _auth={'Content-Type':'application/json'}; if(_tk)_auth['Authorization']='Bearer '+_tk
   const save=async()=>{ if(!nick?.trim()){toast.error('账户名不能为空');return}
     try{ const body={nickname:nick.trim(),is_anonymous:isAdmin?false:isAnon}; if(pw?.trim())body.password=pw.trim()
-      const r=await fetch(`${API_BASE}/users/${user.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      const r=await fetch(`${API_BASE}/users/${user.id}`,{method:'PUT',headers:_auth,body:JSON.stringify(body)})
       if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'保存失败')}
       const u=await r.json(); setUser(u); localStorage.setItem('user',JSON.stringify(u)); setPw(''); toast.success('保存成功') }catch(e){toast.error(e.message)} }
-  return <div className="profile-page"><div className="glass-card profile-card"><label className="avatar-upload"><img src={user.avatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=async ev=>{const r=await fetch(`${API_BASE}/users/${user.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({avatar:ev.target.result})});if(r.ok){const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}};reader.readAsDataURL(f)}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div></div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={save}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div></div></div></div></div>
+  return <div className="profile-page"><div className="glass-card profile-card"><label className="avatar-upload"><img src={user.avatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=async ev=>{const r=await fetch(`${API_BASE}/users/${user.id}`,{method:'PUT',headers:_auth,body:JSON.stringify({avatar:ev.target.result})});if(r.ok){const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}};reader.readAsDataURL(f)}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div></div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={save}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div></div></div></div></div>
 }
 
 // ── App main ──

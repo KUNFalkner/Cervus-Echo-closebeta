@@ -131,7 +131,13 @@ def read_posts(
             )
 
     if category:
-        query = query.filter(PostModel.category == category)
+        # 分类以逗号分隔存储(如 "general,study")，需按分隔符匹配，避免多分类帖子在筛选时漏掉
+        query = query.filter(
+            (PostModel.category == category) |
+            PostModel.category.like(f"%,{category},%") |
+            PostModel.category.like(f"{category},%") |
+            PostModel.category.like(f"%,{category}")
+        )
     if forum:
         query = query.filter(PostModel.forum == forum)
     if search:
