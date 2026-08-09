@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef } from 'react'
 import gsap from 'gsap'
 import './App.css'
+import { TAROT_DECK, TAROT_POSITIONS } from './tarotData'
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : `http://${window.location.hostname}:8000/api`
 const WS_BASE = import.meta.env.DEV ? 'ws://localhost:8000/ws' : `ws://${window.location.hostname}:8000/ws`
@@ -116,10 +117,10 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
   const [cats,setCats]=useState(['general']); const [submitting,setSubmitting]=useState(false);
   const isAdmin=user?.role==='founder'||user?.role==='ambassador';
   const [isAnon,setIsAnon]=useState(isAdmin?false:true); const [hideUid,setHideUid]=useState(false);
-  const submit=async e=>{e.preventDefault(); const title=tRef.current?.value?.trim(),content=cRef.current?.value?.trim(); if(!title||!content)return; setSubmitting(true);
+  const submit=async e=>{e.preventDefault(); if(!user?.id){toast.error('登录已失效，请重新登录');return;} const title=tRef.current?.value?.trim(),content=cRef.current?.value?.trim(); if(!title||!content)return; setSubmitting(true);
     const dn=isAdmin?user.nickname:(isAnon?genNick():user.nickname);
     const hu=isAdmin?false:(isAnon||hideUid);
-    try{const r=await fetch(`${API_BASE}/posts/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,category:cats.join(','),forum,user_id:user.id,display_name:dn,user_uid:user.uid,user_school:user.school_id,hide_uid:hu,is_announcement:false})});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'发布失败')}tRef.current.value='';cRef.current.value='';setCats(['general']);setHideUid(false);onPostCreated();toast.success('发布成功')}catch(e){toast.error(e.message)}finally{setSubmitting(false)}}
+    try{const r=await fetch(`${API_BASE}/posts/`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,content,category:cats.join(','),forum,user_id:user.id,display_name:dn,user_uid:user.uid,user_school:user.school_id,hide_uid:hu,is_announcement:false})});if(!r.ok){const d=await r.json().catch(()=>({}));const msg=Array.isArray(d.detail)?d.detail.map(x=>x.msg||(x.loc||[]).join('.')).join('；'):(typeof d.detail==='string'?d.detail:'发布失败');throw new Error(msg)}tRef.current.value='';cRef.current.value='';setCats(['general']);setHideUid(false);onPostCreated();toast.success('发布成功')}catch(e){toast.error(e.message)}finally{setSubmitting(false)}}
   return <div className="glass-card create-post-card"><h3>发布新帖子</h3><form onSubmit={submit} className="create-post-form"><input ref={tRef} type="text" placeholder="帖子标题" className="glass-input" required/><textarea ref={cRef} placeholder="分享你的想法..." className="glass-textarea" required rows={4}/><div className="forum-select"><label className="forum-label">发布到：</label><div className="forum-options">{visibleForums.map(f=><button key={f.code} type="button" className={`forum-option ${forum===f.code?'active':''}`} onClick={()=>setForum(f.code)}>{f.code==='main'?'🏠 ':'🏫 '}{f.name}</button>)}</div></div>{!isAdmin&&<div className="post-options"><label className="checkbox-label"><input type="checkbox" checked={isAnon} onChange={e=>setIsAnon(e.target.checked)}/><span>匿名发布</span></label><label className="checkbox-label"><input type="checkbox" checked={hideUid} onChange={e=>setHideUid(e.target.checked)}/><span>隐藏 UID</span></label></div>}<div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting}>{submitting?'发布中...':'发布'}</button></form></div>
 }
 
@@ -302,6 +303,66 @@ const ProfilePage = ({user,setUser}) => {
   return <div className="profile-page"><div className="glass-card profile-card"><label className="avatar-upload"><img src={user.avatar||`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=async ev=>{const r=await fetch(`${API_BASE}/users/${user.id}`,{method:'PUT',headers:_auth,body:JSON.stringify({avatar:ev.target.result})});if(r.ok){const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}};reader.readAsDataURL(f)}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div></div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={save}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div></div></div></div></div>
 }
 
+// ── TarotPage（塔罗占卜：过去 / 现在 / 未来 三张时间牌阵）──
+const TarotPage = () => {
+  const toast = useToast()
+  const todayKey = 'treehole_tarot_' + new Date().toISOString().slice(0, 10)
+  const [drawn, setDrawn] = useState(() => { try { return JSON.parse(localStorage.getItem(todayKey) || 'null') } catch { return null } })
+  const [revealed, setRevealed] = useState(() => drawn ? [true, true, true] : [false, false, false])
+  const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
+  const cardRefs = [r0, r1, r2]
+
+  const draw = () => {
+    const deck = [...TAROT_DECK]
+    for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]] }
+    const picks = deck.slice(0, 3).map(c => ({ ...c, reversed: Math.random() < 0.5 }))
+    setDrawn(picks); setRevealed([false, false, false])
+    try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
+    setTimeout(() => {
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, y: 26, duration: .5, delay: i * .09, ease: 'power2.out', clearProps: 'opacity,transform' }) })
+    }, 30)
+  }
+
+  const flip = (i) => {
+    if (!drawn || revealed[i]) return
+    setRevealed(p => { const n = [...p]; n[i] = true; return n })
+  }
+
+  return <div className="tarot-page">
+    <div className="glass-card tarot-hero">
+      <h2>🔮 塔罗占卜</h2>
+      <p className="tarot-sub">静下心，想着你此刻的疑问——为「过去 · 现在 · 未来」各抽一张牌。</p>
+      {!drawn
+        ? <button className="glass-button btn-primary tarot-start" onClick={draw}>开始抽牌</button>
+        : <>
+            <div className="tarot-spread">
+              {drawn.map((card, i) => (
+                <div className="tarot-col" key={i}>
+                  <div className="tarot-pos">{TAROT_POSITIONS[i]}</div>
+                  <div className={`tarot-card ${revealed[i] ? 'flipped' : ''}`} onClick={() => flip(i)} ref={cardRefs[i]}>
+                    <div className="tarot-inner">
+                      <div className="tarot-face tarot-back"><span className="tarot-back-sym">🔮</span><span className="tarot-back-hint">点击翻牌</span></div>
+                      <div className="tarot-face tarot-front">
+                        <div className="tarot-icon">{card.icon}</div>
+                        <div className="tarot-name">{card.name}</div>
+                        <div className={`tarot-ori ${card.reversed ? 'rev' : ''}`}>{card.reversed ? '逆位' : '正位'}</div>
+                        <div className="tarot-mean">{card.reversed ? card.reversed : card.upright}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="tarot-summary">
+              今日牌阵：{drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}`).join('　')}
+            </div>
+            <button className="glass-button tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); toast.success('已重新洗牌') }}>重新洗牌</button>
+          </>}
+    </div>
+  </div>
+}
+
 // ── App main ──
 function App() {
   const [curPage,setCurPage] = useState('home')
@@ -326,7 +387,7 @@ function App() {
   useEffect(()=>{ const el=document.querySelector('.main-content'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; gsap.fromTo(el,{opacity:0,y:12},{opacity:1,y:0,duration:.3,ease:'power2.out'}) },[curPage])
   // 分类标签错落入场（与帖子卡片呼应）
   useEffect(()=>{ const el=document.querySelector('.category-tabs'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; const ctx=gsap.context(()=>{ gsap.from('.category-tab',{opacity:0,y:10,duration:.35,ease:'power2.out',stagger:.04,clearProps:'opacity,transform'}) }); return ()=>ctx.revert(); },[activeCat])
-  useEffect(()=>{ const saved=localStorage.getItem('user'); if(saved){try{setUser(JSON.parse(saved))}catch{localStorage.removeItem('user')}} },[])
+  useEffect(()=>{ const saved=localStorage.getItem('user'); if(saved){try{const u=JSON.parse(saved); if(u&&typeof u.id==='number'){setUser(u)}else{localStorage.removeItem('user');localStorage.removeItem('token')}}catch{localStorage.removeItem('user')} } },[])
   useEffect(()=>{ if(user) fetchPosts() },[user,fetchPosts])
 
   // 载入当前用户的星标记录（localStorage 持久化，避免刷新后丢失高亮）
@@ -383,7 +444,7 @@ function App() {
     {!user ? <LoginPage onLogin={handleLogin} onSwitchRegister={()=>setIsRegister(true)}/>
     : selectedPost ? <div className="app"><PostDetail post={selectedPost} user={user} onBack={()=>setSelectedPost(null)} onRefresh={fetchPosts} myStars={myStars} onToggleStar={toggleStar}/></div>
     : <div className="app">
-      <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button><button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>聊天室</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button></div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<span className="user-nickname">{user.nickname}</span></div></nav>
+      <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button><button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>聊天室</button><button className={curPage==='tarot'?'active':''} onClick={()=>setCurPage('tarot')}>🔮 塔罗</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button></div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<span className="user-nickname">{user.nickname}</span></div></nav>
       <main className="main-content">
         {curPage==='home'&&<div className="home-page">
           {user&&<div className="glass-card create-post-card"><h3>发布新帖子</h3><PostForm user={user} visibleForums={getVisibleForums()} onPostCreated={fetchPosts}/></div>}
@@ -394,6 +455,7 @@ function App() {
           {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>:<div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><span className="post-author-name-small">{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>CATEGORIES.find(x=>x.id===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p><div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;fetch(`${API_BASE}/posts/${p.id}?user_id=${user.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button>}<StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div></div>)}</div>}
         </div>}
         {curPage==='chat'&&<div className="chat-page"><div className="glass-card chat-container"><ChatRoom/></div></div>}
+        {curPage==='tarot'&&<TarotPage/>}
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser}/>}
       </main>
