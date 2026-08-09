@@ -311,6 +311,7 @@ const TarotPage = () => {
   const [revealed, setRevealed] = useState(() => drawn ? [true, true, true] : [false, false, false])
   const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
   const cardRefs = [r0, r1, r2]
+  const reduce = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const draw = () => {
     const deck = [...TAROT_DECK]
@@ -319,15 +320,24 @@ const TarotPage = () => {
     setDrawn(picks); setRevealed([false, false, false])
     try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
     setTimeout(() => {
-      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, y: 26, duration: .5, delay: i * .09, ease: 'power2.out', clearProps: 'opacity,transform' }) })
+      if (reduce()) return
+      cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, scale: .5, y: -130, rotation: -10, duration: .55, delay: i * .12, ease: 'back.out(1.5)', clearProps: 'opacity,transform' }) })
     }, 30)
   }
 
   const flip = (i) => {
     if (!drawn || revealed[i]) return
     setRevealed(p => { const n = [...p]; n[i] = true; return n })
+    if (!reduce() && cardRefs[i].current) gsap.fromTo(cardRefs[i].current, { scale: .92 }, { scale: 1, duration: .4, ease: 'back.out(2)' })
   }
+
+  const guidance = !drawn ? '' : (() => {
+    const rev = drawn.filter(c => c.reversed).length
+    const now = drawn[1]
+    const head = rev === 0 ? '三牌皆正位，' : rev === 3 ? '三牌皆逆位，' : rev === 1 ? '一牌轻逆，' : '两牌逆位，'
+    const tail = now.reversed ? `当下「${now.name}」逆位，宜缓不宜急。` : `当下「${now.name}」正位，顺势而行。`
+    return head + tail
+  })()
 
   return <div className="tarot-page">
     <div className="glass-card tarot-hero">
@@ -357,6 +367,7 @@ const TarotPage = () => {
             <div className="tarot-summary">
               今日牌阵：{drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}`).join('　')}
             </div>
+            {guidance && <div className="tarot-guidance">✦ {guidance}</div>}
             <button className="glass-button tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); toast.success('已重新洗牌') }}>重新洗牌</button>
           </>}
     </div>
