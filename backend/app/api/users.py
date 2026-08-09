@@ -141,22 +141,33 @@ def update_user(
     current: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    if current.id != user_id and current.role not in ("founder", "ambassador"):
+    target = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    is_self = current.id == user_id
+    is_admin = current.role in ("founder", "ambassador")
+
+    if not is_self and not is_admin:
         raise HTTPException(status_code=403, detail="无权修改他人信息")
+
+    # 密码只能本人修改
+    if update.password is not None:
+        if not is_self:
+            raise HTTPException(status_code=403, detail="无权限修改他人密码")
+        if not update.password.strip():
+            raise HTTPException(status_code=400, detail="密码不能为空")
+        target.password = hashlib.sha256(update.password.encode()).hexdigest()
 
     if update.nickname is not None:
         if not update.nickname.strip():
             raise HTTPException(status_code=400, detail="账户名不能为空")
-        current.nickname = update.nickname.strip()
+        target.nickname = update.nickname.strip()
     if update.avatar is not None:
-        current.avatar = update.avatar
-    if update.password is not None:
-        if not update.password.strip():
-            raise HTTPException(status_code=400, detail="密码不能为空")
-        current.password = hashlib.sha256(update.password.encode()).hexdigest()
+        target.avatar = update.avatar
     if update.is_anonymous is not None:
-        current.is_anonymous = update.is_anonymous
+        target.is_anonymous = update.is_anonymous
 
     db.commit()
-    db.refresh(current)
-    return current
+    db.refresh(target)
+    return target

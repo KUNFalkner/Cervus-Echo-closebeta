@@ -7,6 +7,7 @@ import logging
 from app.models.database import SessionLocal
 from app.models.message import Message
 from app.models.user import User
+from app.services.mute import is_muted, mute_message
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,20 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             user_id = message.get("user_id")
             if not isinstance(user_id, int):
                 user_id = None
+
+            # 禁言拦截：仅向发送者回送错误帧，不影响房间其他人
+            if user_id is not None:
+                db = SessionLocal()
+                try:
+                    sender = db.query(User).filter(User.id == user_id).first()
+                    if sender and is_muted(sender):
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "detail": mute_message(sender),
+                        }, ensure_ascii=False))
+                        continue
+                finally:
+                    db.close()
 
             msg_id, created_at = save_message(room_id, user_id, content)
 

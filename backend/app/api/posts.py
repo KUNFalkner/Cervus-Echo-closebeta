@@ -8,6 +8,7 @@ from app.models.user import User as UserModel
 from app.models.star import UserStar
 from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, Comment as CommentSchema
 from app.services.sensitive_words import sensitive_filter
+from app.services.mute import is_muted, mute_message
 
 router = APIRouter()
 
@@ -55,6 +56,10 @@ def create_post(post: PostCreate, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
+
+    # 禁言拦截
+    if is_muted(user):
+        raise HTTPException(status_code=403, detail=mute_message(user))
 
     # 检查论坛权限
     if not can_post_in_forum(user, post.forum):
@@ -218,6 +223,11 @@ def create_comment(post_id: int, comment: CommentCreate, db: Session = Depends(g
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
+    user = db.query(UserModel).filter(UserModel.id == comment.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if is_muted(user):
+        raise HTTPException(status_code=403, detail=mute_message(user))
     comment.content = sensitive_filter.filter_text(comment.content)
     db_comment = CommentModel(**comment.model_dump())
     db.add(db_comment)

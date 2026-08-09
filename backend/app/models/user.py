@@ -20,4 +20,5 @@ class User(Base):
     wechat_openid = Column(String, nullable=True, unique=True)
     star_count = Column(Integer, default=0)  # 收到的 Star 数
     karma = Column(Integer, default=0)  # 声望值
+    muted_until = Column(DateTime(timezone=True), nullable=True)  # 禁言截止时间，NULL=未禁言
     created_at = Column(DateTime(timezone=True), server_default=func.now())

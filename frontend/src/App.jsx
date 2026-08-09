@@ -215,14 +215,44 @@ const ChatRoom = () => {
 
 // ── AdminPage ──
 const AdminPage = ({user}) => {
-  const toast=useToast(); const [stats,setStats]=useState(null); const [ulist,setUlist]=useState([]); const [reports,setReports]=useState([]); const [tab,setTab]=useState('stats'); const [loading,setLoading]=useState(true)
+  const toast=useToast(); const [stats,setStats]=useState(null); const [ulist,setUlist]=useState([]); const [reports,setReports]=useState([]); const [tab,setTab]=useState('stats'); const [loading,setLoading]=useState(true); const [muteMins,setMuteMins]=useState(60)
   useEffect(()=>{ const f=async()=>{ setLoading(true); try{ const [sr,ur,rr]=await Promise.all([fetch(`${API_BASE}/admin/stats?user_id=${user.id}`),fetch(`${API_BASE}/admin/users?user_id=${user.id}`),fetch(`${API_BASE}/admin/reports?user_id=${user.id}`)]); if(sr.ok)setStats(await sr.json()); if(ur.ok)setUlist(await ur.json()); if(rr.ok)setReports(await rr.json()) }catch(e){toast.error('加载失败')} finally{setLoading(false)} }; f() },[])
   const updReport = async(id,st)=>{ try{ await fetch(`${API_BASE}/admin/reports/${id}/status?user_id=${user.id}&status=${st}`,{method:'PUT'}); setReports(rs=>rs.map(x=>x.id===id?{...x,status:st}:x)); toast.success('状态已更新') }catch{toast.error('更新失败')} }
+  // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
+  const isAdminRole = user.role==='founder'||user.role==='ambassador'
+  const canManage = (u)=> isAdminRole && u.role==='student' && (user.role==='founder' || u.school_id===user.school_id)
+  const fmtMute = (iso)=> iso? new Date(iso).toLocaleString('zh-CN',{hour12:false}) : null
+  const isMutedNow = (iso)=>{ if(!iso) return false; return new Date(iso).getTime() > Date.now() }
+  const setMuted = (id,iso)=> setUlist(us=>us.map(x=>x.id===id?{...x,muted_until:iso}:x))
+  const muteUser = async(u)=>{ try{ const r=await fetch(`${API_BASE}/admin/users/${u.id}/mute?user_id=${user.id}&minutes=${muteMins}`,{method:'PUT'}); if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'禁言失败')} const d=await r.json(); setMuted(u.id,d.muted_until); toast.success(`已禁言 ${fmtMute(d.muted_until)} 解禁`) }catch(e){toast.error(e.message)} }
+  const unmuteUser = async(u)=>{ try{ const r=await fetch(`${API_BASE}/admin/users/${u.id}/unmute?user_id=${user.id}`,{method:'PUT'}); if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.detail||'解禁失败')} setMuted(u.id,null); toast.success('已解除禁言') }catch(e){toast.error(e.message)} }
   if(loading) return <Spinner/>
   return <div className="admin-page"><h2 className="admin-title">管理后台</h2>
   <div className="admin-tabs"><button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button></div>
   {tab==='stats'&&stats&&<div className="admin-stats"><div className="glass-card stat-card"><span className="stat-number">{stats.total_users}</span><span className="stat-desc">注册用户</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_posts}</span><span className="stat-desc">帖子总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_comments}</span><span className="stat-desc">评论总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.pending_reports}</span><span className="stat-desc">待处理举报</span></div></div>}
-  {tab==='users'&&<div className="admin-list">{ulist.map(u=><div key={u.id} className="glass-card admin-user-card"><div className="admin-user-info"><span className="uid-badge">{u.uid||'------'}</span><span className="admin-username">@{u.username}</span><span className="admin-nickname">{u.nickname}</span>{u.role==='founder'&&<span className="role-badge founder">创始人</span>}{u.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<span>{getSchoolName(u.school_id)}</span></div><div className="admin-user-meta"><span>匿名: {u.is_anonymous?'是':'否'}</span><span>注册: {u.created_at?new Date(u.created_at).toLocaleDateString('zh-CN'):'-'}</span></div></div>)}</div>}
+  {tab==='users'&&<div className="admin-list">
+    <div className="mute-bar">禁言时长：
+      <select className="glass-input" value={muteMins} onChange={e=>setMuteMins(Number(e.target.value))}>
+        <option value={30}>30 分钟</option>
+        <option value={60}>1 小时</option>
+        <option value={360}>6 小时</option>
+        <option value={1440}>1 天</option>
+        <option value={4320}>3 天</option>
+        <option value={10080}>7 天</option>
+      </select>
+      <span className="mute-hint">仅可禁言{user.role==='founder'?'全部':'本校'}学生，不可禁言管理员</span>
+    </div>
+    {ulist.map(u=><div key={u.id} className="glass-card admin-user-card">
+      <div className="admin-user-info"><span className="uid-badge">{u.uid||'------'}</span><span className="admin-username">@{u.username}</span><span className="admin-nickname">{u.nickname}</span>{u.role==='founder'&&<span className="role-badge founder">创始人</span>}{u.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<span>{getSchoolName(u.school_id)}</span></div>
+      <div className="admin-user-meta"><span>匿名: {u.is_anonymous?'是':'否'}</span><span>注册: {u.created_at?new Date(u.created_at).toLocaleDateString('zh-CN'):'-'}</span></div>
+      {isMutedNow(u.muted_until)&&<div className="mute-status">已禁言至 {fmtMute(u.muted_until)}</div>}
+      {canManage(u)&&<div className="admin-user-actions">
+        {isMutedNow(u.muted_until)
+          ? <button className="save-btn" onClick={()=>unmuteUser(u)}>解除禁言</button>
+          : <button className="danger-btn" onClick={()=>muteUser(u)}>禁言</button>}
+      </div>}
+    </div>)}
+  </div>}
   {tab==='reports'&&<div className="admin-list">{reports.length===0?<Empty icon="✅" title="暂无举报" desc="一切正常"/>:reports.map(r=><div key={r.id} className="glass-card admin-report-card"><div className="report-header"><span className={`report-status ${r.status}`}>{r.status==='pending'?'待处理':r.status==='reviewed'?'已审核':'已解决'}</span><span className="report-time">{r.created_at?new Date(r.created_at).toLocaleString('zh-CN'):'-'}</span></div><div className="report-body"><p><strong>举报者:</strong> {r.reporter_nickname} ({r.reporter_uid})</p><p><strong>目标:</strong> {r.target_type==='post'?'帖子':'评论'} #{r.target_id}</p><p><strong>原因:</strong> {r.reason}</p></div>{r.status==='pending'&&<div className="report-actions"><button className="save-btn" onClick={()=>updReport(r.id,'reviewed')}>标记已审核</button><button className="save-btn" onClick={()=>updReport(r.id,'resolved')}>标记已解决</button></div>}</div>)}</div>}
   </div>
 }
