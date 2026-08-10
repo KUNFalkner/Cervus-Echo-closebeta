@@ -578,3 +578,29 @@ body[data-time="day"] .login-input:focus {
 .tarot-card { position: relative; }
 .tarot-spark { position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; pointer-events: none; z-index: 6; }
 
+/* 逆位燃烬 / 裂纹视觉 */
+.tarot-crack { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; opacity: .55; }
+.tarot-crack polyline { fill: none; stroke: rgba(35,18,8,.6); stroke-width: 1.1; stroke-linecap: round; filter: drop-shadow(0 0 2px rgba(255,120,40,.7)); animation: emberFlicker 2.6s ease-in-out infinite; }
+.tarot-card.is-rev .tarot-front::before {
+  content: ''; position: absolute; inset: 0; border-radius: 16px; pointer-events: none; z-index: 1;
+  box-shadow: inset 0 0 26px 6px rgba(255,90,30,.35); animation: emberFlicker 2.4s ease-in-out infinite;
+}
+.tarot-card.is-rev .tarot-front::after { color: rgba(255,120,50,.22); }  /* 逆位水印转燃烬橙 */
+@keyframes emberFlicker { 0%,100% { opacity: .8; } 50% { opacity: 1; } }
+
+/* 抽牌粒子拖尾 */
+.tarot-trail { position: absolute; width: 5px; height: 5px; border-radius: 50%; pointer-events: none; z-index: 6; }
+
+/* 揭示后卡牌悬浮呼吸光 */
+.tarot-card.flipped { animation: tarotFloat 4.5s ease-in-out infinite; }
+.tarot-card.flipped .tarot-front { animation: tarotBreathe 4.5s ease-in-out infinite; }
+@keyframes tarotFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes tarotBreathe {
+  0%,100% { box-shadow: 0 8px 24px rgba(0,0,0,.18), inset 0 0 0 1px var(--edge, transparent), 0 0 16px var(--glow, transparent); }
+  50% { box-shadow: 0 12px 30px rgba(0,0,0,.22), inset 0 0 0 1px var(--edge, transparent), 0 0 30px var(--glow, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tarot-card.flipped, .tarot-card.flipped .tarot-front { animation: none; }
+  .tarot-crack polyline, .tarot-card.is-rev .tarot-front::before { animation: none; }
+}
+

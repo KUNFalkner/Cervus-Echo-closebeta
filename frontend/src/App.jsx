@@ -332,7 +332,12 @@ const TarotPage = () => {
       try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
       setTimeout(() => {
         if (reduce()) return
-        cardRefs.forEach((r, i) => { if (r.current) gsap.from(r.current, { opacity: 0, scale: .4, y: -170, rotation: -12, duration: .6, delay: i * .14, ease: 'back.out(1.6)', clearProps: 'opacity,transform' }) })
+        cardRefs.forEach((r, i) => {
+          if (!r.current) return
+          gsap.from(r.current, { opacity: 0, scale: .4, y: -170, rotation: -12, duration: .6, delay: i * .14, ease: 'back.out(1.6)', clearProps: 'opacity,transform' })
+          const edge = (getComputedStyle(r.current).getPropertyValue('--edge') || '#fff').trim()
+          spawnTrail(r.current, edge)
+        })
       }, 30)
     }, 560)
   }
@@ -349,6 +354,21 @@ const TarotPage = () => {
       const dist = 36 + Math.random() * 54
       gsap.fromTo(p, { x: 0, y: 0, scale: .3, opacity: 1 },
         { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist, scale: 0, opacity: 0, duration: .7 + Math.random() * .4, ease: 'power2.out', onComplete: () => p.remove() })
+    }
+  }
+
+  const spawnTrail = (el, color) => {
+    if (!el || reduce()) return
+    for (let k = 0; k < 10; k++) {
+      const p = document.createElement('span')
+      p.className = 'tarot-trail'
+      if (color) { p.style.background = color; p.style.boxShadow = '0 0 8px ' + color }
+      p.style.left = (18 + Math.random() * 64) + '%'
+      p.style.top = (58 + Math.random() * 32) + '%'
+      el.appendChild(p)
+      gsap.fromTo(p, { y: 0, opacity: 0, scale: .6 },
+        { y: -38 - Math.random() * 46, opacity: 1, duration: .5, delay: Math.random() * .55, ease: 'power1.out',
+          onComplete: () => gsap.to(p, { opacity: 0, duration: .5, onComplete: () => p.remove() }) })
     }
   }
 
@@ -402,6 +422,16 @@ const TarotPage = () => {
                       <div className="tarot-inner">
                         <div className="tarot-face tarot-back"><span className="tarot-back-sym">🔮</span><span className="tarot-back-hint">点击翻牌</span></div>
                         <div className="tarot-face tarot-front">
+                          {revealed[i] && card.reversed && (
+                            <svg className="tarot-crack" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden>
+                              <polyline points="50,75 42,55 49,40 38,22" />
+                              <polyline points="50,75 60,60 56,42 67,27" />
+                              <polyline points="50,75 31,80 19,69 8,83" />
+                              <polyline points="50,75 69,82 83,73 93,87" />
+                              <polyline points="50,75 50,100 44,119 53,141" />
+                              <polyline points="50,75 56,99 63,117 58,139" />
+                            </svg>
+                          )}
                           <span className="tarot-corner">{th.label.split(' ')[0]}</span>
                           <div className="tarot-top">
                             <span className="tarot-icon">{card.icon}</span>
