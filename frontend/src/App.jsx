@@ -337,11 +337,30 @@ const TarotPage = () => {
     }, 560)
   }
 
+  const spawnBurst = (el, color) => {
+    if (!el || reduce()) return
+    const n = 14
+    for (let k = 0; k < n; k++) {
+      const p = document.createElement('span')
+      p.className = 'tarot-spark'
+      if (color) { p.style.background = color; p.style.boxShadow = '0 0 8px ' + color }
+      el.appendChild(p)
+      const ang = (Math.PI * 2 * k) / n + Math.random() * .5
+      const dist = 36 + Math.random() * 54
+      gsap.fromTo(p, { x: 0, y: 0, scale: .3, opacity: 1 },
+        { x: Math.cos(ang) * dist, y: Math.sin(ang) * dist, scale: 0, opacity: 0, duration: .7 + Math.random() * .4, ease: 'power2.out', onComplete: () => p.remove() })
+    }
+  }
+
   const flip = (i) => {
     if (!drawn) return
     if (!revealed[i]) {
       setRevealed(p => { const n = [...p]; n[i] = true; return n })
-      if (!reduce() && cardRefs[i].current) gsap.fromTo(cardRefs[i].current, { scale: .9 }, { scale: 1, duration: .45, ease: 'back.out(2)' })
+      if (cardRefs[i].current) {
+        if (!reduce()) gsap.fromTo(cardRefs[i].current, { scale: .9 }, { scale: 1, duration: .45, ease: 'back.out(2)' })
+        const edge = (getComputedStyle(cardRefs[i].current).getPropertyValue('--edge') || '#fff').trim()
+        spawnBurst(cardRefs[i].current, edge)
+      }
     } else {
       setOpenIdx(openIdx === i ? -1 : i)
     }
