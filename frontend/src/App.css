@@ -814,3 +814,9 @@ body[data-time="day"] .login-input:focus {
   .toast { animation: none; }
   .toast.leaving { animation: none; }
 }
+
+/* T12 新评论滑入 + 乐观更新 */
+.comment-enter { animation: commentSlideIn .42s cubic-bezier(.22,1,.36,1) both; }
+@keyframes commentSlideIn { from { opacity:0; transform: translateX(42px) scale(.98); } to { opacity:1; transform: none; } }
+.comment-pending { opacity:.6; filter: saturate(.7); }
+@media (prefers-reduced-motion: reduce){ .comment-enter{ animation:none; } }
