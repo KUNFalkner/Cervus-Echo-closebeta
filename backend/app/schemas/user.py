@@ -20,6 +20,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     is_anonymous: Optional[bool] = None
     real_name: Optional[str] = None
+    profile_bg: Optional[str] = None
 
 class User(UserBase):
     id: int
@@ -31,6 +32,7 @@ class User(UserBase):
     class_number: Optional[int] = None
     student_number: Optional[int] = None
     school_id: str = "ZC"
+    profile_bg: str = ""
     star_count: int = 0
     karma: int = 0
     banned: bool = False
@@ -46,6 +48,7 @@ class PublicUser(BaseModel):
     avatar: Optional[str] = None
     role: str = "student"
     school_id: str = "ZC"
+    profile_bg: str = ""
     karma: int = 0
     is_anonymous: bool = True
 

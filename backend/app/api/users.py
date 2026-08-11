@@ -184,6 +184,8 @@ def update_user(
         target.avatar = update.avatar
     if update.is_anonymous is not None:
         target.is_anonymous = update.is_anonymous
+    if update.profile_bg is not None:
+        target.profile_bg = update.profile_bg
 
     db.commit()
     db.refresh(target)
