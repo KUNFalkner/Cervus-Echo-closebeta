@@ -615,8 +615,8 @@ function App() {
       </main>
       <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button><button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">聊天</span></button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">⚙️</span><span className="nav-label">管理</span></button>}<button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={openNotif}><span className="nav-icon">🔔{unread>0&&<span className="notif-badge">{unread>99?'99+':unread}</span>}</span><span className="nav-label">通知</span></button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button></nav>
     </div>}
-    <TarotOrb onOpen={() => setTarotOpen(true)} />
-    <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} />
+    {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
+    <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}
   </ToastProvider>
 }
 
