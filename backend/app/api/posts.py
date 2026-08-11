@@ -108,6 +108,8 @@ def create_post(
     post_data["username"] = user.username
     post_data["user_uid"] = user.uid
     post_data["user_school"] = user.school_id
+    # 图片 URL 列表落库为逗号分隔字符串
+    post_data["images"] = ",".join(post.images) if post.images else None
 
     db_post = PostModel(**post_data)
     db.add(db_post)

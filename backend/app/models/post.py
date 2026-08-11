@@ -17,6 +17,7 @@ class Post(Base):
     display_name = Column(String)
     user_uid = Column(String)
     user_school = Column(String)
+    images = Column(String, default=None)  # 逗号分隔的图片 URL 列表
     hide_uid = Column(Boolean, default=False)
     like_count = Column(Integer, default=0)
     star_count = Column(Integer, default=0)

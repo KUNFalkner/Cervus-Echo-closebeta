@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 class PostBase(BaseModel):
     title: str
@@ -9,6 +9,7 @@ class PostBase(BaseModel):
     forum: str = "main"  # "main" 或学校代码
     is_announcement: bool = False
     tags: Optional[str] = None
+    images: Optional[List[str]] = None  # 图片 URL 列表
 
 class PostCreate(PostBase):
     # user_id / user_uid / user_school 不再由客户端提供，一律取自 JWT 认证结果
@@ -54,6 +55,15 @@ class Post(PostBase):
     @classmethod
     def _default_forum(cls, v):
         return "main" if v is None else v
+
+    @field_validator("images", mode="before")
+    @classmethod
+    def _split_images(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [u for u in v.split(",") if u.strip()]
+        return v or []
 
     class Config:
         from_attributes = True

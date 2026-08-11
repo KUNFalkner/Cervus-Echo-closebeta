@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from app.api import posts, users, chat, reports, admin, schools, notifications
+from app.api import posts, users, chat, reports, admin, schools, notifications, uploads
 
 app = FastAPI(
     title="校园树洞社区 API",
@@ -55,6 +55,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(schools.router, prefix="/api/schools", tags=["schools"])
 app.include_router(notifications.router)
+app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 
 @app.get("/")
 async def root():
@@ -75,6 +76,11 @@ _AVATAR_DIR = pathlib.Path(__file__).resolve().parent.parent / "static" / "avata
 # 否则 /{full_path:path} 会抢先匹配并把图片请求回成 index.html。
 _AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/avatars", StaticFiles(directory=str(_AVATAR_DIR)), name="avatars")
+
+# 帖子图片：用户上传到 static/uploads/，与前端同源托管
+_UPLOAD_DIR = pathlib.Path(__file__).resolve().parent.parent / "static" / "uploads"
+_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(_UPLOAD_DIR)), name="uploads")
 
 if _DIST.exists():
     _assets = _DIST / "assets"
