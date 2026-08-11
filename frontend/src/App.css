@@ -751,7 +751,28 @@ body[data-time="day"] .login-input:focus {
 .notif-text { font-size: 0.85rem; color: var(--ink); margin: 0; }
 .notif-post { font-size: 0.75rem; color: var(--muted); margin: 0.15rem 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notif-time { font-size: 0.7rem; color: var(--faint); }
-.notif-dot { position: absolute; top: 0.8rem; right: 0.5rem; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ee5a24); }
+.notif-dot { position: absolute; top: 0.8rem; right: 0.5rem; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ee5a24); animation: notif-dot-pulse 1.8s ease-in-out infinite; transform-origin: center; }
+/* 红点：数字变化(key 改变触发重挂载)时弹入一次，平时呼吸脉冲 */
+.notif-badge { animation: notif-badge-pop .42s cubic-bezier(.34,1.56,.64,1), notif-badge-pulse 1.8s ease-in-out .42s infinite; transform-origin: center; }
+/* 面板初始隐藏，由 GSAP 接管入场，避免首帧闪烁；reduced-motion 下 JS 会直接置为可见 */
+.notif-panel { opacity: 0; }
+@keyframes notif-badge-pop {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes notif-badge-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,107,107,.55); }
+  50%     { box-shadow: 0 0 0 5px rgba(255,107,107,0); }
+}
+@keyframes notif-dot-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255,107,107,.5); transform: scale(1); }
+  50%     { box-shadow: 0 0 0 4px rgba(255,107,107,0); transform: scale(1.15); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .notif-badge, .notif-dot { animation: none; }
+  .notif-panel { opacity: 1; }
+}
 
 /* Admin: banned + report filter */
 .role-badge.banned { background: linear-gradient(135deg,#555,#333); color: #fff; }
