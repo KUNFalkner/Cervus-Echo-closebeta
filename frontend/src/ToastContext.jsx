@@ -11,6 +11,8 @@ export const ToastProvider = ({ children }) => {
   const push = (type, m) => {
     const id = ++tidRef.current
     setToasts(p => [...p, { id, msg: m, type }])
+    // 先标记离场（触发 CSS 退出动画），再真正移除
+    setTimeout(() => setToasts(p => p.map(t => t.id === id ? { ...t, leaving: true } : t)), 2700)
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3000)
   }
   const toast = { success: m => push('success', m), error: m => push('error', m), info: m => push('info', m) }
@@ -18,7 +20,7 @@ export const ToastProvider = ({ children }) => {
     <ToastCtx.Provider value={toast}>
       {children}
       <div className="toast-container">
-        {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}`}>{t.msg}</div>)}
+        {toasts.map(t => <div key={t.id} className={`toast toast-${t.type}${t.leaving ? ' leaving' : ''}`}>{t.msg}</div>)}
       </div>
     </ToastCtx.Provider>
   )

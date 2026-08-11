@@ -345,9 +345,12 @@ body {
 
 /* Toast */
 .toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
-.toast { background: var(--toast-bg); backdrop-filter: blur(12px); border-radius: 12px; padding: 0.75rem 1.25rem; color: #fff; font-size: 0.85rem; }
+.toast { background: var(--toast-bg); backdrop-filter: blur(12px); border-radius: 12px; padding: 0.75rem 1.25rem; color: #fff; font-size: 0.85rem; animation: toast-in .3s cubic-bezier(.22,1,.36,1) both; }
+.toast.leaving { animation: toast-out .3s ease forwards; }
 .toast-success { border-left: 3px solid #4ade80; }
 .toast-error { border-left: 3px solid #f87171; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(44px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(44px) scale(.96); } }
 
 /* Chat */
 .chat-room { display: flex; flex-direction: column; height: 60vh; }
@@ -528,8 +531,8 @@ body[data-time="day"] .login-input:focus {
 }
 
 /* ── Micro-interactions (liquid-glass feel) ── */
-.post-card { will-change: transform; }
-.post-card:hover { transform: translateY(-4px); box-shadow: var(--card-hover-shadow); }
+.post-card { will-change: transform; transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease, border-color .28s ease; }
+.post-card:hover { transform: translateY(-6px) scale(1.012); box-shadow: var(--card-hover-shadow), 0 0 0 1px rgba(143,166,255,.35), 0 14px 34px rgba(80,110,220,.22); border-color: rgba(143,166,255,.45); }
 .glass-button:active { transform: scale(.96); }
 .login-btn { transition: transform .12s ease, opacity .15s ease; }
 .login-btn:active { transform: scale(.97); }
@@ -757,3 +760,15 @@ body[data-time="day"] .login-input:focus {
 .report-filter-chip { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .report-filter-chip:hover { border-color: var(--chip-active-bd); color: var(--chip-active-fg); }
 .report-filter-chip.active { background: var(--chip-active-bg); color: var(--chip-active-fg); border-color: var(--chip-active-bd); }
+
+/* ── 动效粒子（点赞/星标爆裂、浮起 +1）── */
+.fx-burst { position: fixed; z-index: 9999; font-size: 18px; line-height: 1; pointer-events: none; user-select: none; margin-left: -9px; margin-top: -9px; will-change: transform, opacity; filter: drop-shadow(0 1px 3px rgba(0,0,0,.25)); }
+.fx-float-plus { position: fixed; z-index: 9999; font-size: 13px; font-weight: 700; color: #ff7a9c; pointer-events: none; user-select: none; margin-left: -8px; margin-top: -8px; will-change: transform, opacity; text-shadow: 0 1px 4px rgba(255,120,160,.45); }
+
+/* ── 尊重「减少动态效果」偏好 ── */
+@media (prefers-reduced-motion: reduce) {
+  .post-card { transition: none; }
+  .post-card:hover { transform: none; box-shadow: var(--card-hover-shadow); border-color: transparent; }
+  .toast { animation: none; }
+  .toast.leaving { animation: none; }
+}

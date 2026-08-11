@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from 'react'
 import gsap from 'gsap'
+import { animate } from 'animejs'
 import './App.css'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
@@ -68,6 +69,65 @@ const ANIMALS = ['小猫','小狗','小兔','小熊','小狐狸','小松鼠','�
 const genNick = () => ADJS[Math.floor(Math.random()*ADJS.length)] + ANIMALS[Math.floor(Math.random()*ANIMALS.length)]
 const fmtTime = (d) => { if(!d) return ''; const dt = new Date(d.includes('Z')||d.includes('+')?d:d+'Z'); const now = new Date(); const diff = now-dt; if(diff<0||diff<60000) return '刚刚'; if(diff<3600000) return Math.floor(diff/60000)+'分钟前'; if(diff<86400000) return Math.floor(diff/3600000)+'小时前'; return `${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}` }
 
+// ── 动效工具 ──
+const prefersReduced = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+// 爱心/星光粒子爆裂（GSAP：用自身 rAF 引擎，headless 与真实浏览器表现一致）──
+function spawnBurst(anchor, glyph, count = 7) {
+  if (!anchor || prefersReduced()) return
+  const rect = anchor.getBoundingClientRect()
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement('span')
+    s.textContent = glyph
+    s.className = 'fx-burst'
+    s.style.left = cx + 'px'
+    s.style.top = cy + 'px'
+    document.body.appendChild(s)
+    const a = (-90 + (i / (count - 1) - 0.5) * 140) * Math.PI / 180
+    const dist = 34 + Math.random() * 28
+    gsap.to(s, {
+      x: Math.cos(a) * dist,
+      y: Math.sin(a) * dist,
+      scale: 0.2,
+      opacity: 0,
+      duration: 0.7,
+      ease: 'expo.out',
+      onComplete: () => s.remove()
+    })
+  }
+}
+
+// 浮起的 +1（GSAP）
+function spawnFloatPlus(anchor) {
+  if (!anchor || prefersReduced()) return
+  const rect = anchor.getBoundingClientRect()
+  const el = document.createElement('span')
+  el.textContent = '+1'
+  el.className = 'fx-float-plus'
+  el.style.left = (rect.left + rect.width / 2) + 'px'
+  el.style.top = (rect.top + rect.height / 2) + 'px'
+  document.body.appendChild(el)
+  gsap.to(el, { y: -30, opacity: 0, duration: 0.8, ease: 'power1.out', onComplete: () => el.remove() })
+}
+
+// 数字滚动组件（Anime.js 插值文本，避免与 React 受控文本冲突）
+function RollNumber({ value, className }) {
+  const ref = useRef(null)
+  const prev = useRef(value)
+  useEffect(() => {
+    const from = prev.current, to = value
+    prev.current = value
+    if (from === to || !ref.current) return
+    if (prefersReduced()) { ref.current.textContent = String(to); return }
+    const obj = { v: from }
+    animate(obj, { v: to, duration: 450, ease: 'outQuad',
+      onUpdate: () => { if (ref.current) ref.current.textContent = String(Math.round(obj.v)) } })
+  }, [value])
+  return <span ref={ref} className={className}>{value}</span>
+}
+
 function canSeeAllForums(u) { return u && (u.role==='founder'||u.role==='ambassador') }
 function canSeeUid(viewer, post) { if(!viewer||!post) return false; if(viewer.role==='founder') return true; if(viewer.role==='ambassador') return post.user_school===viewer.school_id || !post.hide_uid; return !post.hide_uid }
 
@@ -80,13 +140,52 @@ const SkeletonList = () => <div className="posts-list">{[1,2,3].map(i=><div key=
 const Empty = ({icon,title,desc}) => <div className="empty-state"><span className="empty-icon">{icon}</span><h3>{title}</h3><p>{desc}</p></div>
 const ErrorBox = ({msg,onRetry}) => <div className="error-state"><span className="error-icon">!</span><h3>出错了</h3><p>{msg}</p>{onRetry&&<button onClick={onRetry} className="retry-btn">重试</button>}</div>
 
+// ── AnimatedModal（GSAP 进出场：遮罩淡入 + 卡片缩放回弹；关闭时反向回弹再卸载）──
+const AnimatedModal = ({ onClose, className = '', children }) => {
+  const overlayRef = useRef(null)
+  const cardRef = useRef(null)
+  const closing = useRef(false)
+  const requestClose = useCallback(() => {
+    if (closing.current) return
+    closing.current = true
+    if (prefersReduced()) { onClose(); return }
+    const tl = gsap.timeline({ onComplete: onClose })
+    tl.to(cardRef.current, { opacity: 0, scale: 0.94, y: 10, duration: 0.18, ease: 'power2.in' })
+      .to(overlayRef.current, { opacity: 0, duration: 0.18 }, '<')
+  }, [onClose])
+  useEffect(() => {
+    if (prefersReduced()) return
+    const ctx = gsap.context(() => {
+      gsap.set(overlayRef.current, { opacity: 0 })
+      gsap.set(cardRef.current, { opacity: 0, scale: 0.92, y: 14 })
+      const tl = gsap.timeline()
+      tl.to(overlayRef.current, { opacity: 1, duration: 0.2, ease: 'power1.out' })
+        .to(cardRef.current, { opacity: 1, scale: 1, y: 0, duration: 0.34, ease: 'back.out(1.5)' }, '<')
+    })
+    return () => ctx.revert()
+  }, [])
+  return (
+    <div className="modal-overlay" ref={overlayRef} onClick={requestClose}>
+      <div className={`glass-card modal-card ${className}`} ref={cardRef} onClick={e => e.stopPropagation()}>
+        {typeof children === 'function' ? children({ requestClose }) : children}
+      </div>
+    </div>
+  )
+}
+
 // ── ReportModal ──
 const ReportModal = ({type,tid,onClose}) => {
   const [reason,setReason]=useState(''); const [s,setS]=useState(false); const toast=useToast()
   const submit = async () => { if(!reason.trim()) return; setS(true)
     try { const r=await apiFetch(`/reports/`,{method:'POST',body:JSON.stringify({target_type:type,target_id:tid,reason})}); if(!r.ok) throw new Error(await errMsg(r,'举报失败')); toast.success('举报已提交'); onClose() }
     catch(e){toast.error(e.message)} finally{setS(false)} }
-  return <div className="modal-overlay" onClick={onClose}><div className="glass-card modal-card" onClick={e=>e.stopPropagation()}><h3>举报内容</h3><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="请描述举报原因..." className="glass-textarea" rows={4}/><div className="modal-actions"><button className="glass-button btn-secondary" onClick={onClose}>取消</button><button className="glass-button btn-primary" onClick={submit} disabled={s||!reason.trim()}>{s?'提交中...':'提交举报'}</button></div></div></div>
+  return <AnimatedModal onClose={onClose}>
+    {({ requestClose }) => (<>
+      <h3>举报内容</h3>
+      <textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="请描述举报原因..." className="glass-textarea" rows={4}/>
+      <div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-primary" onClick={submit} disabled={s||!reason.trim()}>{s?'提交中...':'提交举报'}</button></div>
+    </>)}
+  </AnimatedModal>
 }
 
 // ── Starfield canvas (shared, time-aware) ──
@@ -162,45 +261,57 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
   return <div className="glass-card create-post-card"><h3>发布新帖子</h3><form onSubmit={submit} className="create-post-form"><input ref={tRef} type="text" placeholder="帖子标题" className="glass-input" required/><textarea ref={cRef} placeholder="分享你的想法..." className="glass-textarea" required rows={4}/><div className="forum-select"><label className="forum-label">发布到：</label><div className="forum-options">{visibleForums.map(f=><button key={f.code} type="button" className={`forum-option ${forum===f.code?'active':''}`} onClick={()=>setForum(f.code)}>{f.code==='main'?'🏠 ':'🏫 '}{f.name}</button>)}</div></div>{!isAdmin&&<div className="post-options"><label className="checkbox-label"><input type="checkbox" checked={isAnon} onChange={e=>setIsAnon(e.target.checked)}/><span>匿名发布</span></label><label className="checkbox-label"><input type="checkbox" checked={hideUid} onChange={e=>setHideUid(e.target.checked)}/><span>隐藏 UID</span></label></div>}<div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div><div className="tag-input-row"><div className="tag-chips">{tags?tags.split(',').map(x=>x.trim()).filter(Boolean).map(t=><span key={t} className="tag-chip" onClick={()=>removeTag(t)}>#{t} ✕</span>):null}<input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.key===','||e.key===' '){e.preventDefault();addTag(tagInput)}else if(e.key==='Backspace'&&!tagInput&&tags){const arr=tags.split(',').map(x=>x.trim()).filter(Boolean);arr.pop();setTags(arr.join(','))}}} placeholder={tags?'':'添加标签（回车确认，最多5个）'} className="glass-input tag-input"/></div></div><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting}>{submitting?'发布中...':'发布'}</button></form></div>
 }
 
-// ── StarButton（点赞/星标，带 GSAP 弹跳动效；替代原来整列表重绘导致的闪烁）──
+// ── StarButton（星标：GSAP 弹跳 + Anime.js 星光粒子爆裂 + 数字滚动）──
 const StarButton = ({post, starred, count, onToggle}) => {
   const ref = useRef(null)
   const handle = (e) => {
     e.stopPropagation()
-    if(ref.current && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
-      gsap.fromTo(ref.current, {scale:1}, {scale:1.35, duration:.16, ease:'back.out(3)', yoyo:true, repeat:1, clearProps:'transform'})
+    if (ref.current && !prefersReduced()) {
+      gsap.fromTo(ref.current, {scale:1}, {scale:1.3, duration:.18, ease:'back.out(3)', yoyo:true, repeat:1, clearProps:'transform'})
+      if (!starred) { spawnBurst(ref.current, '⭐', 7); spawnFloatPlus(ref.current) }
     }
     onToggle(post)
   }
-  return <button ref={ref} onClick={handle} className={`action-btn star-btn ${starred?'starred':''}`}>{starred?'⭐':'☆'} {count||0}</button>
+  return <button ref={ref} onClick={handle} className={`action-btn star-btn ${starred?'starred':''}`}>{starred?'⭐':'☆'} <RollNumber value={count||0} className="action-count"/></button>
 }
 
-// ── LikeButton（点赞，带 GSAP 弹跳动效）──
+// ── LikeButton（点赞：GSAP 弹跳 + Anime.js 爱心粒子爆裂 + 数字滚动）──
 const LikeButton = ({post, liked, count, onToggle}) => {
   const ref = useRef(null)
   const handle = (e) => {
     e.stopPropagation()
-    if(ref.current && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
-      gsap.fromTo(ref.current, {scale:1}, {scale:1.35, duration:.16, ease:'back.out(3)', yoyo:true, repeat:1, clearProps:'transform'})
+    if (ref.current && !prefersReduced()) {
+      gsap.fromTo(ref.current, {scale:1}, {scale:1.3, duration:.18, ease:'back.out(3)', yoyo:true, repeat:1, clearProps:'transform'})
+      if (!liked) { spawnBurst(ref.current, '❤️', 7); spawnFloatPlus(ref.current) }
     }
     onToggle(post)
   }
-  return <button ref={ref} onClick={handle} className={`action-btn like-btn ${liked?'liked':''}`}>{liked?'❤️':'🤍'} {count||0}</button>
+  return <button ref={ref} onClick={handle} className={`action-btn like-btn ${liked?'liked':''}`}>{liked?'❤️':'🤍'} <RollNumber value={count||0} className="action-count"/></button>
 }
 
 // ── PostDetail ──
 const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar,myLikes,onToggleLike}) => {
   const toast=useToast(); const [comments,setComments]=useState([]); const [nc,setNc]=useState(''); const [loading,setLoading]=useState(false); const [err,setErr]=useState(null); const [submitting,setSubmitting]=useState(false); const [showR,setShowR]=useState(false); const [rt,setRt]=useState({type:'post',id:0});
   const isAdmin=user?.role==='founder'||user?.role==='ambassador';
+  const rootRef=useRef(null); const closingRef=useRef(false);
+  const close=useCallback(()=>{ if(closingRef.current)return; closingRef.current=true; if(prefersReduced()||!rootRef.current){onBack();return} gsap.to(rootRef.current,{opacity:0,y:20,duration:.22,ease:'power2.in',onComplete:onBack}) },[onBack]);
   const fc=useCallback(async()=>{setLoading(true);try{const r=await apiFetch(`/posts/${post.id}/comments`);if(!r.ok)throw new Error('获取评论失败');setComments(await r.json())}catch(e){setErr(e.message)}finally{setLoading(false)}},[post.id]);
   useEffect(()=>{fc()},[fc]);
-  useEffect(()=>{const h=e=>{if(e.key==='Escape')onBack()};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[onBack]);
+  useEffect(()=>{ if(!prefersReduced()&&rootRef.current) gsap.from(rootRef.current,{opacity:0,y:20,duration:.3,ease:'power2.out'}) },[]);
+  useEffect(()=>{const h=e=>{if(e.key==='Escape')close()};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[close]);
   const submitComment=async e=>{e.preventDefault();if(!nc.trim())return;setSubmitting(true);const dn=user?.role==='founder'||user?.role==='ambassador'?user.nickname:genNick();try{const r=await apiFetch(`/posts/${post.id}/comments`,{method:'POST',body:JSON.stringify({content:nc,display_name:dn})});if(!r.ok)throw new Error(await errMsg(r,'评论失败'));setNc('');fc();onRefresh?.();toast.success('评论成功')}catch(e){toast.error(e.message)}finally{setSubmitting(false)}}
-  return <div className="post-detail"><button className="back-btn" onClick={onBack}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><Avatar src={post.author_avatar} seed={post.display_name} className="post-author-avatar" /><span className="post-author-name">{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><p className="post-content">{post.content}</p><div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><LikeButton post={post} liked={!!myLikes[post.id]} count={post.like_count} onToggle={onToggleLike}/><StarButton post={post} starred={!!myStars[post.id]} count={post.star_count} onToggle={onToggleStar}/><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<button onClick={async()=>{if(!confirm('确定删除？'))return;const r=await apiFetch(`/posts/${post.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={e=>setNc(e.target.value)} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className="glass-card comment-card"><div className="comment-header"><div className="comment-author-info"><Avatar src={c.author_avatar} seed={c.display_name} className="comment-author-avatar" /><span className="comment-author">{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<button onClick={async()=>{const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}fc();onRefresh?.()}} className="action-btn delete-btn">🗑️</button>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div><p className="comment-content">{c.content}</p></div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} onClose={()=>setShowR(false)}/>}</div>
+  return <div className="post-detail" ref={rootRef}><button className="back-btn" onClick={close}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><Avatar src={post.author_avatar} seed={post.display_name} className="post-author-avatar" /><span className="post-author-name">{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><p className="post-content">{post.content}</p><div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><LikeButton post={post} liked={!!myLikes[post.id]} count={post.like_count} onToggle={onToggleLike}/><StarButton post={post} starred={!!myStars[post.id]} count={post.star_count} onToggle={onToggleStar}/><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<button onClick={async()=>{if(!confirm('确定删除？'))return;const r=await apiFetch(`/posts/${post.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={e=>setNc(e.target.value)} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className="glass-card comment-card"><div className="comment-header"><div className="comment-author-info"><Avatar src={c.author_avatar} seed={c.display_name} className="comment-author-avatar" /><span className="comment-author">{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<button onClick={async()=>{const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}fc();onRefresh?.()}} className="action-btn delete-btn">🗑️</button>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div><p className="comment-content">{c.content}</p></div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} onClose={()=>setShowR(false)}/>}</div>
 }
 
 // ── RulesModal ──
-const RulesModal = ({onClose}) => <div className="modal-overlay" onClick={onClose}><div className="glass-card modal-card rules-modal login-rules-modal" onClick={e=>e.stopPropagation()}><h2>📜 社区规则</h2><p className="rules-subtitle">欢迎来到校园树洞！请仔细阅读以下规则：</p><div className="rules-content"><p><strong>1. 友善交流</strong> — 尊重他人，禁止辱骂、人身攻击。</p><p><strong>2. 保护隐私</strong> — 请勿公开他人真实姓名、联系方式等隐私信息。</p><p><strong>3. 合理发言</strong> — 禁止发布违法、色情、暴力等不良信息。</p><p><strong>4. 举报机制</strong> — 发现违规内容请及时举报，管理员会尽快处理。</p><p><strong>5. 共同维护</strong> — 让我们一起营造温暖、安全的校园社区。</p></div><button className="glass-button btn-primary" onClick={onClose}>我已阅读，开始使用</button></div></div>
+const RulesModal = ({onClose}) => <AnimatedModal onClose={onClose} className="rules-modal login-rules-modal">
+  {({ requestClose }) => (<>
+    <h2>📜 社区规则</h2>
+    <p className="rules-subtitle">欢迎来到校园树洞！请仔细阅读以下规则：</p>
+    <div className="rules-content"><p><strong>1. 友善交流</strong> — 尊重他人，禁止辱骂、人身攻击。</p><p><strong>2. 保护隐私</strong> — 请勿公开他人真实姓名、联系方式等隐私信息。</p><p><strong>3. 合理发言</strong> — 禁止发布违法、色情、暴力等不良信息。</p><p><strong>4. 举报机制</strong> — 发现违规内容请及时举报，管理员会尽快处理。</p><p><strong>5. 共同维护</strong> — 让我们一起营造温暖、安全的校园社区。</p></div>
+    <button className="glass-button btn-primary" onClick={requestClose}>我已阅读，开始使用</button>
+  </>)}
+</AnimatedModal>
 
 // ── ChatRoom ──
 const fmtChatTime = ts => { if(!ts) return ''; const d = new Date(String(ts).includes('Z')||String(ts).includes('+')?ts:ts+'Z'); return isNaN(d) ? '' : d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}) }
