@@ -204,7 +204,7 @@ function useStarfield(canvasRef) {
     const grains=Array.from({length:900},()=>({x:Math.random()*w,y:Math.random()*h,s:Math.random()*1+.5,a:Math.random()*.08+.03}));
     const meteors=[]; let time=0,anim,prevNight=null;
     const forced=typeof location!=='undefined'?new URLSearchParams(location.search).get('theme'):null;
-    const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; const hr=new Date().getHours();return hr>=19||hr<6; };
+    const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; try{ const s=localStorage.getItem('treehole_theme'); if(s==='light')return false; if(s==='dark')return true; }catch(e){} const hr=new Date().getHours();return hr>=19||hr<6; };
     const draw=()=>{const night=isNight();
       if(prevNight!==night){ document.body.dataset.time=night?'night':'day'; prevNight=night; }
       if(night){
@@ -551,6 +551,16 @@ function App() {
   const PAGE_SIZE = 12
   const postsSkipRef = useRef(0)
   const [hasMore,setHasMore] = useState(false)
+  // 主题切换（浅/深）：手动覆盖星空自动昼夜间，localStorage 持久化
+  const [theme,setTheme] = useState(() => { try { return localStorage.getItem('treehole_theme') } catch { return null } })  // null = 跟随系统
+  const isLight = theme === 'light'
+  const toggleTheme = () => {
+    const next = (theme === 'dark' || theme === null) ? 'light' : 'dark'
+    setTheme(next)
+    try { localStorage.setItem('treehole_theme', next) } catch {}
+    document.body.dataset.time = next === 'light' ? 'day' : 'night'
+  }
+  useEffect(() => { if (theme === 'light' || theme === 'dark') document.body.dataset.time = theme === 'light' ? 'day' : 'night' }, [theme])
   const [loadingMore,setLoadingMore] = useState(false)
 
   // mode='replace' 重新拉首页（切换分类/搜索/发帖后）；mode='more' 在末尾追加下一页
@@ -673,7 +683,9 @@ function App() {
     : profileUserId ? <UserProfile userId={profileUserId} onBack={()=>setProfileUserId(null)} onOpenPost={(p)=>{setSelectedPost(p);setProfileUserId(null)}}/>
 
     : <div className="app">
-      <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button><button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>聊天室</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button></div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
+      <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button><button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>聊天室</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button>
+        <button className="nav-theme" onClick={toggleTheme} title={isLight?'切换深色':'切换浅色'} aria-label="切换主题">{isLight?'🌙':'☀️'}</button>
+      </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span>通知</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''}`} onClick={()=>clickNotif(n)}><span className="notif-icon">{n.type==='like'?'❤️':n.type==='mention'?'@️⃣':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
       <main className="main-content">
         {curPage==='home'&&<div className="home-page">
@@ -690,7 +702,7 @@ function App() {
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost}/>}
       </main>
-      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button><button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">聊天</span></button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">⚙️</span><span className="nav-label">管理</span></button>}<button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}><span className="nav-icon">🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</span><span className="nav-label">通知</span></button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button></nav>
+      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button><button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">聊天</span></button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">⚙️</span><span className="nav-label">管理</span></button>}<button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}><span className="nav-icon">🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</span><span className="nav-label">通知</span></button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button><button className="mobile-nav-item" onClick={toggleTheme}><span className="nav-icon">{isLight?'🌙':'☀️'}</span><span className="nav-label">主题</span></button></nav>
     </div>}
     {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
     <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}

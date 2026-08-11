@@ -820,3 +820,20 @@ body[data-time="day"] .login-input:focus {
 @keyframes commentSlideIn { from { opacity:0; transform: translateX(42px) scale(.98); } to { opacity:1; transform: none; } }
 .comment-pending { opacity:.6; filter: saturate(.7); }
 @media (prefers-reduced-motion: reduce){ .comment-enter{ animation:none; } }
+
+/* ── 主题切换按钮 (T14) ── */
+.nav-theme {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; padding: 0;
+  font-size: 1.15rem; line-height: 1;
+  background: var(--chip-bg); border: 1px solid var(--chip-bd);
+  border-radius: 12px; color: var(--nav-fg-strong);
+  cursor: pointer;
+  transition: transform .3s ease, background .2s, border-color .2s, color .2s;
+}
+.nav-theme:hover { background: var(--chip-active-bg); color: var(--nav-fg-strong); border-color: var(--chip-active-bd); }
+.nav-theme:active { transform: rotate(180deg) scale(.9); }
+@keyframes theme-pop { 0%{transform:scale(.5) rotate(-120deg);opacity:0} 60%{transform:scale(1.18) rotate(10deg)} 100%{transform:scale(1) rotate(0);opacity:1} }
+.nav-theme { animation: theme-pop .35s ease; }
+/* 主题切换时整体色彩平滑过渡 */
+body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .nav-theme { transition: background-color .4s ease, background .4s ease, color .4s ease, border-color .4s ease; }
