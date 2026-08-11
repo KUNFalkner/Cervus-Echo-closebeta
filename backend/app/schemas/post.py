@@ -76,6 +76,10 @@ class CommentCreate(CommentBase):
     display_name: Optional[str] = None
     hide_uid: bool = False
 
+class CommentUpdate(CommentBase):
+    # 编辑评论只改内容
+    pass
+
 class Comment(CommentBase):
     id: int
     post_id: int

@@ -39,6 +39,19 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+# 他人主页公开信息：不暴露 uid / 真实姓名 / 账号等敏感字段
+class PublicUser(BaseModel):
+    id: int
+    nickname: str
+    avatar: Optional[str] = None
+    role: str = "student"
+    school_id: str = "ZC"
+    karma: int = 0
+    is_anonymous: bool = True
+
+    class Config:
+        from_attributes = True
+
 
 class TokenResponse(BaseModel):
     access_token: str

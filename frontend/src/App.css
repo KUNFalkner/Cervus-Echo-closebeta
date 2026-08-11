@@ -206,6 +206,12 @@ body {
 .post-imgs img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--chip-bd); cursor: zoom-in; transition: transform .2s ease; }
 .post-imgs img:hover { transform: scale(1.02); }
 .post-detail-card .post-imgs img { cursor: default; }
+.profile-view-card { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem; }
+.profile-view-avatar { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--chip-bd); }
+.profile-view-info h3 { margin: 0 0 0.3rem; }
+.profile-view-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.school-badge, .karma-badge { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.15rem 0.6rem; font-size: 0.75rem; }
+.profile-view-section { margin: 1rem 0 0.6rem; font-size: 0.95rem; opacity: 0.85; }
 .create-post-form .glass-input, .create-post-form .glass-textarea { margin-bottom: 0; }
 
 .forum-select { }

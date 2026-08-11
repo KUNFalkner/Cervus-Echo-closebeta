@@ -6,8 +6,9 @@ import io
 
 from app.models.database import get_db
 from app.models.user import User as UserModel
+from app.models.post import Comment as CommentModel, Post as PostModel
 from app.schemas.user import (
-    UserCreate, UserUpdate, User as UserSchema,
+    UserCreate, UserUpdate, User as UserSchema, PublicUser,
     LoginRequest, TokenResponse, WechatLoginRequest,
 )
 from app.auth import create_token, require_user
@@ -95,6 +96,26 @@ def login_user(body: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserSchema)
 def get_me(user: UserModel = Depends(require_user)):
     return user
+
+@router.get("/{user_id}", response_model=PublicUser)
+def get_user(user_id: int, db: Session = Depends(get_db)):
+    """他人主页公开信息（不暴露 uid / 真实姓名）。"""
+    target = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return target
+
+@router.get("/me/comments", response_model=list)
+def my_comments(user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
+    """当前用户发表过的评论，附带所属帖子标题（帖子已删则为 null）。"""
+    comments = db.query(CommentModel).filter(CommentModel.user_id == user.id)\
+        .order_by(CommentModel.created_at.desc()).limit(50).all()
+    out = []
+    for c in comments:
+        post = db.query(PostModel).filter(PostModel.id == c.post_id).first()
+        out.append({"id": c.id, "content": c.content, "created_at": c.created_at,
+                    "post_id": c.post_id, "post_title": post.title if post else None})
+    return out
 
 
 # ── Registration (legacy) ─────────────────────────────────────────────

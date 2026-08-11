@@ -8,7 +8,7 @@ from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.user import User as UserModel
 from app.models.star import UserStar
 from app.models.like import UserLike
-from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, Comment as CommentSchema
+from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, CommentUpdate, Comment as CommentSchema
 from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
@@ -121,6 +121,7 @@ def create_post(
 def read_posts(
     skip: int = 0,
     limit: int = 100,
+    user_id: Optional[int] = Query(None, description="按作者筛选（他人主页/我的帖子）"),
     category: Optional[str] = Query(None, description="按分类筛选"),
     forum: Optional[str] = Query(None, description="按论坛筛选"),
     search: Optional[str] = Query(None, description="搜索标题和内容"),
@@ -170,6 +171,8 @@ def read_posts(
         )
     if forum:
         query = query.filter(PostModel.forum == forum)
+    if user_id:
+        query = query.filter(PostModel.user_id == user_id)
     if search:
         query = query.filter(
             (PostModel.title.contains(search)) | (PostModel.content.contains(search))
@@ -428,3 +431,25 @@ def delete_comment(
     db.delete(comment)
     db.commit()
     return {"message": "删除成功"}
+
+@router.put("/{post_id}/comments/{comment_id}", response_model=CommentSchema)
+def update_comment(
+    post_id: int,
+    comment_id: int,
+    body: CommentUpdate,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    comment = db.query(CommentModel).filter(CommentModel.id == comment_id, CommentModel.post_id == post_id).first()
+    if comment is None:
+        raise HTTPException(status_code=404, detail="评论不存在")
+    is_admin = user.role in ["founder", "ambassador"]
+    if not is_admin and comment.user_id != user.id:
+        raise HTTPException(status_code=403, detail="无权编辑此评论")
+    body.content = sensitive_filter.filter_text(body.content)
+    if not body.content.strip():
+        raise HTTPException(status_code=400, detail="评论内容不能为空")
+    comment.content = body.content
+    db.commit()
+    db.refresh(comment)
+    return _mask_comment(comment, user, comment.user_id and user.avatar)
