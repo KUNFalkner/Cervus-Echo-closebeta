@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from typing import Optional
 
@@ -11,10 +11,8 @@ class PostBase(BaseModel):
     tags: Optional[str] = None
 
 class PostCreate(PostBase):
-    user_id: int
+    # user_id / user_uid / user_school 不再由客户端提供，一律取自 JWT 认证结果
     display_name: Optional[str] = None
-    user_uid: Optional[str] = None
-    user_school: Optional[str] = None
     hide_uid: bool = False
 
 class Post(PostBase):
@@ -25,10 +23,37 @@ class Post(PostBase):
     user_uid: Optional[str] = None
     user_school: Optional[str] = None
     hide_uid: bool = False
-    like_count: int
+    author_avatar: Optional[str] = None
+    like_count: int = 0
     star_count: int = 0
-    comment_count: int
+    comment_count: int = 0
     created_at: datetime
+
+    # 历史脏数据（计数字段为 NULL）会让整个列表接口 500，这里统一兜底
+    @field_validator("is_announcement", "hide_uid", mode="before")
+    @classmethod
+    def _default_false(cls, v):
+        return False if v is None else v
+
+    @field_validator("like_count", "star_count", "comment_count", mode="before")
+    @classmethod
+    def _default_zero(cls, v):
+        return 0 if v is None else v
+
+    @field_validator("title", "content", mode="before")
+    @classmethod
+    def _default_str(cls, v):
+        return "" if v is None else v
+
+    @field_validator("category", mode="before")
+    @classmethod
+    def _default_category(cls, v):
+        return "general" if v is None else v
+
+    @field_validator("forum", mode="before")
+    @classmethod
+    def _default_forum(cls, v):
+        return "main" if v is None else v
 
     class Config:
         from_attributes = True
@@ -37,10 +62,8 @@ class CommentBase(BaseModel):
     content: str
 
 class CommentCreate(CommentBase):
-    user_id: int
-    post_id: int
+    # post_id 取自路径，user_id / user_uid 取自 JWT 认证结果
     display_name: Optional[str] = None
-    user_uid: Optional[str] = None
     hide_uid: bool = False
 
 class Comment(CommentBase):
@@ -50,6 +73,7 @@ class Comment(CommentBase):
     display_name: Optional[str] = None
     user_uid: Optional[str] = None
     hide_uid: bool = False
+    author_avatar: Optional[str] = None
     created_at: datetime
 
     class Config:

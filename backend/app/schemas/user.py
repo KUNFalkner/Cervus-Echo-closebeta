@@ -33,6 +33,7 @@ class User(UserBase):
     school_id: str = "ZC"
     star_count: int = 0
     karma: int = 0
+    banned: bool = False
     created_at: datetime
 
     class Config:
@@ -47,3 +48,8 @@ class TokenResponse(BaseModel):
 
 class WechatLoginRequest(BaseModel):
     code: str
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str = ""

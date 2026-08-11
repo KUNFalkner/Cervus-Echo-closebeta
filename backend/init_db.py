@@ -5,9 +5,23 @@ from app.models.message import Message
 from app.models.report import Report
 from app.models.school import School
 from app.models.star import UserStar
-import hashlib
+from app.models.like import UserLike
+from app.models.notification import Notification
+from app.services.password import hash_password
 
 Base.metadata.create_all(bind=engine)
+
+# 既有库可能缺少新增列（SQLAlchemy create_all 不会给已存在的表加列），做一次补齐迁移
+from sqlalchemy import inspect as _inspect
+_alembic_conn = engine.connect()
+try:
+    _cols = [c["name"] for c in _inspect(engine).get_columns("users")]
+    if "banned" not in _cols:
+        _alembic_conn.execute(__import__("sqlalchemy").text("ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT 0"))
+        _alembic_conn.commit()
+        print("已为 users 表补齐 banned 列")
+finally:
+    _alembic_conn.close()
 
 db = SessionLocal()
 try:
@@ -41,21 +55,19 @@ try:
             uid="AAA00000000",
             role="founder",
             school_id="JSKS",
-            password=hashlib.sha256("20100606".encode()).hexdigest(),
+            password=hash_password("20100606"),
             avatar="https://api.dicebear.com/7.x/avataaars/svg?seed=founder"
         )
         db.add(founder)
         db.commit()
         print("已创建创始人账号: founder / 20100606")
     else:
-        # 确保创始人数据正确
+        # 只补齐角色相关字段；密码与昵称属于用户资产，绝不在初始化时覆盖
         founder.uid = "AAA00000000"
         founder.role = "founder"
         founder.school_id = "JSKS"
-        founder.nickname = "Xavier Kun Falkner"
-        founder.password = hashlib.sha256("20100606".encode()).hexdigest()
         db.commit()
-        print("创始人账号已更新")
+        print("创始人账号已存在，仅校正角色字段（密码/昵称保持不变）")
 
     # 创建各学校大使
     for school in db.query(School).all():
@@ -70,22 +82,23 @@ try:
                 uid=amb_uid,
                 role="ambassador",
                 school_id=school.code,
-                password=hashlib.sha256(amb_password.encode()).hexdigest(),
+                password=hash_password(amb_password),
                 avatar=f"https://api.dicebear.com/7.x/avataaars/svg?seed={amb_username}"
             )
             db.add(amb)
             print(f"已创建大使: {amb_username} / {amb_password}")
         else:
+            # 同上：不覆盖已有大使的密码
             amb.uid = amb_uid
             amb.role = "ambassador"
             amb.school_id = school.code
-            amb.password = hashlib.sha256(amb_password.encode()).hexdigest()
-            print(f"大使已更新: {amb_username}")
+            print(f"大使已存在，仅校正角色字段: {amb_username}")
     db.commit()
 
 finally:
     db.close()
 
 print("\n数据库初始化完成！")
-print("创始人: founder / 20100606")
-print("大使格式: [学校代码]ambassador / [学校代码]001")
+print("首次创建时的默认口令 —— 创始人: founder / 20100606")
+print("首次创建时的默认口令 —— 大使: [学校代码]ambassador / [学校代码]001")
+print("提示：已存在的账号密码不会被本脚本覆盖")

@@ -176,8 +176,14 @@ body {
 
 @media (max-width: 640px) {
   .nav-links { display: none; }
-  .mobile-nav { display: flex; }
-  .main-content { padding-bottom: 5rem; }
+  .mobile-nav { display: flex; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); }
+  .main-content { padding-bottom: 5.5rem; }
+  .notif-panel { top: 56px; right: 0.5rem; left: 0.5rem; width: auto; }
+}
+@media (max-width: 420px) {
+  .nav-title { display: none; }
+  .user-info .user-nickname { display: none; }
+  .user-info { gap: 0; }
 }
 
 /* Post card */
@@ -254,9 +260,34 @@ body {
 .action-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 0.15rem; transition: color 0.15s; }
 .action-btn:hover { color: var(--ink); }
 .star-btn:hover { color: #ffd700; }
+.like-btn:hover { color: #ff5a7a; }
+.like-btn.liked { color: #ff5a7a; }
 .action-text { font-size: 0.85rem; color: var(--faint); }
 .post-announcement { border-color: rgba(255,107,107,0.4); }
 .announcement-badge { padding: 0.1rem 0.5rem; border-radius: 99px; font-size: 0.7rem; font-weight: 700; background: linear-gradient(135deg, #ff6b6b, #ee5a24); color: #fff; display: inline-block; margin-bottom: 0.5rem; }
+
+/* Tags on post card */
+.post-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.6rem; }
+.post-tag { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.15rem 0.6rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.post-tag:hover { border-color: var(--chip-active-bd); color: var(--chip-active-fg); }
+.post-tag.active { background: var(--chip-active-bg); color: var(--chip-active-fg); border-color: var(--chip-active-bd); }
+
+/* Tag input in PostForm */
+.tag-input-row { margin: 0.5rem 0; }
+.tag-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.tag-chip { background: var(--chip-active-bg); color: var(--chip-active-fg); border: 1px solid var(--chip-active-bd); border-radius: 99px; padding: 0.2rem 0.55rem; font-size: 0.78rem; cursor: pointer; }
+.tag-input { flex: 1; min-width: 140px; }
+
+/* Trending tag filter row */
+.tag-filter-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0; flex-wrap: wrap; }
+.tag-filter-label { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.tag-filter-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.tag-filter-chip { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.2rem 0.6rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+.tag-filter-chip:hover { border-color: var(--chip-active-bd); color: var(--chip-active-fg); }
+.tag-filter-chip.active { background: var(--chip-active-bg); color: var(--chip-active-fg); border-color: var(--chip-active-bd); }
+.tag-count { opacity: 0.6; margin-left: 0.25rem; font-size: 0.7rem; }
+.active-tag-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--ink); margin-bottom: 0.5rem; }
+.active-tag-clear { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.1rem 0.5rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; }
 
 /* Post detail */
 .post-detail { position: relative; z-index: 1; padding: 1rem; max-width: 640px; margin: 0 auto; }
@@ -321,6 +352,10 @@ body {
 /* Chat */
 .chat-room { display: flex; flex-direction: column; height: 60vh; }
 .chat-status { align-self: center; margin-bottom: 0.5rem; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--muted); }
+
+/* token 失效提示：置顶横幅，4 秒后自动消失 */
+.session-expired-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 10000; padding: .6rem 1rem; text-align: center; font-size: .85rem; color: #fff; background: rgba(220, 60, 70, .92); backdrop-filter: blur(6px); animation: sessionBannerIn .25s ease-out; }
+@keyframes sessionBannerIn { from { transform: translateY(-100%); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
 .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding-right: 0.25rem; margin-bottom: 0.5rem; }
 .chat-message { padding: 0.35rem 0.7rem; border-radius: 8px; font-size: 0.9rem; max-width: 85%; background: var(--chip-bg); color: var(--body); }
 .chat-message.own { align-self: flex-end; background: var(--accent-soft); }
@@ -515,8 +550,9 @@ body[data-time="day"] .login-input:focus {
 .tarot-card { width: 100%; aspect-ratio: 2 / 3; max-width: 180px; perspective: 1000px; cursor: pointer; }
 .tarot-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2,.8,.25,1); }
 .tarot-card.flipped .tarot-inner { transform: rotateY(180deg); }
-.tarot-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; border-radius: 16px; padding: .8rem; text-align: center; }
-.tarot-back { background: linear-gradient(150deg, rgba(120,90,255,.35), rgba(255,120,200,.25)); background-size: 220% 220%; animation: tarotShimmer 5s ease-in-out infinite; border: 1px solid rgba(255,255,255,.35); box-shadow: 0 8px 24px rgba(80,40,160,.25); }
+.tarot-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .35rem; border-radius: 16px; padding: 1.6rem .6rem .7rem; text-align: center; overflow: hidden; }
+.tarot-back { background: #0c0a26; border: 1px solid rgba(255,255,255,.35); box-shadow: 0 8px 24px rgba(80,40,160,.35); overflow: hidden; }
+.tarot-back-svg { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 16px; display: block; }
 @keyframes tarotShimmer { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 .tarot-card { transition: filter .2s ease; }
 .tarot-card:hover { filter: drop-shadow(0 8px 18px rgba(150,90,220,.4)); }
@@ -524,11 +560,15 @@ body[data-time="day"] .login-input:focus {
 .tarot-back-sym { font-size: 2.6rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,.25)); }
 .tarot-back-hint { font-size: .8rem; opacity: .85; }
 .tarot-front { transform: rotateY(180deg); background: linear-gradient(160deg, rgba(255,255,255,.22), rgba(255,255,255,.08)); border: 1px solid rgba(255,255,255,.4); box-shadow: 0 8px 24px rgba(0,0,0,.18); backdrop-filter: blur(8px); }
-.tarot-icon { font-size: 2.4rem; line-height: 1; }
-.tarot-name { font-size: 1.05rem; font-weight: 600; }
-.tarot-ori { font-size: .78rem; padding: .1rem .6rem; border-radius: 999px; background: rgba(255,255,255,.18); }
+.tarot-face-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 16px; }
+.tarot-card.is-rev .tarot-face-img { transform: rotate(180deg); }
+.tarot-face-label { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: .4rem; padding: .4rem .6rem; background: linear-gradient(to top, rgba(8,6,28,.92), rgba(8,6,28,.55) 70%, rgba(8,6,28,0)); border-radius: 0 0 16px 16px; }
+.tarot-face-name { font-size: .82rem; font-weight: 600; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.tarot-icon { font-size: 2rem; line-height: 1; }
+.tarot-name { font-size: .98rem; font-weight: 600; line-height: 1.25; }
+.tarot-ori { font-size: .68rem; padding: .1rem .5rem; border-radius: 999px; background: rgba(255,255,255,.18); white-space: nowrap; }
 .tarot-ori.rev { background: rgba(255,90,90,.28); }
-.tarot-mean { font-size: .8rem; line-height: 1.45; opacity: .9; }
+.tarot-mean { font-size: .74rem; line-height: 1.4; opacity: .9; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tarot-summary { margin-top: .8rem; font-size: .85rem; opacity: .75; line-height: 1.6; }
 .tarot-guidance { margin-top: 1rem; font-size: .92rem; line-height: 1.6; opacity: .92; padding: .7rem 1rem; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); }
 .tarot-card.flipped .tarot-front { animation: tarotReveal .7s ease-out; }
@@ -536,11 +576,6 @@ body[data-time="day"] .login-input:focus {
   0% { box-shadow: 0 0 0 rgba(255,200,255,0); }
   40% { box-shadow: 0 0 30px rgba(255,180,255,.7); }
   100% { box-shadow: 0 8px 24px rgba(0,0,0,.18); }
-}
-@media (max-width: 520px) {
-  .tarot-spread { gap: .5rem; }
-  .tarot-card { max-width: 120px; }
-  .tarot-mean { font-size: .72rem; }
 }
 
 /* ── 塔罗增强：星空背景 / 元素光晕 / 关键词 / 详情 / 逆位 ── */
@@ -559,10 +594,22 @@ body[data-time="day"] .login-input:focus {
 .tarot-en { font-size: .68rem; opacity: .6; letter-spacing: .03em; margin-top: -.2rem; }
 .tarot-chips { display: flex; flex-wrap: wrap; gap: .3rem; justify-content: center; margin-top: .35rem; }
 .tarot-chip { font-size: .62rem; padding: .12rem .45rem; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); white-space: nowrap; }
-.tarot-detail { width: 100%; margin-top: .55rem; padding-top: .5rem; border-top: 1px solid rgba(255,255,255,.16); text-align: left; display: flex; flex-direction: column; gap: .35rem; font-size: .7rem; line-height: 1.4; }
-.tarot-detail-row { display: grid; grid-template-columns: 4.4em 1fr; gap: .4rem; opacity: .92; }
-.tarot-detail-row b { font-weight: 600; opacity: .8; }
-.tarot-detail-row span { opacity: .82; }
+/* 详情面板：独立于卡面，铺在牌阵下方，避免溢出卡片造成文字重叠 */
+.tarot-detail { position: relative; width: 100%; margin: 1rem 0 .2rem; padding: .9rem 1rem 1rem; text-align: left; display: flex; flex-direction: column; gap: .45rem; font-size: .8rem; line-height: 1.6; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-left: 3px solid var(--edge, rgba(255,255,255,.4)); animation: tarotDetailIn .28s ease-out; }
+@keyframes tarotDetailIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.tarot-detail-head { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding-right: 1.6rem; padding-bottom: .5rem; margin-bottom: .2rem; border-bottom: 1px solid rgba(255,255,255,.14); }
+.tarot-detail-head b { font-size: .95rem; font-weight: 600; }
+.tarot-detail-pos { font-size: .7rem; letter-spacing: .1em; padding: .1rem .5rem; border-radius: 999px; color: var(--edge, #fff); border: 1px solid var(--edge, rgba(255,255,255,.4)); }
+.tarot-detail-en { font-size: .7rem; opacity: .55; }
+.tarot-detail-close { position: absolute; top: .55rem; right: .6rem; width: 1.5rem; height: 1.5rem; line-height: 1; font-size: 1rem; border-radius: 50%; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); color: inherit; cursor: pointer; }
+.tarot-detail-close:hover { background: rgba(255,255,255,.22); }
+.tarot-detail-row { display: grid; grid-template-columns: 5em 1fr; gap: .6rem; align-items: start; opacity: .92; }
+.tarot-detail-row b { font-weight: 600; opacity: .75; white-space: nowrap; }
+.tarot-detail-row span { opacity: .85; word-break: break-word; }
+@media (max-width: 520px) {
+  .tarot-detail-row { grid-template-columns: 1fr; gap: .1rem; }
+  .tarot-detail-row b { font-size: .72rem; opacity: .6; }
+}
 .tarot-toggle { margin-top: .5rem; font-size: .72rem; padding: .25rem .8rem; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.22); color: inherit; cursor: pointer; transition: background .2s; }
 .tarot-toggle:hover { background: rgba(255,255,255,.2); }
 .tarot-hint { margin-top: .9rem; font-size: .72rem; opacity: .55; line-height: 1.5; }
@@ -602,5 +649,111 @@ body[data-time="day"] .login-input:focus {
 @media (prefers-reduced-motion: reduce) {
   .tarot-card.flipped, .tarot-card.flipped .tarot-front { animation: none; }
   .tarot-crack polyline, .tarot-card.is-rev .tarot-front::before { animation: none; }
+  .tarot-detail { animation: none; }
 }
 
+/* 窄屏：卡片仅约 90px 宽，装不下英文名 / 释义 / 关键词，精简为「图标 + 牌名 + 正逆」，
+   完整内容由下方详情面板承载。必须放在所有塔罗规则之后，否则同权重会被后面的基础规则覆盖 */
+@media (max-width: 520px) {
+  .tarot-spread { gap: .45rem; }
+  .tarot-card { max-width: 120px; }
+  .tarot-face { padding: 1.25rem .3rem .5rem; gap: .2rem; }
+  .tarot-top { flex-direction: column; gap: .15rem; }
+  .tarot-icon { font-size: 1.6rem; }
+  .tarot-name { font-size: .76rem; line-height: 1.2; }
+  .tarot-ori { font-size: .58rem; padding: .05rem .35rem; }
+  .tarot-corner { font-size: .52rem; top: .3rem; left: .3rem; padding: .04rem .28rem; }
+  .tarot-en, .tarot-mean, .tarot-chips { display: none; }
+  .tarot-back-sym { font-size: 1.9rem; }
+  .tarot-back-hint { font-size: .6rem; }
+  .tarot-card.is-rev .tarot-front::after { font-size: 3rem; }
+  .tarot-pos { font-size: .78rem; letter-spacing: .06em; }
+  .tarot-toggle { font-size: .66rem; padding: .22rem .5rem; }
+}
+
+/* ── 塔罗：右下角悬浮水晶球 ── */
+.tarot-orb {
+  position: fixed; right: 22px; bottom: 22px; z-index: 5000;
+  width: 64px; height: 64px; padding: 0; border: none; border-radius: 50%;
+  background: transparent; cursor: pointer; outline: none;
+  filter: drop-shadow(0 6px 16px rgba(120,80,255,.55));
+  animation: orbFloat 5.5s ease-in-out infinite;
+}
+.tarot-orb:hover .tarot-orb-core { transform: scale(1.08); }
+.tarot-orb:active .tarot-orb-core { transform: scale(.94); }
+.tarot-orb-core { width: 100%; height: 100%; display: block; transition: transform .25s ease; transform-origin: center; }
+.tarot-orb-glow {
+  position: absolute; inset: -8px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(150,110,255,.45), rgba(150,110,255,0) 70%);
+  animation: orbPulse 3.2s ease-in-out infinite; pointer-events: none;
+}
+@keyframes orbFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes orbPulse { 0%,100% { opacity: .5; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (max-width: 720px) {
+  .tarot-orb { right: 16px; bottom: 78px; width: 56px; height: 56px; }
+}
+
+/* ── 塔罗：全屏沉浸式遮罩（深空 + 星云）── */
+.tarot-overlay {
+  position: fixed; inset: 0; z-index: 9999; display: flex;
+  align-items: flex-start; justify-content: center;
+  background: radial-gradient(120% 120% at 50% 0%, #1a1740 0%, #0a0820 55%, #050410 100%);
+  overflow: hidden;
+}
+.tarot-overlay-space { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.tarot-nebula {
+  position: absolute; width: 70vmax; height: 70vmax; left: 50%; top: 40%;
+  transform: translate(-50%,-50%);
+  background: radial-gradient(circle, rgba(123,92,255,.28), rgba(123,92,255,0) 60%);
+  filter: blur(8px); animation: nebulaDrift 18s ease-in-out infinite;
+}
+.tarot-nebula-2 {
+  background: radial-gradient(circle, rgba(255,120,200,.18), rgba(255,120,200,0) 60%);
+  left: 30%; top: 70%; animation-duration: 24s; animation-direction: reverse;
+}
+@keyframes nebulaDrift { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-46%,-54%) scale(1.08); } }
+.tarot-overlay-close {
+  position: fixed; top: 18px; right: 22px; z-index: 2;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.25);
+  color: #fff; font-size: 1.5rem; line-height: 1; cursor: pointer;
+  backdrop-filter: blur(6px); transition: background .2s, transform .2s;
+}
+.tarot-overlay-close:hover { background: rgba(255,255,255,.22); transform: rotate(90deg); }
+.tarot-overlay-scroll { position: relative; z-index: 1; width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+
+/* ── 头像（贯穿导航/帖子/评论/聊天，匿名帖不显示真实头像）── */
+.avatar-img { border-radius: 50%; object-fit: cover; border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.06); flex: none; }
+.nav-avatar { width: 32px; height: 32px; }
+.post-author-avatar, .comment-author-avatar { width: 26px; height: 26px; display: inline-block; vertical-align: middle; margin-right: .45rem; }
+.chat-avatar { width: 30px; height: 30px; align-self: flex-start; margin-right: .5rem; }
+.post-card-header { display: flex; align-items: center; gap: .35rem; }
+.comment-author-info { display: flex; align-items: center; }
+.chat-message { display: flex; align-items: center; flex-wrap: wrap; }
+
+/* Notification bell + panel */
+.nav-bell { position: relative; background: none; border: none; cursor: pointer; font-size: 1.15rem; padding: 0.3rem 0.5rem; border-radius: 8px; color: var(--muted); transition: background 0.15s, color 0.15s; }
+.nav-bell:hover, .nav-bell.active { background: var(--chip-bg); color: var(--ink); }
+.notif-badge { position: absolute; top: -2px; right: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: linear-gradient(135deg,#ff6b6b,#ee5a24); color: #fff; font-size: 0.65rem; font-weight: 700; line-height: 16px; text-align: center; }
+.notif-panel { position: absolute; top: 60px; right: 1rem; width: min(360px, 92vw); max-height: 70vh; overflow-y: auto; z-index: 50; padding: 0.5rem; }
+.notif-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.5rem 0.6rem; border-bottom: 1px solid var(--chip-bd); margin-bottom: 0.4rem; font-weight: 600; }
+.notif-markall { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.2rem 0.6rem; font-size: 0.72rem; cursor: pointer; font-family: inherit; }
+.notif-list { display: flex; flex-direction: column; }
+.notif-item { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.6rem 0.5rem; border-radius: 8px; cursor: pointer; position: relative; transition: background 0.15s; }
+.notif-item:hover { background: var(--chip-bg); }
+.notif-item.read { opacity: 0.55; }
+.notif-icon { font-size: 1.1rem; line-height: 1.4; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-text { font-size: 0.85rem; color: var(--ink); margin: 0; }
+.notif-post { font-size: 0.75rem; color: var(--muted); margin: 0.15rem 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notif-time { font-size: 0.7rem; color: var(--faint); }
+.notif-dot { position: absolute; top: 0.8rem; right: 0.5rem; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ee5a24); }
+
+/* Admin: banned + report filter */
+.role-badge.banned { background: linear-gradient(135deg,#555,#333); color: #fff; }
+.banned-status { background: rgba(80,80,80,0.18); color: var(--ink); }
+.report-filter-row { display: flex; gap: 0.35rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.report-filter-chip { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.25rem 0.7rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.report-filter-chip:hover { border-color: var(--chip-active-bd); color: var(--chip-active-fg); }
+.report-filter-chip.active { background: var(--chip-active-bg); color: var(--chip-active-fg); border-color: var(--chip-active-bd); }

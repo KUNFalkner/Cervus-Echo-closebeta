@@ -1,18 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
 import random
-import hashlib
-import uuid
+import os
+import io
 
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.schemas.user import (
     UserCreate, UserUpdate, User as UserSchema,
-    TokenResponse, WechatLoginRequest,
+    LoginRequest, TokenResponse, WechatLoginRequest,
 )
-from app.auth import create_token, get_current_user, require_user
+from app.auth import create_token, require_user
+from app.services.password import hash_password, is_legacy_hash, verify_password
 from app.wechat import code_to_openid
+
+# 头像落盘目录：backend/static/avatars/
+_AVATAR_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "static", "avatars",
+)
+os.makedirs(_AVATAR_DIR, exist_ok=True)
+MAX_AVATAR_PX = 256
 
 router = APIRouter()
 
@@ -60,17 +68,24 @@ async def wechat_login(body: WechatLoginRequest, db: Session = Depends(get_db)):
 
 # ── Username/password login (legacy, returns JWT now) ──────────────────
 @router.post("/login", response_model=TokenResponse)
-def login_user(username: str = "", password: str = "", db: Session = Depends(get_db)):
+def login_user(body: LoginRequest, db: Session = Depends(get_db)):
+    # 凭据放在请求体里；此前走查询参数会把明文密码写进各级访问日志
+    username, password = body.username, body.password
     user = db.query(UserModel).filter(UserModel.username == username).first()
     if not user:
         raise HTTPException(status_code=401, detail="账号不存在，请先注册")
+    if getattr(user, "banned", False):
+        raise HTTPException(status_code=403, detail="该账号已被封禁，请联系管理员")
 
     if user.password:
         if not password:
             raise HTTPException(status_code=401, detail="请输入密码")
-        pwh = hashlib.sha256(password.encode()).hexdigest()
-        if user.password != pwh:
+        if not verify_password(password, user.password):
             raise HTTPException(status_code=401, detail="密码错误")
+        # 老账号的无盐 sha256 在这次成功登录时静默升级为 bcrypt
+        if is_legacy_hash(user.password):
+            user.password = hash_password(password)
+            db.commit()
 
     token = create_token(user.id, user.uid)
     return TokenResponse(access_token=token, user=UserSchema.model_validate(user))
@@ -98,7 +113,7 @@ def create_user(body: UserCreate, db: Session = Depends(get_db)):
     if db.query(UserModel).filter(UserModel.uid == uid).first():
         raise HTTPException(status_code=400, detail="该学号已被注册")
 
-    pwh = hashlib.sha256(body.password.encode()).hexdigest() if body.password else None
+    pwh = hash_password(body.password) if body.password else None
     user = UserModel(
         username=body.username, nickname=nickname, uid=uid,
         password=pwh, school_id=sid,
@@ -113,27 +128,8 @@ def create_user(body: UserCreate, db: Session = Depends(get_db)):
 
 
 # ── User CRUD ─────────────────────────────────────────────────────────
-@router.get("/", response_model=List[UserSchema])
-def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(UserModel).offset(skip).limit(limit).all()
-
-
-@router.get("/uid/{uid}", response_model=UserSchema)
-def read_user_by_uid(uid: str, db: Session = Depends(get_db)):
-    user = db.query(UserModel).filter(UserModel.uid == uid).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    return user
-
-
-@router.get("/{user_id}", response_model=UserSchema)
-def read_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-    return user
-
-
+# 说明：原先的 GET "/"（返回全部用户的 id 与 role）是越权链的信息泄漏源头，
+# 且前端从未调用，连同同样无人使用的 GET /uid/{uid}、GET /{user_id} 一并移除。
 @router.put("/{user_id}", response_model=UserSchema)
 def update_user(
     user_id: int,
@@ -157,7 +153,7 @@ def update_user(
             raise HTTPException(status_code=403, detail="无权限修改他人密码")
         if not update.password.strip():
             raise HTTPException(status_code=400, detail="密码不能为空")
-        target.password = hashlib.sha256(update.password.encode()).hexdigest()
+        target.password = hash_password(update.password)
 
     if update.nickname is not None:
         if not update.nickname.strip():
@@ -168,6 +164,41 @@ def update_user(
     if update.is_anonymous is not None:
         target.is_anonymous = update.is_anonymous
 
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+# ── 头像上传（仅本人或管理员）：缩放转 WebP 落盘，DB 仅存路径 ──────────────
+@router.post("/{user_id}/avatar", response_model=UserSchema)
+async def upload_avatar(
+    user_id: int,
+    file: UploadFile = File(...),
+    current: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    target = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    is_self = current.id == user_id
+    is_admin = current.role in ("founder", "ambassador")
+    if not is_self and not is_admin:
+        raise HTTPException(status_code=403, detail="无权修改他人头像")
+
+    data = await file.read()
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data))
+        img = img.convert("RGBA")
+        img.thumbnail((MAX_AVATAR_PX, MAX_AVATAR_PX), Image.LANCZOS)
+    except Exception:
+        raise HTTPException(status_code=400, detail="图片无法解析，请换一张")
+
+    out = os.path.join(_AVATAR_DIR, f"{user_id}.webp")
+    img.save(out, "WEBP", quality=88)
+
+    target.avatar = f"/avatars/{user_id}.webp"
     db.commit()
     db.refresh(target)
     return target

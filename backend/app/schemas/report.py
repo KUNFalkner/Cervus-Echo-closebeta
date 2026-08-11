@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 class ReportCreate(BaseModel):
-    reporter_id: int
+    # reporter_id 取自 JWT 认证结果，不接受客户端自报
     target_type: str
     target_id: int
     reason: str

@@ -1,3 +1,3 @@
-from app.api import users, posts, messages
+from app.api import users, posts
 
-__all__ = ["users", "posts", "messages"]
+__all__ = ["users", "posts"]

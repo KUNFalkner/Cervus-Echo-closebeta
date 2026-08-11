@@ -11,7 +11,15 @@ from sqlalchemy.orm import Session
 from app.models.database import get_db
 from app.models.user import User as UserModel
 
-SECRET_KEY = os.getenv("TREEHOLE_SECRET", "treehole-dev-secret-change-in-prod")
+IS_PROD = os.getenv("TREEHOLE_ENV", "dev").lower() == "prod"
+_secret = os.getenv("TREEHOLE_SECRET")
+if not _secret:
+    if IS_PROD:
+        raise RuntimeError("生产环境必须设置 TREEHOLE_SECRET 环境变量")
+    _secret = "treehole-dev-secret-change-in-prod"
+    print("[WARN] 未设置 TREEHOLE_SECRET，正在使用开发默认密钥，切勿用于生产环境")
+
+SECRET_KEY = _secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 
@@ -44,10 +52,15 @@ def get_current_user(
     payload = decode_token(credentials.credentials)
     if payload is None:
         return None
-    user_id = payload.get("sub")
-    if user_id is None:
+    return _user_from_payload(payload, db)
+
+
+def _user_from_payload(payload: dict, db: Session) -> Optional[UserModel]:
+    try:
+        user_id = int(payload.get("sub"))
+    except (TypeError, ValueError):
         return None
-    return db.query(UserModel).filter(UserModel.id == int(user_id)).first()
+    return db.query(UserModel).filter(UserModel.id == user_id).first()
 
 
 def require_user(
@@ -65,3 +78,21 @@ def require_admin(
     if user.role not in ("founder", "ambassador"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
     return user
+
+
+def require_founder(
+    user: UserModel = Depends(require_user),
+) -> UserModel:
+    if user.role != "founder":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅创始人可操作")
+    return user
+
+
+def ws_authenticate(token: Optional[str], db: Session) -> Optional[UserModel]:
+    """WebSocket 握手鉴权：浏览器无法为 WS 设置自定义 header，因此 token 走查询参数。"""
+    if not token:
+        return None
+    payload = decode_token(token)
+    if payload is None:
+        return None
+    return _user_from_payload(payload, db)

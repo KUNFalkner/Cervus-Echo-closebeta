@@ -21,4 +21,5 @@ class User(Base):
     star_count = Column(Integer, default=0)  # 收到的 Star 数
     karma = Column(Integer, default=0)  # 声望值
     muted_until = Column(DateTime(timezone=True), nullable=True)  # 禁言截止时间，NULL=未禁言
+    banned = Column(Boolean, default=False)  # 封禁（永久禁用登录），与禁言区分
     created_at = Column(DateTime(timezone=True), server_default=func.now())

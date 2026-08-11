@@ -1,9 +1,10 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from typing import Dict, Set
+from typing import Dict, Optional, Set
 from datetime import datetime, timezone
 import json
 import logging
 
+from app.auth import ws_authenticate
 from app.models.database import SessionLocal
 from app.models.message import Message
 from app.models.user import User
@@ -31,8 +32,7 @@ class ConnectionManager:
     def __init__(self):
         self.rooms: Dict[str, Set[WebSocket]] = {}
 
-    async def connect(self, room_id: str, websocket: WebSocket):
-        await websocket.accept()
+    def join(self, room_id: str, websocket: WebSocket):
         self.rooms.setdefault(room_id, set()).add(websocket)
 
     def disconnect(self, room_id: str, websocket: WebSocket):
@@ -63,7 +63,7 @@ def load_history(room_id: str):
     db = SessionLocal()
     try:
         rows = (
-            db.query(Message, User.nickname)
+            db.query(Message, User.nickname, User.avatar)
             .outerjoin(User, User.id == Message.user_id)
             .filter(Message.room_id == room_id)
             .order_by(Message.created_at.desc(), Message.id.desc())
@@ -77,10 +77,11 @@ def load_history(room_id: str):
                 "room_id": msg.room_id,
                 "user_id": msg.user_id,
                 "nickname": nickname or "匿名用户",
+                "avatar": avatar,
                 "content": msg.content,
                 "timestamp": iso_utc(msg.created_at),
             }
-            for msg, nickname in reversed(rows)
+            for msg, nickname, avatar in reversed(rows)
         ]
     except Exception:
         logger.exception("加载聊天历史失败 room_id=%s", room_id)
@@ -106,9 +107,46 @@ def save_message(room_id: str, user_id, content: str):
         db.close()
 
 
+def authenticate(token: Optional[str]):
+    """握手期鉴权：返回 (user_id, nickname, avatar)，token 无效返回 None。"""
+    db = SessionLocal()
+    try:
+        user = ws_authenticate(token, db)
+        if user is None:
+            return None
+        return user.id, user.nickname or "匿名用户", user.avatar
+    finally:
+        db.close()
+
+
+def load_sender_state(user_id: int):
+    """返回 (禁言提示或 None, 最新昵称, 最新头像)。
+
+    复用同一次查询顺带取最新昵称/头像：否则广播会一直用握手那一刻的旧值，
+    用户改完头像得重连才生效。
+    """
+    db = SessionLocal()
+    try:
+        sender = db.query(User).filter(User.id == user_id).first()
+        if sender is None:
+            return None, None, None
+        muted = mute_message(sender) if is_muted(sender) else None
+        return muted, sender.nickname, sender.avatar
+    finally:
+        db.close()
+
+
 @router.websocket("/ws/{room_id:path}")
-async def websocket_endpoint(websocket: WebSocket, room_id: str):
-    await manager.connect(room_id, websocket)
+async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional[str] = None):
+    # 浏览器原生 WebSocket 无法带自定义 header，token 走查询参数
+    identity = authenticate(token)
+    if identity is None:
+        await websocket.close(code=4401)
+        return
+    user_id, nickname, avatar = identity
+
+    await websocket.accept()
+    manager.join(room_id, websocket)
     try:
         for item in load_history(room_id):
             await websocket.send_text(json.dumps(item, ensure_ascii=False))
@@ -129,23 +167,15 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 continue
             content = content[:MAX_CONTENT_LEN]
 
-            user_id = message.get("user_id")
-            if not isinstance(user_id, int):
-                user_id = None
-
+            # 身份只认握手时认证出来的那个人，客户端帧里的 user_id / nickname 一律忽略
             # 禁言拦截：仅向发送者回送错误帧，不影响房间其他人
-            if user_id is not None:
-                db = SessionLocal()
-                try:
-                    sender = db.query(User).filter(User.id == user_id).first()
-                    if sender and is_muted(sender):
-                        await websocket.send_text(json.dumps({
-                            "type": "error",
-                            "detail": mute_message(sender),
-                        }, ensure_ascii=False))
-                        continue
-                finally:
-                    db.close()
+            muted, cur_nickname, cur_avatar = load_sender_state(user_id)
+            if muted:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": muted,
+                }, ensure_ascii=False))
+                continue
 
             msg_id, created_at = save_message(room_id, user_id, content)
 
@@ -154,7 +184,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 "id": msg_id,
                 "room_id": room_id,
                 "user_id": user_id,
-                "nickname": message.get("nickname") or "匿名用户",
+                "nickname": cur_nickname or nickname,
+                "avatar": cur_avatar if cur_avatar is not None else avatar,
                 "content": content,
                 "timestamp": created_at,
             }, ensure_ascii=False))

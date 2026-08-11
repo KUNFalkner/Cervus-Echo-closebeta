@@ -2,13 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from app.auth import get_current_user, require_user
 from app.models.database import get_db
 from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.user import User as UserModel
 from app.models.star import UserStar
+from app.models.like import UserLike
 from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, Comment as CommentSchema
+from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
+from app.services.notif import notify_from_comment, notify_like
 
 router = APIRouter()
 
@@ -51,18 +55,37 @@ def can_post_announcement(user: Optional[UserModel], forum_code: str) -> bool:
     return False
 
 
-def _check_admin_content_scope(admin: UserModel, target_school: str):
-    """校验管理员能否处置某内容：founder 全局；大使仅限本校(user_school 匹配)。"""
-    if admin.role == "ambassador" and target_school != admin.school_id:
-        raise HTTPException(status_code=403, detail="大使只能管理本校内容")
+def _mask_post(post: PostModel, viewer: Optional[UserModel], author_avatar: Optional[str] = None) -> PostSchema:
+    """UID 是学生的真实身份，不能无条件下发——按可见性规则在服务端抹掉。
+    头像同理：匿名帖（hide_uid）一律不下发真实头像，避免去匿名化。"""
+    data = PostSchema.model_validate(post)
+    if not can_see_uid(viewer, bool(post.hide_uid), post.user_school):
+        data.user_uid = None
+    data.author_avatar = author_avatar if not post.hide_uid else None
+    return data
+
+
+def _mask_comment(comment: CommentModel, viewer: Optional[UserModel], author_avatar: Optional[str] = None) -> CommentSchema:
+    data = CommentSchema.model_validate(comment)
+    if not can_see_uid(viewer, bool(comment.hide_uid)):
+        data.user_uid = None
+    data.author_avatar = author_avatar if not comment.hide_uid else None
+    return data
+
+
+def _avatar_map(db: Session, user_ids) -> dict:
+    if not user_ids:
+        return {}
+    rows = db.query(UserModel.id, UserModel.avatar).filter(UserModel.id.in_(user_ids)).all()
+    return {r.id: r.avatar for r in rows}
+
 
 @router.post("/", response_model=PostSchema)
-def create_post(post: PostCreate, db: Session = Depends(get_db)):
-    # 获取用户信息
-    user = db.query(UserModel).filter(UserModel.id == post.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
-
+def create_post(
+    post: PostCreate,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     # 禁言拦截
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
@@ -79,15 +102,18 @@ def create_post(post: PostCreate, db: Session = Depends(get_db)):
     post.title = sensitive_filter.filter_text(post.title)
     post.content = sensitive_filter.filter_text(post.content)
 
-    # 保存用户名
+    # 身份字段一律以服务端认证结果为准，不接受客户端自报
     post_data = post.model_dump()
+    post_data["user_id"] = user.id
     post_data["username"] = user.username
+    post_data["user_uid"] = user.uid
+    post_data["user_school"] = user.school_id
 
     db_post = PostModel(**post_data)
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
-    return db_post
+    return _mask_post(db_post, user, author_avatar=user.avatar)
 
 @router.get("/", response_model=List[PostSchema])
 def read_posts(
@@ -96,16 +122,12 @@ def read_posts(
     category: Optional[str] = Query(None, description="按分类筛选"),
     forum: Optional[str] = Query(None, description="按论坛筛选"),
     search: Optional[str] = Query(None, description="搜索标题和内容"),
-    sort: Optional[str] = Query(None, description="排序：latest(默认) / hot(按星标数降序，社区自治)"),
-    user_id: Optional[int] = Query(None, description="用户ID（用于权限过滤）"),
+    tag: Optional[str] = Query(None, description="按标签筛选（精确匹配某个标签）"),
+    sort: Optional[str] = Query(None, description="排序：latest(默认) / hot(按点赞+评论+收藏加权降序)"),
+    current_user: Optional[UserModel] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     query = db.query(PostModel)
-
-    # 获取当前用户
-    current_user = None
-    if user_id:
-        current_user = db.query(UserModel).filter(UserModel.id == user_id).first()
 
     # 论坛权限过滤
     if current_user:
@@ -150,34 +172,74 @@ def read_posts(
         query = query.filter(
             (PostModel.title.contains(search)) | (PostModel.content.contains(search))
         )
+    if tag:
+        # 标签以逗号分隔存储，需按分隔符匹配，避免多标签帖子在筛选时漏掉
+        query = query.filter(
+            (PostModel.tags == tag) |
+            PostModel.tags.like(f"%,{tag},%") |
+            PostModel.tags.like(f"{tag},%") |
+            PostModel.tags.like(f"%,{tag}")
+        )
 
+    # 热度分 = 点赞*2 + 评论*3 + 收藏*2（评论权重更高，鼓励讨论）；
+    # 公告恒定置顶，发布时间作为同分兜底。
+    _hot = (PostModel.like_count * 2 + PostModel.comment_count * 3 + PostModel.star_count * 2)
     if sort == "hot":
-        query = query.order_by(PostModel.is_announcement.desc(), PostModel.star_count.desc(), PostModel.created_at.desc())
+        query = query.order_by(PostModel.is_announcement.desc(), _hot.desc(), PostModel.created_at.desc())
     else:
         query = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc())
     posts = query.offset(skip).limit(limit).all()
-    return posts
+    avatar_map = _avatar_map(db, [p.user_id for p in posts])
+    return [_mask_post(p, current_user, avatar_map.get(p.user_id)) for p in posts]
+
+@router.get("/tags/trending")
+def trending_tags(
+    limit: int = 20,
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """热门标签：统计可见帖子里的标签出现频次，返回 Top N。"""
+    # 复用 read_posts 的论坛可见性规则
+    if current_user:
+        visible_forums = ["main"]
+        if current_user.school_id:
+            visible_forums.append(current_user.school_id)
+        if current_user.role in ["founder", "ambassador"]:
+            visible_forums = None
+    else:
+        visible_forums = ["main"]
+    q = db.query(PostModel.tags)
+    if visible_forums is not None:
+        q = q.filter(PostModel.forum.in_(visible_forums))
+    rows = q.filter(PostModel.tags.isnot(None), PostModel.tags != "").all()
+    counts = {}
+    for (tags,) in rows:
+        for t in str(tags).split(","):
+            t = t.strip()
+            if t:
+                counts[t] = counts.get(t, 0) + 1
+    ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+    return [{"tag": t, "count": c} for t, c in ranked]
 
 @router.get("/{post_id}", response_model=PostSchema)
-def read_post(post_id: int, db: Session = Depends(get_db)):
+def read_post(
+    post_id: int,
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
-    return post
-
-@router.post("/{post_id}/like")
-def like_post(post_id: int, db: Session = Depends(get_db)):
-    post = db.query(PostModel).filter(PostModel.id == post_id).first()
-    if post is None:
-        raise HTTPException(status_code=404, detail="帖子不存在")
-    post.like_count += 1
-    db.commit()
-    return {"message": "点赞成功"}
+    author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
+    return _mask_post(post, current_user, author.avatar if author else None)
 
 @router.post("/{post_id}/star")
-def star_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
-    if not user_id:
-        raise HTTPException(status_code=400, detail="需要用户ID")
+def star_post(
+    post_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
+    user_id = user.id
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -204,9 +266,12 @@ def star_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
     return {"message": "加星成功", "star_count": post.star_count, "starred": True}
 
 @router.delete("/{post_id}/star")
-def unstar_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
-    if not user_id:
-        raise HTTPException(status_code=400, detail="需要用户ID")
+def unstar_post(
+    post_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
+    user_id = user.id
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
@@ -230,60 +295,131 @@ def unstar_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)
     db.commit()
     return {"message": "已取消星标", "star_count": post.star_count, "starred": False}
 
-@router.post("/{post_id}/comments", response_model=CommentSchema)
-def create_comment(post_id: int, comment: CommentCreate, db: Session = Depends(get_db)):
+@router.post("/{post_id}/like")
+def like_post(
+    post_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
+    user_id = user.id
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
-    user = db.query(UserModel).filter(UserModel.id == comment.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="用户不存在")
+    if post.user_id == user_id:
+        raise HTTPException(status_code=400, detail="不能给自己点赞")
+    existing = db.query(UserLike).filter(
+        UserLike.user_id == user_id, UserLike.post_id == post_id
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="已经点过赞了")
+    db.add(UserLike(user_id=user_id, post_id=post_id))
+    post.like_count = (post.like_count or 0) + 1
+    db.commit()
+    # 通知帖子作者被点赞
+    try:
+        notify_like(db, post=post, actor=user)
+    except Exception:
+        pass
+    return {"message": "点赞成功", "like_count": post.like_count, "liked": True}
+
+@router.delete("/{post_id}/like")
+def unlike_post(
+    post_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
+    user_id = user.id
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    like = db.query(UserLike).filter(
+        UserLike.user_id == user_id, UserLike.post_id == post_id
+    ).first()
+    if not like:
+        raise HTTPException(status_code=400, detail="你还没有给这个帖子点赞")
+    db.delete(like)
+    if post.like_count and post.like_count > 0:
+        post.like_count -= 1
+    db.commit()
+    return {"message": "已取消点赞", "like_count": post.like_count, "liked": False}
+
+@router.post("/{post_id}/comments", response_model=CommentSchema)
+def create_comment(
+    post_id: int,
+    comment: CommentCreate,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
     comment.content = sensitive_filter.filter_text(comment.content)
-    db_comment = CommentModel(**comment.model_dump())
+    data = comment.model_dump()
+    data["post_id"] = post_id
+    data["user_id"] = user.id
+    data["user_uid"] = user.uid
+    db_comment = CommentModel(**data)
     db.add(db_comment)
     post.comment_count += 1
     db.commit()
     db.refresh(db_comment)
-    return db_comment
+    # 生成通知：帖子作者的新回复 + 评论中的 @ 提及
+    try:
+        notify_from_comment(db, post=post, comment=db_comment, actor=user)
+    except Exception:
+        pass
+    return _mask_comment(db_comment, user, author_avatar=user.avatar)
 
 @router.get("/{post_id}/comments", response_model=List[CommentSchema])
-def read_comments(post_id: int, db: Session = Depends(get_db)):
+def read_comments(
+    post_id: int,
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     comments = db.query(CommentModel).filter(CommentModel.post_id == post_id).order_by(CommentModel.created_at.asc()).all()
-    return comments
+    avatar_map = _avatar_map(db, [c.user_id for c in comments])
+    return [_mask_comment(c, current_user, avatar_map.get(c.user_id)) for c in comments]
 
 @router.delete("/{post_id}")
-def delete_post(post_id: int, user_id: int = None, db: Session = Depends(get_db)):
+def delete_post(
+    post_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
     # 检查权限：本人或管理员
-    user = db.query(UserModel).filter(UserModel.id == user_id).first() if user_id else None
-    is_admin = user and user.role in ["founder", "ambassador"]
-    is_owner = post.user_id == user_id
+    is_admin = user.role in ["founder", "ambassador"]
+    is_owner = post.user_id == user.id
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="无权删除此帖子")
-    if is_admin:
-        _check_admin_content_scope(user, post.user_school)
+    if is_admin and not is_owner:
+        assert_can_moderate(user, post.user_school)
     db.delete(post)
     db.commit()
     return {"message": "删除成功"}
 
 @router.delete("/{post_id}/comments/{comment_id}")
-def delete_comment(post_id: int, comment_id: int, user_id: int = None, db: Session = Depends(get_db)):
+def delete_comment(
+    post_id: int,
+    comment_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db)
+):
     comment = db.query(CommentModel).filter(CommentModel.id == comment_id, CommentModel.post_id == post_id).first()
     if comment is None:
         raise HTTPException(status_code=404, detail="评论不存在")
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     # 检查权限：本人或管理员
-    user = db.query(UserModel).filter(UserModel.id == user_id).first() if user_id else None
-    is_admin = user and user.role in ["founder", "ambassador"]
-    is_owner = comment.user_id == user_id
+    is_admin = user.role in ["founder", "ambassador"]
+    is_owner = comment.user_id == user.id
     if not is_admin and not is_owner:
         raise HTTPException(status_code=403, detail="无权删除此评论")
-    if is_admin:
-        _check_admin_content_scope(user, post.user_school if post else None)
+    if is_admin and not is_owner:
+        assert_can_moderate(user, post.user_school if post else None)
     # 更新帖子评论数
     if post and post.comment_count > 0:
         post.comment_count -= 1
