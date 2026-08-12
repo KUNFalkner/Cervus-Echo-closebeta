@@ -140,7 +140,7 @@ function canSeeUid(viewer, post) { if(!viewer||!post) return false; if(viewer.ro
 import { ToastProvider, useToast } from './ToastContext'
 
 // ── Shared components ──
-const Spinner = () => <div className="spinner-container"><div className="spinner"/></div>
+const Spinner = () => <div className="spinner-container"><div className="loading-dots"><span/><span/><span/></div></div>
 const SkeletonList = () => <div className="posts-list">{[1,2,3].map(i=><div key={i} className="skeleton-card"><div className="skeleton skeleton-title"/><div className="skeleton skeleton-text"/><div className="skeleton skeleton-text" style={{width:'40%'}}/></div>)}</div>
 const Empty = ({icon,title,desc}) => <div className="empty-state"><span className="empty-icon">{icon}</span><h3>{title}</h3><p>{desc}</p></div>
 const ErrorBox = ({msg,onRetry}) => <div className="error-state"><span className="error-icon">!</span><h3>出错了</h3><p>{msg}</p>{onRetry&&<button onClick={onRetry} className="retry-btn">重试</button>}</div>
@@ -568,15 +568,27 @@ function App() {
   const postsSkipRef = useRef(0)
   const [hasMore,setHasMore] = useState(false)
   // 主题切换（浅/深）：手动覆盖星空自动昼夜间，localStorage 持久化
-  const [theme,setTheme] = useState(() => { try { return localStorage.getItem('treehole_theme') } catch { return null } })  // null = 跟随系统
-  const isLight = theme === 'light'
+  // 三态主题：auto(跟随时间) / light(白天) / dark(夜晚)
+  const [theme,setTheme] = useState(() => { try { return localStorage.getItem('treehole_theme') || 'auto' } catch { return 'auto' } })
+  const isNightByTime = () => { const h = new Date().getHours(); return h >= 19 || h < 6 }
+  const isLight = theme === 'light' || (theme === 'auto' && !isNightByTime())
+  const applyTheme = (t) => {
+    const night = t === 'dark' || (t === 'auto' && isNightByTime())
+    document.body.dataset.time = night ? 'night' : 'day'
+  }
   const toggleTheme = () => {
-    const next = (theme === 'dark' || theme === null) ? 'light' : 'dark'
+    const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto'
     setTheme(next)
     try { localStorage.setItem('treehole_theme', next) } catch {}
-    document.body.dataset.time = next === 'light' ? 'day' : 'night'
+    applyTheme(next)
   }
-  useEffect(() => { if (theme === 'light' || theme === 'dark') document.body.dataset.time = theme === 'light' ? 'day' : 'night' }, [theme])
+  useEffect(() => { applyTheme(theme) }, [theme])
+  // auto 模式下每分钟检查时间变化
+  useEffect(() => {
+    if (theme !== 'auto') return
+    const iv = setInterval(() => applyTheme(theme), 60000)
+    return () => clearInterval(iv)
+  }, [theme])
   const [loadingMore,setLoadingMore] = useState(false)
 
   // mode='replace' 重新拉首页（切换分类/搜索/发帖后）；mode='more' 在末尾追加下一页
@@ -700,7 +712,7 @@ function App() {
 
     : <div className="app">
       <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className="nav-msg" onClick={()=>setCurPage('chat')} title="消息" aria-label="消息">💬</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif} title="通知" aria-label="通知">🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
-        <button className="nav-theme" onClick={toggleTheme} title={isLight?'切换深色':'切换浅色'} aria-label="切换主题">{isLight?'🌙':'☀️'}</button>
+        <button className="nav-theme" onClick={toggleTheme} title={theme==='auto'?'跟随时间(点击切换)':theme==='light'?'白天模式(点击切换)':'夜晚模式(点击切换)'} aria-label="切换主题">{theme==='auto'?'🔄':isLight?'🌙':'☀️'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span>通知</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''}`} onClick={()=>clickNotif(n)}><span className="notif-icon">{n.type==='like'?'❤️':n.type==='mention'?'@️⃣':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
       <main className="main-content">
@@ -718,7 +730,7 @@ function App() {
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost}/>}
       </main>
-      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">⚙️</span><span className="nav-label">管理</span></button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">消息</span></button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}><span className="nav-icon">🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</span><span className="nav-label">通知</span></button><button className="mobile-nav-item" onClick={toggleTheme}><span className="nav-icon">{isLight?'🌙':'☀️'}</span><span className="nav-label">主题</span></button></nav>
+      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">⚙️</span><span className="nav-label">管理</span></button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">消息</span></button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}><span className="nav-icon">🔔{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</span><span className="nav-label">通知</span></button><button className="mobile-nav-item" onClick={toggleTheme}><span className="nav-icon">{theme==='auto'?'🔄':isLight?'🌙':'☀️'}</span><span className="nav-label">主题</span></button></nav>
     </div>}
     {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
     <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}

@@ -1,11 +1,11 @@
 import websocket, json, threading, time, urllib.request, subprocess, random, string, sqlite3
 
-PORT = 9353
+PORT = 9354
 CHROME = r"C:/Users/FXK/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe"
 BASE = "http://localhost/api"
-UD = "/tmp/cdp_flex_%d" % random.randint(1000, 9999)
+UD = "/tmp/cdp_flex2_%d" % random.randint(1000, 9999)
 RAND = ''.join(random.choices(string.digits, k=6))
-USERNAME = "flex_" + RAND
+USERNAME = "flex2_" + RAND
 
 def http(m, p, b=None, t=None):
     req = urllib.request.Request(BASE + p, data=(json.dumps(b).encode() if b is not None else None), method=m)
@@ -36,9 +36,10 @@ def recv():
     while True:
         try:
             d = json.loads(ws.recv())
-            if "id" in d: pend[d["id"]] = d
-        except Exception: break
-threading.Thread(target=recv, daemon=True).start()
+            if isinstance(d, dict) and "id" in d: pend[d["id"]] = d
+        except Exception:
+            continue   # 容忍非 JSON 帧，不退出
+send_ok = [True]
 def send(method, params=None, timeout=25):
     global mid; mid += 1; i = mid
     ws.send(json.dumps({"id": i, "method": method, "params": params or {}}))
@@ -53,16 +54,16 @@ send("Page.navigate", {"url": "http://localhost/"}); time.sleep(1.5)
 send("Runtime.evaluate", {"expression": """localStorage.setItem('token', %s); localStorage.setItem('user', JSON.stringify(%s)); localStorage.setItem('rules_accepted','true'); location.reload();""" % (json.dumps(token), json.dumps(user))})
 time.sleep(2.5)
 for _ in range(40):
-    if send("Runtime.evaluate", {"expression": "!!document.querySelector('.glass-nav')"}): 
-        if send("Runtime.evaluate", {"expression": "!!document.querySelector('.glass-nav')"}).get("result",{}).get("value"): break
+    if send("Runtime.evaluate", {"expression": "!!document.querySelector('.glass-nav')", "returnByValue": True}):
+        if send("Runtime.evaluate", {"expression": "!!document.querySelector('.glass-nav')", "returnByValue": True}).get("result",{}).get("value"): break
     time.sleep(0.3)
-send("Runtime.evaluate", {"expression": """[...document.querySelectorAll('.nav-links button')].find(x=>x.textContent.indexOf('我的')>=0).click()"""})
+send("Runtime.evaluate", {"expression": """[...document.querySelectorAll('.nav-links button')].find(x=>x.textContent.indexOf('我的')>=0).click()""", "returnByValue": True})
 time.sleep(1.5)
 for _ in range(40):
-    if send("Runtime.evaluate", {"expression": "!!document.querySelector('.profile-card')"}).get("result",{}).get("value"): break
+    if send("Runtime.evaluate", {"expression": "!!document.querySelector('.profile-card')", "returnByValue": True}).get("result",{}).get("value"): break
     time.sleep(0.3)
-expr = """(function(){try{var c=document.querySelector('.profile-card');var n=document.querySelector('.profile-info h3');var cs=getComputedStyle(c);return JSON.stringify({flex:cs.flexDirection,align:cs.alignItems,nameLines:n?n.getClientRects().length:0,nameW:Math.round(n.getBoundingClientRect().width),cardW:Math.round(c.getBoundingClientRect().width)});}catch(e){return 'ERR:'+e.message;}})()"""
-r = send("Runtime.evaluate", {"expression": expr})
+expr = """(function(){try{var c=document.querySelector('.profile-card');var n=document.querySelector('.profile-info h3');var cs=getComputedStyle(c);var av=document.querySelector('.avatar-upload');return JSON.stringify({flex:cs.flexDirection,cardW:Math.round(c.getBoundingClientRect().width),avW:Math.round(av.getBoundingClientRect().width),infoW:Math.round(document.querySelector('.profile-info').getBoundingClientRect().width),nameLines:n?n.getClientRects().length:0});}catch(e){return 'ERR:'+e.message;}})()"""
+r = send("Runtime.evaluate", {"expression": expr, "returnByValue": True})
 val = r.get("result",{}).get("value") if r else None
 print("FLEX:", val)
 ws.close(); proc.terminate()

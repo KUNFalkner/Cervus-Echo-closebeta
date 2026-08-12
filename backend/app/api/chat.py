@@ -9,6 +9,7 @@ from app.models.database import SessionLocal
 from app.models.message import Message
 from app.models.user import User
 from app.services.mute import is_muted, mute_message
+from app.services.sensitive_words import sensitive_filter
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +167,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
             if not content:
                 continue
             content = content[:MAX_CONTENT_LEN]
+            # 私信同样过敏感词过滤（与帖子/评论一致：命中词打码为 *）
+            content = sensitive_filter.filter_text(content)
 
             # 身份只认握手时认证出来的那个人，客户端帧里的 user_id / nickname 一律忽略
             # 禁言拦截：仅向发送者回送错误帧，不影响房间其他人
