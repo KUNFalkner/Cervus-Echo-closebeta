@@ -596,10 +596,10 @@ function App() {
     if(replace) postsSkipRef.current=0
     const skip=replace?0:postsSkipRef.current
     setLoading(replace); setLoadingMore(!replace)
-    try{ let url=`/posts/?skip=${skip}&limit=${PAGE_SIZE}`; if(activeCat!=='all')url+=`&category=${activeCat}`; if(activeForum!=='all')url+=`&forum=${activeForum}`; if(activeSort==='hot')url+=`&sort=hot`; if(debouncedQ.trim())url+=`&search=${encodeURIComponent(debouncedQ.trim())}`; const r=await apiFetch(url); if(!r.ok)throw new Error('获取帖子失败'); const data=await r.json()
+    try{ let url=`/posts/?skip=${skip}&limit=${PAGE_SIZE}`; if(activeCat!=='all')url+=`&category=${activeCat}`; if(activeForum!=='all')url+=`&forum=${activeForum}`; if(activeSort==='hot')url+=`&sort=hot`; if(debouncedQ.trim())url+=`&search=${encodeURIComponent(debouncedQ.trim())}`; if(activeTag.trim())url+=`&tag=${encodeURIComponent(activeTag.trim())}`; const r=await apiFetch(url); if(!r.ok)throw new Error('获取帖子失败'); const data=await r.json()
       if(replace){ setPosts(data); setListKey(k=>k+1) } else { setPosts(prev=>[...prev,...data]) }
       postsSkipRef.current=skip+data.length; setHasMore(data.length===PAGE_SIZE)
-    }catch(e){ if(replace) setError(e.message) }finally{ setLoading(false); setLoadingMore(false) } },[activeCat,activeForum,activeSort,debouncedQ,user])
+    }catch(e){ if(replace) setError(e.message) }finally{ setLoading(false); setLoadingMore(false) } },[activeCat,activeForum,activeSort,debouncedQ,activeTag,user])
 
   useEffect(()=>{ const t=setTimeout(()=>setDebouncedQ(searchQ),300); return ()=>clearTimeout(t) },[searchQ])
   useEffect(()=>{ const el=document.querySelector('.main-content'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; gsap.fromTo(el,{opacity:0,y:12},{opacity:1,y:0,duration:.3,ease:'power2.out'}) },[curPage])

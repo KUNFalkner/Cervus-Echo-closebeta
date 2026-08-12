@@ -92,7 +92,7 @@ def main():
         time.sleep(0.4)
         print("ask button present:", wait_for(c, "!!document.querySelector('.tarot-ask')"))
         ev(c, "document.querySelector('.tarot-ask')?.click();", ret=False)
-        res = wait_for(c, "(()=>{const el=document.querySelector('.tarot-counsel'); if(!el) return null; const t=el.querySelector('.tarot-counsel-text'); return {src:el.className, len:(t?t.textContent:'').length};})()", timeout=8)
+        res = wait_for(c, "(()=>{const el=document.querySelector('.tarot-counsel'); if(!el) return null; const t=el.querySelector('.tarot-counsel-text'); return {src:el.className, len:(t?t.textContent:'').length};})()", timeout=45)
         print("counsel result:", res)
         r = c.send("Page.captureScreenshot", {"format":"png","captureBeyondViewport":False})
         if r and "result" in r:

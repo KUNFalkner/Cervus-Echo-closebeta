@@ -839,12 +839,25 @@ body[data-time="day"] .login-input:focus {
 .tarot-mystic .tarot-hero h2 {
   position: relative;
   color: var(--t-gold);
-  font-family: 'UnifrakturMaguntia', 'Cinzel Decorative', 'Old English Text MT', 'Cloister Black', 'Blackletter686 BT', 'English111 Vivace BT', serif;
   font-weight: 400;
-  letter-spacing: .04em;
-  font-size: 2.6rem;
+  letter-spacing: .08em;
+  font-size: 3rem;
   line-height: 1.1;
-  text-shadow: 0 0 22px rgba(227,196,120,.45), 0 1px 0 rgba(0,0,0,.4);
+}
+/* 哥特标题：暗金古铜渐变 + 暗描边提对比 + 冷调微光（去奶白高光，避免发憨/可爱） */
+.tarot-gothic-title {
+  font-family: 'UnifrakturMaguntia', 'UnifrakturCook', 'Cinzel Decorative', 'Old English Text MT', 'Cloister Black', serif;
+  font-weight: 400;
+  background: linear-gradient(180deg, #e3c483 0%, #b78f3c 55%, #7e5d27 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  /* 轻微纵向拉伸，让字形更修长（transform 不回流，不影响星点定位） */
+  transform: scaleY(1.08);
+  transform-origin: center;
+  /* 一道暗描边托起字形，再叠一层偏冷的暗金微光（不抢戏、不软萌） */
+  filter: drop-shadow(0 0 1px rgba(0,0,0,.9)) drop-shadow(0 0 12px rgba(170,135,70,.4));
 }
 /* 哥特标题四周的闪烁星点，呼应星空主题（仅 transform/opacity，合成层无 paint） */
 .tarot-title-wrap { position: relative; display: inline-block; }
@@ -865,10 +878,10 @@ body[data-time="day"] .login-input:focus {
 .tarot-mystic .tarot-hero h2::after {
   content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: 78%; height: 150%; border-radius: 50%; pointer-events: none; z-index: -1;
-  background: radial-gradient(circle, rgba(227,196,120,.24), transparent 70%);
-  opacity: .4; will-change: opacity; animation: tarotTitleGlow 6s ease-in-out infinite alternate;
+  background: radial-gradient(circle, rgba(196,158,86,.16), transparent 70%);
+  opacity: .3; will-change: opacity; animation: tarotTitleGlow 6s ease-in-out infinite alternate;
 }
-@keyframes tarotTitleGlow { from { opacity: .25; } to { opacity: .65; } }
+@keyframes tarotTitleGlow { from { opacity: .12; } to { opacity: .4; } }
 .tarot-mystic .tarot-sub, .tarot-mystic .tarot-summary { color: var(--t-muted); }
 .tarot-mystic .tarot-rule { width: 56px; height: 1px; opacity: .2; background: linear-gradient(90deg, transparent, var(--t-gold), transparent); }
 .tarot-mystic .tarot-start {

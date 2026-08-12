@@ -37,6 +37,7 @@ SYSTEM_PROMPT = (
     "用中文给出约 180–260 字的解读：先逐张点出牌意如何映照当下，"
     "再整合三张形成一条连贯的建议。避免绝对化断言，不做医疗/法律/投资承诺。"
     "用空行分段，可加一句诗意的收尾。"
+    "只输出纯文本，不要使用任何 Markdown 标记（如 **、#、-、> 等）。"
 )
 
 
@@ -89,21 +90,28 @@ async def interpret(req: InterpretRequest):
     if not req.cards:
         raise HTTPException(status_code=400, detail="缺少牌阵")
 
-    key = os.getenv("TAROT_LLM_API_KEY")
-    if not key:
+    # 触发真实 LLM 的条件：配了 API key，或显式配置了自定义基址（本地模型如
+    # Ollama/LM Studio 可免 key，仅靠 BASE_URL 即可接入）。两者皆无则走内置解读。
+    key = os.environ.get("TAROT_LLM_API_KEY", "")
+    has_custom_base = "TAROT_LLM_BASE_URL" in os.environ
+    if not (key or has_custom_base):
         return {"text": _builtin_interpret(req), "source": "builtin"}
 
-    base = os.getenv("TAROT_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.getenv("TAROT_LLM_MODEL", "gpt-4o-mini")
+    base = os.environ.get("TAROT_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+    model = os.environ.get("TAROT_LLM_MODEL", "gpt-4o-mini")
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    # 本地推理模型（如 qwen3）默认会先「思考」，把 token 预算耗在 reasoning 上，
+    # 导致正文被截断、或耗时超过超时而被误判失败。对自定义基址（本地端点）关闭思考，
+    # 让输出直接是解读正文；云端 OpenAI 不传此参数，避免未知字段报错。
+    extra = {"enable_thinking": False} if has_custom_base else {}
     try:
         user_msg = _build_prompt(req)
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             resp = await client.post(
                 f"{base}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {key}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
                 json={
                     "model": model,
                     "messages": [
@@ -111,7 +119,8 @@ async def interpret(req: InterpretRequest):
                         {"role": "user", "content": user_msg},
                     ],
                     "temperature": 0.8,
-                    "max_tokens": 500,
+                    "max_tokens": 1100,
+                    **extra,
                 },
             )
             resp.raise_for_status()
