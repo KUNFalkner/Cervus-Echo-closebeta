@@ -870,3 +870,68 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .bg-swatch.bg-custom input[type=color] { width:140%; height:140%; border:none; padding:0; background:none; cursor:pointer; }
 /* ── 导航文字按钮统一样式 ── */
 .nav-msg { font-size: .9rem; padding: .3rem .65rem; }
+
+/* ═══════════════ 方向4：移动端全面适配 ═══════════════ */
+
+@media (max-width: 640px) {
+  /* 页面容器 */
+  .profile-page { padding: 0 .6rem; }
+  .main-content { padding: .6rem; }
+
+  /* 个人卡片：紧凑但保持横向 */
+  .profile-card { gap: .7rem; padding: 1rem; }
+  .avatar-upload img { width: 58px; height: 58px; }
+  .profile-info h3 { font-size: 1.05rem; }
+  .profile-username { font-size: .78rem; }
+  .stat-value { font-size: .95rem; }
+  .stat-label { font-size: .65rem; }
+
+  /* 设置卡片 */
+  .settings-card { margin-top: .5rem; padding: .85rem; }
+  .setting-row { padding: .5rem 0; font-size: .85rem; }
+  .setting-row input { width: 120px; font-size: .85rem; }
+  .save-btn { width: 100%; margin-top: .4rem; }
+
+  /* 帖子卡片 */
+  .post-card { padding: .75rem; }
+  .post-title { font-size: .95rem; }
+  .post-preview { font-size: .82rem; }
+  .post-footer { font-size: .75rem; flex-wrap: wrap; gap: .4rem; }
+
+  /* 发帖表单 */
+  .create-post-card { padding: .75rem; }
+  .glass-input, .glass-textarea { font-size: .9rem; }
+  .submit-btn { width: 100%; padding: .55rem 0; }
+
+  /* 评论区 */
+  .comment-card { padding: .65rem .75rem; }
+  .comment-input { font-size: .88rem; }
+
+  /* 标签/分类 */
+  .category-tab { font-size: .8rem; padding: .3rem .55rem; }
+  .forum-option { font-size: .82rem; padding: .3rem .55rem; }
+
+  /* 空状态 / 错误 */
+  .empty-state { padding: 2.5rem 1rem; }
+  .empty-icon { font-size: 2.2rem; }
+
+  /* 背景面板移动端全宽 */
+  .bg-panel { margin-left: -.5rem; margin-right: -.5rem; border-radius: 0; }
+  .bg-toggle-btn { width: 100%; text-align: center; }
+
+  /* 通知面板 */
+  .notif-panel { left: .5rem; right: .5rem; max-height: 60vh; }
+}
+
+@media (max-width: 420px) {
+  /* 超小屏进一步压缩 */
+  .profile-card { gap: .5rem; padding: .75rem; }
+  .avatar-upload img { width: 50px; height: 50px; }
+  .profile-info h3 { font-size: .95rem; }
+  .profile-stats { gap: 1rem; }
+  .glass-card { padding: .7rem; border-radius: 14px; }
+  .post-title { font-size: .9rem; }
+  .post-preview { font-size: .78rem; line-height: 1.45; }
+  .my-tab { font-size: .8rem; padding: .35rem .6rem; }
+  .action-btn { font-size: .78rem; padding: .25rem .4rem; }
+}
