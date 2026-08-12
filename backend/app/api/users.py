@@ -225,3 +225,46 @@ async def upload_avatar(
     db.commit()
     db.refresh(target)
     return target
+
+
+# ── 介绍卡片背景上传（仅本人或管理员）：缩放转 WebP 落盘，DB 存 url(/backgrounds/..) ──
+_BG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "static", "backgrounds",
+)
+os.makedirs(_BG_DIR, exist_ok=True)
+MAX_BG_PX = 1280
+
+
+@router.post("/{user_id}/background", response_model=UserSchema)
+async def upload_background(
+    user_id: int,
+    file: UploadFile = File(...),
+    current: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    target = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    is_self = current.id == user_id
+    is_admin = current.role in ("founder", "ambassador")
+    if not is_self and not is_admin:
+        raise HTTPException(status_code=403, detail="无权修改他人背景")
+
+    data = await file.read()
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data))
+        img = img.convert("RGB")
+        img.thumbnail((MAX_BG_PX, MAX_BG_PX), Image.LANCZOS)
+    except Exception:
+        raise HTTPException(status_code=400, detail="图片无法解析，请换一张")
+
+    out = os.path.join(_BG_DIR, f"{user_id}.webp")
+    img.save(out, "WEBP", quality=82)
+
+    target.profile_bg = f"url(/backgrounds/{user_id}.webp)"
+    db.commit()
+    db.refresh(target)
+    return target

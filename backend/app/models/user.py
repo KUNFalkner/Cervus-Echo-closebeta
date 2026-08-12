@@ -17,7 +17,7 @@ class User(Base):
     class_number = Column(Integer, nullable=True)
     student_number = Column(Integer, nullable=True)
     school_id = Column(String, default="ZC")
-    profile_bg = Column(String(32), default="", nullable=True)  # 个人介绍卡片背景（预设渐变 key）
+    profile_bg = Column(String(512), default="", nullable=True)  # 个人介绍卡片背景（CSS 背景值：预设渐变 / 自定义颜色 / url(图片)）
     wechat_openid = Column(String, nullable=True, unique=True)
     star_count = Column(Integer, default=0)  # 收到的 Star 数
     karma = Column(Integer, default=0)  # 声望值

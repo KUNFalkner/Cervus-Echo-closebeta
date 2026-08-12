@@ -82,6 +82,11 @@ _UPLOAD_DIR = pathlib.Path(__file__).resolve().parent.parent / "static" / "uploa
 _UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(_UPLOAD_DIR)), name="uploads")
 
+# 个人介绍卡片背景图片：用户上传到 static/backgrounds/，与前端同源托管
+_BG_DIR = pathlib.Path(__file__).resolve().parent.parent / "static" / "backgrounds"
+_BG_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/backgrounds", StaticFiles(directory=str(_BG_DIR)), name="backgrounds")
+
 if _DIST.exists():
     _assets = _DIST / "assets"
     _tarot = _DIST / "tarot"

@@ -433,7 +433,10 @@ body {
 
 /* Profile */
 .profile-page { max-width: 640px; margin: 0 auto; padding: 0 1rem; }
-.profile-card { display: flex; gap: 1rem; align-items: center; }
+.profile-card { display: flex; gap: 1rem; align-items: center; flex-wrap: nowrap; background-size: cover; background-position: center; background-repeat: no-repeat; }
+/* 长昵称（如英文名）不撑破卡片：信息块可收缩、名字可换行，保持横向布局 */
+.profile-info { min-width: 0; flex: 1 1 auto; }
+.profile-info h3 { overflow-wrap: anywhere; word-break: break-word; line-height: 1.25; }
 .avatar-upload { position: relative; cursor: pointer; }
 .avatar-upload img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card-bd); }
 .avatar-upload-overlay { position: absolute; inset: 0; border-radius: 50%; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; font-size: 1.2rem; }
@@ -845,6 +848,9 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .bg-swatch { width:24px; height:24px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0; transition:transform .15s ease, border-color .15s ease; }
 .bg-swatch:hover { transform:scale(1.12); }
 .bg-swatch.active { border-color:var(--nav-fg-strong); box-shadow:0 0 0 2px rgba(255,255,255,.4); }
+/* 自定义颜色 / 上传图片 入口 */
+.bg-swatch.bg-custom, .bg-swatch.bg-upload { display:inline-flex; align-items:center; justify-content:center; font-size:.85rem; background:rgba(255,255,255,.12); overflow:hidden; cursor:pointer; }
+.bg-swatch.bg-custom input[type=color] { width:140%; height:140%; border:none; padding:0; background:none; cursor:pointer; }
 /* ── 顶部消息按钮 (T15) ── */
 .nav-msg { display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; padding:0; font-size:1.15rem; line-height:1; background:var(--chip-bg); border:1px solid var(--chip-bd); border-radius:12px; color:var(--nav-fg-strong); cursor:pointer; transition:transform .3s ease, background .2s, border-color .2s, color .2s; }
 .nav-msg:hover { background:var(--chip-active-bg); color:var(--nav-fg-strong); border-color:var(--chip-active-bd); }
