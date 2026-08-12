@@ -1,6 +1,6 @@
 import React from 'react'
 
-// 右下角悬浮水晶球：点击展开全屏塔罗。固定定位，z-index 低于 overlay。
+// 右下角悬浮触发点：星空球 —— 深靛底 + 烫金星月 + 柔光晕。
 const TarotOrb = ({ onOpen }) => (
   <button
     className="tarot-orb"
@@ -8,23 +8,32 @@ const TarotOrb = ({ onOpen }) => (
     aria-label="打开塔罗占卜"
     title="塔罗占卜"
   >
-    <span className="tarot-orb-glow" aria-hidden />
     <svg className="tarot-orb-core" viewBox="0 0 64 64" aria-hidden="true">
       <defs>
-        <radialGradient id="orb-fill" cx="38%" cy="32%" r="70%">
-          <stop offset="0%" stopColor="#cdb8ff" />
-          <stop offset="45%" stopColor="#7b5cff" />
-          <stop offset="100%" stopColor="#2a1b6b" />
+        <radialGradient id="orb-bg" cx="0.5" cy="0.42" r="0.62">
+          <stop offset="0" stopColor="#2a2f63" />
+          <stop offset="1" stopColor="#0c0e28" />
         </radialGradient>
-        <radialGradient id="orb-shine" cx="35%" cy="28%" r="30%">
-          <stop offset="0%" stopColor="rgba(255,255,255,.9)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-        </radialGradient>
+        <linearGradient id="orb-gold" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#f4e3a8" />
+          <stop offset="1" stopColor="#b8923f" />
+        </linearGradient>
+        <filter id="orb-glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="1.4" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
       </defs>
-      <circle cx="32" cy="32" r="26" fill="url(#orb-fill)" stroke="rgba(233,196,106,.8)" strokeWidth="1.5" />
-      <circle cx="32" cy="32" r="26" fill="url(#orb-shine)" />
-      <path d="M32 12 L35 29 L52 32 L35 35 L32 52 L29 35 L12 32 L29 29 Z" fill="rgba(255,243,196,.85)" opacity=".9" />
-      <circle cx="24" cy="22" r="3.4" fill="rgba(255,255,255,.85)" />
+      <circle cx="32" cy="32" r="31" fill="url(#orb-bg)" stroke="url(#orb-gold)" strokeWidth="1.2" opacity="0.96" />
+      {/* 散落小星 */}
+      <g fill="#dfe6ff" opacity="0.85">
+        <circle cx="18" cy="20" r="0.9" /><circle cx="46" cy="40" r="0.8" />
+        <circle cx="22" cy="44" r="0.7" /><circle cx="42" cy="18" r="0.7" />
+      </g>
+      {/* 烫金弯月 + 小星，带柔光 */}
+      <g filter="url(#orb-glow)">
+        <path d="M39 18 A16 16 0 1 0 39 46 A12 12 0 1 1 39 18 Z" fill="none" stroke="url(#orb-gold)" strokeWidth="1.8" strokeLinejoin="round" />
+        <path d="M47 23 l1.5 3.6 l3.6 1.5 l-3.6 1.5 l-1.5 3.6 l-1.5 -3.6 l-3.6 -1.5 l3.6 -1.5 Z" fill="url(#orb-gold)" />
+      </g>
     </svg>
   </button>
 )

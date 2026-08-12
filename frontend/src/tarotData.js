@@ -632,11 +632,11 @@ export const TAROT_DECK = [
 // 三张时间牌阵的槽位标签
 export const TAROT_POSITIONS = ['过去', '现在', '未来']
 
-// 元素 → 主题色（用于牌框光晕与动画）
+// 元素 → 点缀色（天体色系，呼应星空神秘感）
 export const ELEMENT_THEME = {
-  wands: { label: '火 · 行动', color: '#ff7a59', glow: 'rgba(255,122,89,.55)' },
-  cups: { label: '水 · 情感', color: '#4db5ff', glow: 'rgba(77,181,255,.55)' },
-  swords: { label: '风 · 思维', color: '#ffd166', glow: 'rgba(255,209,102,.55)' },
-  pentacles: { label: '土 · 物质', color: '#5fd38a', glow: 'rgba(95,211,138,.55)' },
-  major: { label: '灵 · 命运', color: '#c9a6ff', glow: 'rgba(201,166,255,.6)' },
+  wands: { label: '火 · 行动', color: '#e0915a' },
+  cups: { label: '水 · 情感', color: '#6fa8d6' },
+  swords: { label: '风 · 思维', color: '#cdd6e8' },
+  pentacles: { label: '土 · 物质', color: '#8fbf9a' },
+  major: { label: '灵 · 命运', color: '#b89be0' },
 }
