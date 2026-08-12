@@ -257,7 +257,13 @@ const TarotExperience = () => {
         </svg>
 
         <div className="tarot-ornament">✦ &nbsp; ✧ &nbsp; ✦</div>
-        <h2 className="tarot-gothic-title">tarot divination</h2>
+        <div className="tarot-title-wrap">
+          <span className="tarot-title-star tarot-title-star-l1" aria-hidden>✦</span>
+          <span className="tarot-title-star tarot-title-star-l2" aria-hidden>✧</span>
+          <span className="tarot-title-star tarot-title-star-r1" aria-hidden>✦</span>
+          <span className="tarot-title-star tarot-title-star-r2" aria-hidden>✧</span>
+          <h2 className="tarot-gothic-title">tarot divination</h2>
+        </div>
         <div className="tarot-rule" />
         <p className="tarot-sub">静心凝神，先在心中默念、或写下此刻盘桓的疑问——为「过去 · 现在 · 未来」各引一张星牌。</p>
 
