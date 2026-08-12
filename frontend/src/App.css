@@ -903,10 +903,12 @@ body[data-time="day"] .login-input:focus {
 .tarot-mystic .tarot-overlay-close:hover { background: rgba(227,196,120,.14); }
 
 /* ── AI 咨询师 ── */
+/* 问题输入框：放在抽牌之前，提示「先问问题」 */
+.tarot-ask-first { margin-top: 1.3rem; width: 100%; max-width: 560px; }
 .tarot-counselor { margin-top: 1.5rem; width: 100%; max-width: 560px; }
-.tarot-counselor-q { display: flex; gap: .6rem; align-items: stretch; }
+.tarot-counselor-q { display: flex; justify-content: center; }
 .tarot-question {
-  flex: 1 1 auto; min-width: 0; padding: .7rem .9rem; border-radius: 12px;
+  width: 100%; padding: .7rem .9rem; border-radius: 12px;
   background: rgba(18,22,52,.6); border: 1px solid var(--t-border);
   color: var(--t-text); font-size: .88rem; font-family: inherit;
   transition: border-color .25s ease, box-shadow .25s ease;

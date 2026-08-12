@@ -30,7 +30,6 @@ const TarotExperience = () => {
   const [question, setQuestion] = useState('')
   const [interpreting, setInterpreting] = useState(false)
   const [counsel, setCounsel] = useState(null) // { text, source }
-  const counselorRef = useRef(null)
   const counselRef = useRef(null)
   const freshRef = useRef(false)
   const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
@@ -223,11 +222,10 @@ const TarotExperience = () => {
     }
   }
 
-  // AI 解读结果出现时，把咨询师区块平滑滚入可视区域（overlay 可滚动时）
+  // AI 解读结果出现时，把结果面板平滑滚入可视区域（overlay 可滚动时）
   useEffect(() => {
     if (!counsel || reduceMotion()) return
-    const el = counselRef.current || counselorRef.current
-    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    if (counselRef.current && counselRef.current.scrollIntoView) counselRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [counsel])
 
   return (
@@ -261,7 +259,19 @@ const TarotExperience = () => {
         <div className="tarot-ornament">✦ &nbsp; ✧ &nbsp; ✦</div>
         <h2>塔罗占卜</h2>
         <div className="tarot-rule" />
-        <p className="tarot-sub">静心凝神，想着此刻盘桓于心的疑问——为「过去 · 现在 · 未来」各引一张星牌。</p>
+        <p className="tarot-sub">静心凝神，先在心中默念、或写下此刻盘桓的疑问——为「过去 · 现在 · 未来」各引一张星牌。</p>
+
+        {/* 先问问题（可选），再抽牌，最后由星语结合问题与牌面解读 */}
+        <div className="tarot-ask-first">
+          <input
+            className="tarot-question"
+            type="text"
+            value={question}
+            maxLength={200}
+            placeholder="把此刻盘桓心头的疑问，轻轻写下…（可留空，由牌面自语）"
+            onChange={(e) => setQuestion(e.target.value)}
+          />
+        </div>
 
         {!drawn
           ? <button className="tarot-start" onClick={draw} disabled={shuffling}>
@@ -341,17 +351,9 @@ const TarotExperience = () => {
             {guidance && <div className="tarot-guidance">{guidance}</div>}
             <div className="tarot-hint">点击卡牌翻面 · 再点「展开详情」查看英文释义与爱情 / 事业 / 情绪 / 灵性参考</div>
 
-            {/* AI 咨询师：提问 + 星语解读 */}
-            <div className="tarot-counselor" ref={counselorRef}>
+            {/* AI 咨询师：结合顶部问题 + 牌面，给出星语解读 */}
+            <div className="tarot-counselor">
               <div className="tarot-counselor-q">
-                <input
-                  className="tarot-question"
-                  type="text"
-                  value={question}
-                  maxLength={200}
-                  placeholder="把此刻盘桓心头的疑问，轻轻写下…（可留空，由牌面自语）"
-                  onChange={(e) => setQuestion(e.target.value)}
-                />
                 <button className="tarot-ask" onClick={askCounsel} disabled={interpreting}>
                   {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ AI 解读'}
                 </button>
