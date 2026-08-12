@@ -898,6 +898,51 @@ body[data-time="day"] .login-input:focus {
 .tarot-mystic .tarot-overlay-close { border-color: var(--t-border); color: var(--t-gold); }
 .tarot-mystic .tarot-overlay-close:hover { background: rgba(227,196,120,.14); }
 
+/* ── AI 咨询师 ── */
+.tarot-counselor { margin-top: 1.5rem; width: 100%; max-width: 560px; }
+.tarot-counselor-q { display: flex; gap: .6rem; align-items: stretch; }
+.tarot-question {
+  flex: 1 1 auto; min-width: 0; padding: .7rem .9rem; border-radius: 12px;
+  background: rgba(18,22,52,.6); border: 1px solid var(--t-border);
+  color: var(--t-text); font-size: .88rem; font-family: inherit;
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.tarot-question::placeholder { color: var(--t-muted); opacity: .8; }
+.tarot-question:focus {
+  outline: none; border-color: var(--t-gold-soft, #e3c478);
+  box-shadow: 0 0 0 3px rgba(227,196,120,.14);
+}
+.tarot-ask {
+  flex: 0 0 auto; padding: .7rem 1.15rem; border-radius: 12px; cursor: pointer;
+  border: 1px solid rgba(227,196,120,.5);
+  background: linear-gradient(135deg, rgba(227,196,120,.22), rgba(80,92,180,.28));
+  color: var(--t-gold); font-size: .9rem; font-weight: 600; letter-spacing: .04em;
+  white-space: nowrap; transition: transform .2s ease, box-shadow .25s ease, opacity .2s ease;
+}
+.tarot-ask:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(227,196,120,.22);
+}
+.tarot-ask:disabled { opacity: .6; cursor: default; }
+.tarot-counsel {
+  margin-top: 1.1rem; text-align: left; padding: 1.1rem 1.25rem; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(24,28,62,.66), rgba(16,20,48,.62));
+  border: 1px solid var(--t-border);
+  border-left: 3px solid var(--t-gold);
+  box-shadow: 0 12px 36px rgba(0,0,0,.32), inset 0 0 30px rgba(120,140,255,.05);
+  animation: tbCounselIn .5s ease both;
+}
+@keyframes tbCounselIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.tarot-counsel-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem; }
+.tarot-counsel-mark { color: var(--t-gold); font-size: 1rem; line-height: 1; text-shadow: 0 0 10px rgba(227,196,120,.5); }
+.tarot-counsel-title { color: var(--t-gold); font-size: .8rem; letter-spacing: .16em; text-transform: none; opacity: .9; }
+.tarot-counsel-text {
+  margin: 0; color: var(--t-text); font-size: .92rem; line-height: 1.85;
+  font-family: Georgia, "Songti SC", "Noto Serif SC", serif; white-space: pre-line;
+}
+.tarot-counsel-builtin .tarot-counsel-mark,
+.tarot-counsel-builtin .tarot-counsel-title { color: var(--t-muted); text-shadow: none; }
+
 /* ── 大屏填充装饰 ── */
 .tarot-mystic .tarot-hero {
   position: relative; z-index: 0; max-width: 880px; padding: 3rem 2.6rem 3.4rem;
@@ -1037,6 +1082,7 @@ body[data-time="day"] .login-input:focus {
   .post-card:hover { transform: none; box-shadow: var(--card-hover-shadow); border-color: transparent; }
   .toast { animation: none; }
   .toast.leaving { animation: none; }
+  .tarot-counsel { animation: none; }
 }
 
 /* T12 新评论滑入 + 乐观更新 */

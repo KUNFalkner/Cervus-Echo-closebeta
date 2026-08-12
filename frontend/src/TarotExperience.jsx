@@ -9,6 +9,8 @@ import TarotBack from './TarotBack'
 const faceSrc = (c) => `/tarot/${c.suit}-${String(c.num).padStart(2, '0')}.webp`
 
 const GOLD = '#e3c478'
+// 与 App.jsx 一致的 API 基址：dev 直连 8000，生产走同源 /api（经 nginx 反代）
+const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : '/api'
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // 塔罗占卜核心体验：可独立挂载，也可被 TarotOverlay 包裹为全屏模式。
@@ -25,6 +27,9 @@ const TarotExperience = () => {
   const [revealed, setRevealed] = useState(() => drawn ? [true, true, true] : [false, false, false])
   const [openIdx, setOpenIdx] = useState(-1)
   const [shuffling, setShuffling] = useState(false)
+  const [question, setQuestion] = useState('')
+  const [interpreting, setInterpreting] = useState(false)
+  const [counsel, setCounsel] = useState(null) // { text, source }
   const freshRef = useRef(false)
   const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
   const cardRefs = [r0, r1, r2]
@@ -146,7 +151,7 @@ const TarotExperience = () => {
     setTimeout(() => {
       const deck = [...TAROT_DECK]
       for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]] }
-      const picks = deck.slice(0, 3).map(c => ({ ...c, reversed: Math.random() < 0.5 }))
+      const picks = deck.slice(0, 3).map(c => ({ ...c, revMeaning: c.reversed, reversed: Math.random() < 0.5 }))
       setDrawn(picks); setRevealed([false, false, false]); setOpenIdx(-1); setShuffling(false)
       try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
       setTimeout(() => dealCards(), 70)
@@ -180,6 +185,41 @@ const TarotExperience = () => {
       : `「${now.name}」顺位：顺势而行，握住眼前的星火。`
     return head + tail
   })()
+
+  // AI 咨询师：把问题 + 三张牌（含正逆位与释义）发到后端，渲染星语解读
+  const askCounsel = async () => {
+    if (!drawn || interpreting) return
+    setInterpreting(true); setCounsel(null)
+    try {
+      const payload = {
+        question,
+        cards: drawn.map((c, i) => ({
+          position: TAROT_POSITIONS[i],
+          name: c.name,
+          en: c.en,
+          orientation: c.reversed ? 'reversed' : 'upright',
+          upright: c.upright,
+          reversed: c.reversed ? c.revMeaning : c.upright,
+          element: c.element,
+          keywordsUp: c.keywordsUp || [],
+          keywordsRev: c.keywordsRev || [],
+          love: c.love, career: c.career, mood: c.mood, spiritual: c.spiritual,
+        })),
+      }
+      const r = await fetch(`${API_BASE}/tarot/interpret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!r.ok) throw new Error('解读请求失败')
+      const d = await r.json()
+      setCounsel({ text: d.text, source: d.source })
+    } catch (e) {
+      toast.error('星语暂时沉默，请稍后再试')
+    } finally {
+      setInterpreting(false)
+    }
+  }
 
   return (
     <div className="tarot-page tarot-mystic" ref={pageRef}>
@@ -291,7 +331,34 @@ const TarotExperience = () => {
             </div>
             {guidance && <div className="tarot-guidance">{guidance}</div>}
             <div className="tarot-hint">点击卡牌翻面 · 再点「展开详情」查看英文释义与爱情 / 事业 / 情绪 / 灵性参考</div>
-            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); setOpenIdx(-1); toast.success('已重新洗牌') }}>重新洗牌</button>
+
+            {/* AI 咨询师：提问 + 星语解读 */}
+            <div className="tarot-counselor">
+              <div className="tarot-counselor-q">
+                <input
+                  className="tarot-question"
+                  type="text"
+                  value={question}
+                  maxLength={200}
+                  placeholder="把此刻盘桓心头的疑问，轻轻写下…（可留空，由牌面自语）"
+                  onChange={(e) => setQuestion(e.target.value)}
+                />
+                <button className="tarot-ask" onClick={askCounsel} disabled={interpreting}>
+                  {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ AI 解读'}
+                </button>
+              </div>
+              {counsel && (
+                <div className={`tarot-counsel tarot-counsel-${counsel.source}`}>
+                  <div className="tarot-counsel-head">
+                    <span className="tarot-counsel-mark">✶</span>
+                    <span className="tarot-counsel-title">{counsel.source === 'builtin' ? '星语 · 牌阵自语' : '星语 · AI 解读'}</span>
+                  </div>
+                  <p className="tarot-counsel-text">{counsel.text}</p>
+                </div>
+              )}
+            </div>
+
+            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); setOpenIdx(-1); setCounsel(null); setQuestion(''); toast.success('已重新洗牌') }}>重新洗牌</button>
           </>}
 
         <p className="tarot-foot">✦ 星图已亮，静待你心之所问 ✦</p>
