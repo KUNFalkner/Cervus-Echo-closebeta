@@ -257,7 +257,7 @@ const TarotExperience = () => {
         </svg>
 
         <div className="tarot-ornament">✦ &nbsp; ✧ &nbsp; ✦</div>
-        <h2>塔罗占卜</h2>
+        <h2 className="tarot-gothic-title">tarot divination</h2>
         <div className="tarot-rule" />
         <p className="tarot-sub">静心凝神，先在心中默念、或写下此刻盘桓的疑问——为「过去 · 现在 · 未来」各引一张星牌。</p>
 
