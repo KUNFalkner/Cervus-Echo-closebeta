@@ -30,6 +30,8 @@ const TarotExperience = () => {
   const [question, setQuestion] = useState('')
   const [interpreting, setInterpreting] = useState(false)
   const [counsel, setCounsel] = useState(null) // { text, source }
+  const counselorRef = useRef(null)
+  const counselRef = useRef(null)
   const freshRef = useRef(false)
   const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
   const cardRefs = [r0, r1, r2]
@@ -221,6 +223,13 @@ const TarotExperience = () => {
     }
   }
 
+  // AI 解读结果出现时，把咨询师区块平滑滚入可视区域（overlay 可滚动时）
+  useEffect(() => {
+    if (!counsel || reduceMotion()) return
+    const el = counselRef.current || counselorRef.current
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [counsel])
+
   return (
     <div className="tarot-page tarot-mystic" ref={pageRef}>
       <div className="tarot-hero">
@@ -333,7 +342,7 @@ const TarotExperience = () => {
             <div className="tarot-hint">点击卡牌翻面 · 再点「展开详情」查看英文释义与爱情 / 事业 / 情绪 / 灵性参考</div>
 
             {/* AI 咨询师：提问 + 星语解读 */}
-            <div className="tarot-counselor">
+            <div className="tarot-counselor" ref={counselorRef}>
               <div className="tarot-counselor-q">
                 <input
                   className="tarot-question"
@@ -348,7 +357,7 @@ const TarotExperience = () => {
                 </button>
               </div>
               {counsel && (
-                <div className={`tarot-counsel tarot-counsel-${counsel.source}`}>
+                <div className={`tarot-counsel tarot-counsel-${counsel.source}`} ref={counselRef}>
                   <div className="tarot-counsel-head">
                     <span className="tarot-counsel-mark">✶</span>
                     <span className="tarot-counsel-title">{counsel.source === 'builtin' ? '星语 · 牌阵自语' : '星语 · AI 解读'}</span>

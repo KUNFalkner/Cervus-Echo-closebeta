@@ -823,9 +823,13 @@ body[data-time="day"] .login-input:focus {
   .tarot-mystic .tarot-hero h2::after { animation: none !important; }
 }
 
-.tarot-mystic .tarot-overlay-scroll { position: relative; width: 100%; height: 100%; overflow: hidden; z-index: 1; display: flex; align-items: center; justify-content: center; }
-.tarot-mystic .tarot-page { max-height: 100vh; overflow: hidden; }
+.tarot-mystic .tarot-overlay-scroll { position: relative; width: 100%; height: 100%; overflow-y: auto; z-index: 1; display: flex; align-items: center; justify-content: center; }
+.tarot-mystic .tarot-overlay-scroll::-webkit-scrollbar { width: 6px; }
+.tarot-mystic .tarot-overlay-scroll::-webkit-scrollbar-track { background: transparent; }
+.tarot-mystic .tarot-overlay-scroll::-webkit-scrollbar-thumb { background: rgba(227,196,120,.35); border-radius: 3px; }
+.tarot-mystic .tarot-page { min-height: 0; }
 .tarot-mystic .tarot-hero {
+  margin: auto; flex-shrink: 0;
   background: linear-gradient(160deg, rgba(28,32,70,.74), rgba(13,15,40,.66));
   border: 1px solid var(--t-border);
   border-radius: 18px;
