@@ -13,6 +13,7 @@ from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
 from app.services.notif import notify_from_comment, notify_like
+from app.core.ratelimit import rate_limit
 
 router = APIRouter()
 
@@ -86,6 +87,8 @@ def create_post(
     user: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    # 频率限制：发帖 5 条/分钟
+    rate_limit("post", 5, 60, user_id=user.id)
     # 禁言拦截
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
@@ -355,6 +358,8 @@ def create_comment(
     user: UserModel = Depends(require_user),
     db: Session = Depends(get_db)
 ):
+    # 频率限制：评论 10 条/分钟
+    rate_limit("comment", 10, 60, user_id=user.id)
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")

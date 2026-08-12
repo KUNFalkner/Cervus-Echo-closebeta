@@ -7,6 +7,7 @@ from app.models.database import get_db
 from app.models.report import Report as ReportModel
 from app.models.user import User as UserModel
 from app.schemas.report import ReportCreate, Report as ReportSchema
+from app.core.ratelimit import rate_limit
 
 router = APIRouter()
 
@@ -19,6 +20,8 @@ def create_report(
     user: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
+    # 频率限制：举报 10 次/分钟，防举报刷屏
+    rate_limit("report", 10, 60, user_id=user.id)
     db_report = ReportModel(reporter_id=user.id, **report.model_dump())
     db.add(db_report)
     db.commit()

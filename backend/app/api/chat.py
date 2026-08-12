@@ -10,6 +10,7 @@ from app.models.message import Message
 from app.models.user import User
 from app.services.mute import is_muted, mute_message
 from app.services.sensitive_words import sensitive_filter
+from app.core.ratelimit import rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,16 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
                 await websocket.send_text(json.dumps({
                     "type": "error",
                     "detail": muted,
+                }, ensure_ascii=False))
+                continue
+
+            # 频率限制：聊天 15 条/分钟（与禁言同款：仅回送错误帧，不影响房间）
+            try:
+                rate_limit("chat", 15, 60, user_id=user_id)
+            except Exception as e:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": getattr(e, "detail", "操作过于频繁"),
                 }, ensure_ascii=False))
                 continue
 

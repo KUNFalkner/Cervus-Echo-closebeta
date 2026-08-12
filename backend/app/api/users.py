@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 import random
 import os
@@ -7,12 +7,14 @@ import io
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.post import Comment as CommentModel, Post as PostModel
+from app.models.school import School as SchoolModel
 from app.schemas.user import (
     UserCreate, UserUpdate, User as UserSchema, PublicUser,
     LoginRequest, TokenResponse, WechatLoginRequest,
 )
 from app.auth import create_token, require_user
 from app.services.password import hash_password, is_legacy_hash, verify_password
+from app.core.ratelimit import rate_limit, get_client_ip
 from app.wechat import code_to_openid
 
 # 头像落盘目录：backend/static/avatars/
@@ -69,7 +71,9 @@ async def wechat_login(body: WechatLoginRequest, db: Session = Depends(get_db)):
 
 # ── Username/password login (legacy, returns JWT now) ──────────────────
 @router.post("/login", response_model=TokenResponse)
-def login_user(body: LoginRequest, db: Session = Depends(get_db)):
+def login_user(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    # 频率限制：同 IP 登录 10 次/分钟，防爆破
+    rate_limit("login", 10, 60, ip=get_client_ip(request))
     # 凭据放在请求体里；此前走查询参数会把明文密码写进各级访问日志
     username, password = body.username, body.password
     user = db.query(UserModel).filter(UserModel.username == username).first()
@@ -120,7 +124,9 @@ def my_comments(user: UserModel = Depends(require_user), db: Session = Depends(g
 
 # ── Registration (legacy) ─────────────────────────────────────────────
 @router.post("/", response_model=TokenResponse)
-def create_user(body: UserCreate, db: Session = Depends(get_db)):
+def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db)):
+    # 频率限制：同 IP 注册 3 次/小时，防批量造号
+    rate_limit("register", 3, 3600, ip=get_client_ip(request))
     if body.username in ("founder",) or body.username.endswith("ambassador"):
         raise HTTPException(status_code=400, detail="该用户名不可用")
 
@@ -129,6 +135,10 @@ def create_user(body: UserCreate, db: Session = Depends(get_db)):
 
     nickname = body.nickname or _gen_nick()
     sid = body.school_id or "JSKS"
+    # 学校白名单校验：仅允许种子库内的学校
+    if not db.query(SchoolModel).filter(SchoolModel.code == sid).first():
+        raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
+
     uid = _gen_uid(sid, body.enrollment_year or 2024, body.class_number or 1, body.student_number or 1)
 
     if db.query(UserModel).filter(UserModel.uid == uid).first():
