@@ -7,6 +7,8 @@ from app.models.school import School
 from app.models.star import UserStar
 from app.models.like import UserLike
 from app.models.notification import Notification
+from app.models.follow import Follow
+from app.models.conversation import Conversation, DirectMessage
 from app.services.password import hash_password
 
 Base.metadata.create_all(bind=engine)

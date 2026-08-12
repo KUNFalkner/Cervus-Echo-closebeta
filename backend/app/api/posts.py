@@ -8,7 +8,9 @@ from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.user import User as UserModel
 from app.models.star import UserStar
 from app.models.like import UserLike
+from app.models.follow import Follow
 from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, CommentUpdate, Comment as CommentSchema
+from app.schemas.social import PostUpdate
 from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
@@ -130,6 +132,7 @@ def read_posts(
     search: Optional[str] = Query(None, description="搜索标题和内容"),
     tag: Optional[str] = Query(None, description="按标签筛选（精确匹配某个标签）"),
     sort: Optional[str] = Query(None, description="排序：latest(默认) / hot(按点赞+评论+收藏加权降序)"),
+    following: bool = Query(False, description="只看我关注的人发的帖"),
     current_user: Optional[UserModel] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -176,6 +179,14 @@ def read_posts(
         query = query.filter(PostModel.forum == forum)
     if user_id:
         query = query.filter(PostModel.user_id == user_id)
+    # 关注流：只看我关注的用户发的帖
+    if following and current_user:
+        fids = [r[0] for r in db.query(Follow.followee_id).filter(Follow.follower_id == current_user.id).all()]
+        if fids:
+            query = query.filter(PostModel.user_id.in_(fids))
+        else:
+            # 没关注任何人，直接返回空结果（避免全量泄露）
+            query = query.filter(PostModel.id == -1)
     if search:
         query = query.filter(
             (PostModel.title.contains(search)) | (PostModel.content.contains(search))
@@ -240,6 +251,38 @@ def read_post(
         raise HTTPException(status_code=404, detail="帖子不存在")
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     return _mask_post(post, current_user, author.avatar if author else None)
+
+@router.put("/{post_id}", response_model=PostSchema)
+def update_post(
+    post_id: int,
+    body: PostUpdate,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """作者（或管理员）编辑自己的帖子，仅更新提供的字段。"""
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    is_admin = user.role in ["founder", "ambassador"]
+    if not is_admin and post.user_id != user.id:
+        raise HTTPException(status_code=403, detail="无权编辑此帖子")
+    if is_admin and post.user_id != user.id:
+        assert_can_moderate(user, post.user_school)
+
+    if body.title is not None:
+        post.title = sensitive_filter.filter_text(body.title)
+    if body.content is not None:
+        post.content = sensitive_filter.filter_text(body.content)
+    if body.category is not None:
+        post.category = body.category
+    if body.tags is not None:
+        post.tags = body.tags
+    if body.hide_uid is not None:
+        post.hide_uid = body.hide_uid
+    db.commit()
+    db.refresh(post)
+    author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
+    return _mask_post(post, user, author.avatar if author else None)
 
 @router.post("/{post_id}/star")
 def star_post(

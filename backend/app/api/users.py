@@ -8,6 +8,10 @@ from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.post import Comment as CommentModel, Post as PostModel
 from app.models.school import School as SchoolModel
+from app.models.follow import Follow
+from app.models.star import UserStar
+from app.models.like import UserLike
+from app.models.notification import Notification as NotificationModel
 from app.schemas.user import (
     UserCreate, UserUpdate, User as UserSchema, PublicUser,
     LoginRequest, TokenResponse, WechatLoginRequest,
@@ -278,3 +282,32 @@ async def upload_background(
     db.commit()
     db.refresh(target)
     return target
+
+
+# ── 账号注销（本人，密码确认）──
+@router.delete("/me")
+def delete_my_account(
+    body: dict,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """注销当前账号：需密码确认（无密码账户免密）。级联清理社交关系与通知。"""
+    pw = (body.get("password") or "") if isinstance(body, dict) else ""
+    if user.password:
+        if not pw:
+            raise HTTPException(status_code=400, detail="请输入密码以确认注销")
+        if not verify_password(pw, user.password):
+            raise HTTPException(status_code=400, detail="密码错误")
+
+    # 级联清理：关注关系、星标、点赞、通知（帖子/评论为去规范化存储，保留不删）
+    db.query(Follow).filter(
+        (Follow.follower_id == user.id) | (Follow.followee_id == user.id)
+    ).delete(synchronize_session=False)
+    db.query(UserStar).filter(UserStar.user_id == user.id).delete(synchronize_session=False)
+    db.query(UserLike).filter(UserLike.user_id == user.id).delete(synchronize_session=False)
+    db.query(NotificationModel).filter(
+        (NotificationModel.recipient_id == user.id) | (NotificationModel.actor_id == user.id)
+    ).delete(synchronize_session=False)
+    db.query(UserModel).filter(UserModel.id == user.id).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True}
