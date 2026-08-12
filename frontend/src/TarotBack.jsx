@@ -45,12 +45,20 @@ const TarotBack = ({ className = '', style }) => {
           <stop offset="0.5" stopColor="#fff" stopOpacity="0.85" />
           <stop offset="1" stopColor="#ffe2b8" stopOpacity="0" />
         </linearGradient>
+        {/* 流动星云：金蓝渐变软斑 */}
+        <radialGradient id="tb-nebula" cx="0.5" cy="0.5" r="0.62">
+          <stop offset="0" stopColor="#e3c478" stopOpacity="0.28" />
+          <stop offset="0.45" stopColor="#6fa8d6" stopOpacity="0.10" />
+          <stop offset="1" stopColor="#6fa8d6" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
       {/* 深靛底 */}
       <rect x="0" y="0" width="200" height="300" rx="14" fill="url(#tb-bg)" />
       {/* 中央辉光 */}
       <rect x="0" y="0" width="200" height="300" fill="url(#tb-glow)" />
+      {/* 流动星云 */}
+      <ellipse className="tarot-back-nebula" cx="150" cy="76" rx="78" ry="44" fill="url(#tb-nebula)" opacity="0.35" />
 
       {/* 散落星点（各自闪烁） */}
       {bgStars.map((s, i) => (
@@ -68,6 +76,19 @@ const TarotBack = ({ className = '', style }) => {
       {/* 烫金双线边框 */}
       <rect x="9" y="9" width="182" height="282" rx="11" fill="none" stroke="url(#tb-gold)" strokeWidth="1.6" opacity="0.9" />
       <rect x="15" y="15" width="170" height="270" rx="8" fill="none" stroke="url(#tb-gold)" strokeWidth="0.7" opacity="0.55" />
+
+      {/* 第二星座：右上角小星图（缓慢漂移明灭） */}
+      <g className="tarot-back-constellation" fill="#bcd2ff" stroke="#bcd2ff" strokeWidth="0.55" opacity="0.55">
+        <polyline points="148,44 166,30 186,46 174,68 154,58" fill="none" opacity="0.45" />
+        <circle cx="148" cy="44" r="1.2" />
+        <circle cx="166" cy="30" r="1.5" />
+        <circle cx="186" cy="46" r="1.0" />
+        <circle cx="174" cy="68" r="1.3" />
+        <circle cx="154" cy="58" r="1.0" />
+      </g>
+
+      {/* 星盘呼吸光环 */}
+      <circle className="tarot-back-halo" cx="100" cy="116" r="52" fill="none" stroke="url(#tb-gold)" strokeWidth="0.8" opacity="0.22" />
 
       {/* 中央旋转星盘（compass rose / astrolabe）—— 缓慢匀速转动 */}
       <g className="tarot-back-astrolabe" transform="translate(100 116)">

@@ -1,35 +1,13 @@
 import React, { useEffect, useRef, useMemo } from 'react'
 import gsap from 'gsap'
 import TarotExperience from './TarotExperience'
+import TarotCanvas from './TarotCanvas'
 
-// 全屏塔罗：神秘星空（多层视差星海 + 旋转星盘 + 偶发流星 + 浮尘 + 微光星云）
+// 全屏塔罗：神秘星空（canvas 粒子星海 + 旋转星盘 + 极光 + 微光星云 + 星座连线）
 const TarotOverlay = ({ open, onClose }) => {
   const overlayRef = useRef(null)
   const reduce = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const STAR_COLORS = ['#ffffff', '#fff3d4', '#bcd2ff', '#d9c4ff', '#ffe2b8']
 
-  // 远/近两层星：不同密度、亮度、漂移速度、星色，制造视差与繁华感（软光晕、数量收敛以保持流畅）
-  const farStars = useMemo(() => Array.from({ length: 60 }, () => ({
-    top: Math.random() * 100, left: Math.random() * 100,
-    size: Math.random() * 2.4 + 2.2,
-    o: Math.random() * 0.4 + 0.14,
-    dur: 3 + Math.random() * 5, delay: Math.random() * 6,
-    color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)],
-  })), [])
-  const nearStars = useMemo(() => Array.from({ length: 34 }, () => ({
-    top: Math.random() * 100, left: Math.random() * 100,
-    size: Math.random() * 3 + 3,
-    o: Math.random() * 0.5 + 0.35,
-    dur: 2 + Math.random() * 3.5, delay: Math.random() * 5,
-    color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)],
-  })), [])
-  // 宝石星芒：少量大而亮、带十字光芒的"珠宝星"
-  const jewels = useMemo(() => Array.from({ length: 7 }, () => ({
-    top: 8 + Math.random() * 84, left: 6 + Math.random() * 88,
-    size: Math.random() * 7 + 9,
-    dur: 4 + Math.random() * 4, delay: Math.random() * 6,
-    color: STAR_COLORS[Math.floor(Math.random() * STAR_COLORS.length)],
-  })), [])
   // 星座连线（仿 Image #1：散落的星点+细线图案，缓慢漂移）
   const constellations = useMemo(() => [
     { points: '18,12 52,38 44,78 76,58', top: 4, left: 2, dur: 90, rev: false },
@@ -39,11 +17,6 @@ const TarotOverlay = ({ open, onClose }) => {
     { points: '14,10 42,26 30,54 58,42', top: 12, left: 38, dur: 85, rev: false },
     { points: '4,24 36,12 64,28 48,56 80,40', top: 42, left: 32, dur: 100, rev: true },
   ], [])
-  // 浮尘：缓慢上浮的发光微粒
-  const motes = useMemo(() => Array.from({ length: 12 }, () => ({
-    left: Math.random() * 100, size: Math.random() * 2 + 1,
-    dur: 14 + Math.random() * 16, delay: Math.random() * 18,
-  })), [])
 
   useEffect(() => {
     const el = overlayRef.current
@@ -85,6 +58,7 @@ const TarotOverlay = ({ open, onClose }) => {
       aria-label="塔罗占卜"
     >
       <div className="tarot-cosmos" aria-hidden>
+        <TarotCanvas active={open} />
         <div className="tarot-nebula tarot-nebula-1" />
         <div className="tarot-nebula tarot-nebula-2" />
         <div className="tarot-nebula tarot-nebula-3" />
@@ -197,29 +171,6 @@ const TarotOverlay = ({ open, onClose }) => {
                 })}
               </g>
             </svg>
-          ))}
-        </div>
-        {/* 宝石星芒 */}
-        <div className="tarot-jewels">
-          {jewels.map((j, i) => (
-            <span key={i} className="tarot-jewel" style={{ top: j.top + '%', left: j.left + '%', width: j.size + 'px', height: j.size + 'px', background: j.color, animationDuration: j.dur + 's', animationDelay: j.delay + 's' }} />
-          ))}
-        </div>
-        {/* 视差星海（软光晕星点） */}
-        <div className="tarot-stars tarot-stars-far">
-          {farStars.map((s, i) => (
-            <i key={i} style={{ top: s.top + '%', left: s.left + '%', width: s.size + 'px', height: s.size + 'px', opacity: s.o, background: `radial-gradient(circle, ${s.color} 0%, ${s.color} 38%, transparent 72%)`, animationDuration: s.dur + 's', animationDelay: s.delay + 's' }} />
-          ))}
-        </div>
-        <div className="tarot-stars tarot-stars-near">
-          {nearStars.map((s, i) => (
-            <i key={i} style={{ top: s.top + '%', left: s.left + '%', width: s.size + 'px', height: s.size + 'px', opacity: s.o, background: `radial-gradient(circle, ${s.color} 0%, ${s.color} 38%, transparent 72%)`, animationDuration: s.dur + 's', animationDelay: s.delay + 's' }} />
-          ))}
-        </div>
-        {/* 浮尘 */}
-        <div className="tarot-motes">
-          {motes.map((m, i) => (
-            <span key={i} style={{ left: m.left + '%', width: m.size + 'px', height: m.size + 'px', animationDuration: m.dur + 's', animationDelay: m.delay + 's' }} />
           ))}
         </div>
       </div>

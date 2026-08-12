@@ -629,6 +629,31 @@ body[data-time="day"] .login-input:focus {
   0%   { opacity: .65; transform: scale(0.94); }
   100% { opacity: 1; transform: scale(1.06); }
 }
+
+/* ── 卡背活体加层：流动星云 + 呼吸光环 + 第二星座 ── */
+.tarot-back-nebula { animation: tbNebulaDrift 18s ease-in-out infinite alternate; will-change: transform, opacity; transform-origin: 150px 76px; }
+@keyframes tbNebulaDrift {
+  from { transform: translate(-4px, 2px) scale(0.95); opacity: .28; }
+  to   { transform: translate(5px, -3px) scale(1.08); opacity: .42; }
+}
+
+.tarot-back-halo { animation: tbHaloPulse 5s ease-in-out infinite alternate; will-change: transform, opacity; transform-origin: 100px 116px; }
+@keyframes tbHaloPulse {
+  from { transform: scale(0.94); opacity: .15; }
+  to   { transform: scale(1.08); opacity: .32; }
+}
+
+.tarot-back-constellation { animation: tbConstellationShift 10s ease-in-out infinite alternate; will-change: transform, opacity; transform-origin: 170px 54px; }
+@keyframes tbConstellationShift {
+  from { transform: translate(0, 0) scale(1); opacity: .45; }
+  to   { transform: translate(-3px, 2px) scale(1.06); opacity: .65; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarot-back-astrolabe, .tarot-bstar, .tarot-bstreak, .tarot-back-ornament,
+  .tarot-back-nebula, .tarot-back-halo, .tarot-back-constellation { animation: none !important; }
+}
+
 .tarot-front { transform: rotateY(180deg); }
 .tarot-face-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
 .tarot-card.is-rev .tarot-face-img { transform: rotate(180deg); }
@@ -684,19 +709,30 @@ body[data-time="day"] .login-input:focus {
 
 /* ── 神秘星空版（深蓝夜空 + 星海 + 微光星云 + 烫金线条 + 衬线仪式感）── */
 .tarot-mystic {
+  /* 主色板（集中管理，避免魔法值散落） */
   --t-bg: #0a0c20;
+  --t-bg-1: #1b1f4d;
+  --t-bg-2: #0e1130;
+  --t-bg-3: #07081a;
+  --t-indigo: #171a3a;
   --t-surface: rgba(22, 26, 58, 0.55);
   --t-border: rgba(227, 196, 120, 0.28);
   --t-text: #ece9ff;
   --t-muted: rgba(214, 220, 255, 0.72);
   --t-gold: #e3c478;
+  --t-gold-soft: #f4e3a8;
+  --t-gold-deep: #b8923f;
+  --t-star: #dfe6ff;
   --t-glow: rgba(150, 170, 255, 0.16);
+  --t-neb-1: rgba(96, 108, 220, 0.55);
+  --t-neb-2: rgba(180, 120, 200, 0.45);
+  --t-neb-3: rgba(120, 150, 230, 0.32);
 }
 .tarot-mystic.tarot-overlay {
   position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
   overflow: hidden; overscroll-behavior: none;
   background:
-    radial-gradient(120% 90% at 50% 0%, #1b1f4d 0%, #0e1130 42%, #07081a 100%),
+    radial-gradient(120% 90% at 50% 0%, var(--t-bg-1) 0%, var(--t-bg-2) 42%, var(--t-bg-3) 100%),
     #06071a;
   color: var(--t-text);
 }
@@ -709,18 +745,14 @@ body[data-time="day"] .login-input:focus {
   opacity: .7; will-change: opacity; animation: tarotVignette 14s ease-in-out infinite alternate;
 }
 @keyframes tarotVignette { from { opacity: .5; } to { opacity: .85; } }
+/* canvas 粒子星空（替代原 DOM 星海/浮尘/宝石星/流星） */
+.tarot-stars-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 .tarot-nebula { position: absolute; border-radius: 50%; filter: blur(46px); opacity: .56; will-change: transform; }
-.tarot-nebula-1 { width: 46vw; height: 46vw; left: -8vw; top: -10vw; background: radial-gradient(circle, rgba(96,108,220,.55), rgba(96,108,220,0) 70%); animation: tarotNeb1 50s ease-in-out infinite alternate; }
-.tarot-nebula-2 { width: 40vw; height: 40vw; right: -10vw; bottom: -12vw; background: radial-gradient(circle, rgba(180,120,200,.45), rgba(180,120,200,0) 70%); animation: tarotNeb2 58s ease-in-out infinite alternate; }
-.tarot-stars { position: absolute; inset: 0; will-change: transform; }
-.tarot-stars i {
-  position: absolute; border-radius: 50%; background: #fff;
-  animation: tarotTwinkle ease-in-out infinite alternate;
-}
-@keyframes tarotTwinkle { from { opacity: .15; } to { opacity: 1; } }
+.tarot-nebula-1 { width: 46vw; height: 46vw; left: -8vw; top: -10vw; background: radial-gradient(circle, var(--t-neb-1), rgba(96,108,220,0) 70%); animation: tarotNeb1 50s ease-in-out infinite alternate; }
+.tarot-nebula-2 { width: 40vw; height: 40vw; right: -10vw; bottom: -12vw; background: radial-gradient(circle, var(--t-neb-2), rgba(180,120,200,0) 70%); animation: tarotNeb2 58s ease-in-out infinite alternate; }
 
 /* ── 背景增强：视差星海 + 旋转星盘 + 流星 + 浮尘 ── */
-.tarot-nebula-3 { width: 34vw; height: 34vw; left: 38vw; top: 30vh; background: radial-gradient(circle, rgba(120,150,230,.32), rgba(120,150,230,0) 70%); opacity: .5; animation: tarotNeb3 66s ease-in-out infinite alternate; }
+.tarot-nebula-3 { width: 34vw; height: 34vw; left: 38vw; top: 30vh; background: radial-gradient(circle, var(--t-neb-3), rgba(120,150,230,0) 70%); opacity: .5; animation: tarotNeb3 66s ease-in-out infinite alternate; }
 .tarot-astrolabe { position: absolute; top: 50%; left: 50%; width: 88vmin; height: 88vmin; margin: -44vmin 0 0 -44vmin; opacity: .14; pointer-events: none; will-change: transform; }
 .tarot-astrolabe-outer { animation: tarotSpin 260s linear infinite; }
 .tarot-astrolabe-inner { width: 60vmin; height: 60vmin; margin: -30vmin 0 0 -30vmin; opacity: .2; animation: tarotSpinRev 200s linear infinite; }
@@ -755,24 +787,6 @@ body[data-time="day"] .login-input:focus {
 @keyframes tarotArmillarySpin { to { transform: rotate(-360deg); } }
 @keyframes tarotOrbitSpin { to { transform: rotate(360deg); } }
 
-.tarot-stars-far { animation: tarotDriftFar 70s ease-in-out infinite alternate; }
-.tarot-stars-near { animation: tarotDriftNear 48s ease-in-out infinite alternate; }
-@keyframes tarotDriftFar { from { transform: translate(0,0); } to { transform: translate(2.4%, -1.8%); } }
-@keyframes tarotDriftNear { from { transform: translate(0,0); } to { transform: translate(-3%, 2.4%); } }
-
-.tarot-motes { position: absolute; inset: 0; pointer-events: none; }
-.tarot-motes span {
-  position: absolute; bottom: -12px; border-radius: 50%;
-  background: radial-gradient(circle, #fff 0%, rgba(227,196,120,0) 70%);
-  opacity: 0; will-change: transform, opacity; animation-name: tarotMote; animation-timing-function: linear; animation-iteration-count: infinite;
-}
-@keyframes tarotMote {
-  0%   { transform: translateY(0) scale(1); opacity: 0; }
-  12%  { opacity: .7; }
-  88%  { opacity: .45; }
-  100% { transform: translateY(-106vh) scale(.6); opacity: 0; }
-}
-
 /* 极光带：低透明度彩色光晕缓慢横移，增添繁华魅力 */
 .tarot-aurora { position: absolute; left: -25%; width: 150%; height: 40vh; pointer-events: none; filter: blur(38px); opacity: .5; will-change: transform; }
 .tarot-aurora-1 { top: 12vh; background: linear-gradient(90deg, transparent, rgba(120,150,255,.20), rgba(190,130,220,.18), rgba(120,200,220,.14), transparent); animation: tarotAurora1 40s ease-in-out infinite alternate; }
@@ -797,29 +811,15 @@ body[data-time="day"] .login-input:focus {
   to   { transform: translate(-2.5%, -2%) scale(0.97); }
 }
 
-/* 宝石星芒：十字光芒的亮星 */
-.tarot-jewels { position: absolute; inset: 0; pointer-events: none; }
-.tarot-jewel {
-  position: absolute; border-radius: 50%; pointer-events: none; transform: translate(-50%, -50%);
-  animation: tarotJewelTwinkle ease-in-out infinite alternate; will-change: opacity, transform;
-}
-.tarot-jewel::before, .tarot-jewel::after {
-  content: ''; position: absolute; left: 50%; top: 50%; background: currentColor;
-  transform: translate(-50%, -50%); border-radius: 2px;
-}
-.tarot-jewel::before { width: 260%; height: 1.4px; }
-.tarot-jewel::after { width: 1.4px; height: 260%; }
-@keyframes tarotJewelTwinkle { from { opacity: .35; transform: translate(-50%,-50%) scale(.82); } to { opacity: 1; transform: translate(-50%,-50%) scale(1.12); } }
-
 /* 星云缓慢漂移（避免每帧重模糊，只动 transform） */
 @keyframes tarotNeb1 { from { transform: translate(0,0) scale(1); } to { transform: translate(4%, 3%) scale(1.08); } }
 @keyframes tarotNeb2 { from { transform: translate(0,0) scale(1); } to { transform: translate(-5%, -3%) scale(1.1); } }
 @keyframes tarotNeb3 { from { transform: translate(0,0) scale(1); } to { transform: translate(3%, -4%) scale(1.06); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .tarot-stars i, .tarot-stars-far, .tarot-stars-near, .tarot-astrolabe,
-  .tarot-motes span, .tarot-nebula,
-  .tarot-aurora, .tarot-jewel, .tarot-constellation-map, .tarot-cosmos::after,
+  .tarot-astrolabe,
+  .tarot-nebula,
+  .tarot-aurora, .tarot-constellation-map, .tarot-cosmos::after,
   .tarot-mystic .tarot-hero h2::after { animation: none !important; }
 }
 
@@ -849,7 +849,7 @@ body[data-time="day"] .login-input:focus {
 .tarot-mystic .tarot-sub, .tarot-mystic .tarot-summary { color: var(--t-muted); }
 .tarot-mystic .tarot-rule { width: 56px; height: 1px; opacity: .2; background: linear-gradient(90deg, transparent, var(--t-gold), transparent); }
 .tarot-mystic .tarot-start {
-  background: linear-gradient(135deg, #f4e3a8, #e3c478 55%, #b8923f);
+  background: linear-gradient(135deg, var(--t-gold-soft), var(--t-gold) 55%, var(--t-gold-deep));
   color: #2a2410; border-radius: 12px; font-weight: 600; letter-spacing: .06em;
   box-shadow: 0 6px 24px rgba(227,196,120,.3), inset 0 1px 0 rgba(255,255,255,.5);
 }
