@@ -4,6 +4,7 @@ import { animate } from 'animejs'
 import './App.css'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
+import GlobalSearch from './GlobalSearch'
 
 // 生产走同源相对路径：后端/nginx 都在同一 origin 下托管前端，
 // 这样换端口、上 nginx、上 HTTPS 域名都不用改代码，也不会触发混合内容拦截。
@@ -652,6 +653,8 @@ function App() {
   const [activeForum,setActiveForum] = useState('main')
   const [searchQ,setSearchQ] = useState('')
   const [debouncedQ,setDebouncedQ] = useState('')
+  const [gsOpen,setGsOpen] = useState(false)
+  const [gsSeed,setGsSeed] = useState('')
   const [isRegister,setIsRegister] = useState(false)
   const [showRules,setShowRules] = useState(false)
   const [activeSort,setActiveSort] = useState('latest')
@@ -824,14 +827,14 @@ function App() {
 
     : <div className="app">
       <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
-        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
+        <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span>通知</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''}`} onClick={()=>clickNotif(n)}><span className="notif-icon">{n.type==='like'?'❤️':n.type==='mention'?'@️⃣':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
       <main className="main-content">
         {curPage==='home'&&<div className="home-page">
           {user&&<div className="glass-card create-post-card"><h3>发布新帖子</h3><PostForm user={user} visibleForums={getVisibleForums()} onPostCreated={fetchPosts}/></div>}
           <div className="forum-tabs"><button className={`forum-tab ${activeForum==='all'?'active':''}`} onClick={()=>setActiveForum('all')}>全部</button>{getVisibleForums().map(f=><button key={f.code} className={`forum-tab ${activeForum===f.code?'active':''}`} onClick={()=>setActiveForum(f.code)}>{f.code==='main'?'🏠':'🏫'} {f.name}</button>)}</div>
-          <div className="search-bar"><input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="搜索帖子..." className="glass-input search-input"/>{searchQ&&<button className="search-clear" onClick={()=>setSearchQ('')}>✕</button>}</div>
+          <div className="search-bar"><input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="搜索帖子..." className="glass-input search-input" onKeyDown={e=>{if(e.key==='Enter'){setGsSeed(searchQ);setGsOpen(true)}}}/><button className="search-go" onClick={()=>{setGsSeed(searchQ);setGsOpen(true)}} title="全局搜索">🔍</button>{searchQ&&<button className="search-clear" onClick={()=>setSearchQ('')}>✕</button>}</div>
           <div className="category-tabs"><button className={`category-tab ${activeCat==='all'?'active':''}`} onClick={()=>setActiveCat('all')}>全部</button>{CATEGORIES.map(c=><button key={c.id} className={`category-tab ${activeCat===c.id?'active':''}`} onClick={()=>setActiveCat(c.id)}><span className="category-icon">{c.icon}</span><span className="category-name">{c.name}</span></button>)}</div>
           <div className="category-tabs"><button className={`category-tab ${activeSort==='latest'?'active':''}`} onClick={()=>setActiveSort('latest')}>🕒 最新</button><button className={`category-tab ${activeSort==='hot'?'active':''}`} onClick={()=>setActiveSort('hot')}>🔥 热门</button><button className={`category-tab ${followingFeed?'active':''}`} onClick={()=>setFollowingFeed(f=>!f)}>👥 关注</button></div>
           {trendingTags.length>0&&<div className="tag-filter-row"><span className="tag-filter-label">🔥 热门标签</span><div className="tag-filter-chips">{trendingTags.slice(0,12).map(t=><button key={t.tag} className={`tag-filter-chip ${activeTag===t.tag?'active':''}`} onClick={()=>setActiveTag(prev=>prev===t.tag?'':t.tag)}>#{t.tag}<span className="tag-count">{t.count}</span></button>)}</div></div>}
@@ -842,10 +845,11 @@ function App() {
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost} onOpenUser={setProfileUserId}/>}
       </main>
-      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}>我的</button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className="mobile-nav-item" onClick={toggleTheme}>{theme==='auto'?'自动':isLight?'白天':'夜间'}</button></nav>
+      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}>我的</button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className="mobile-nav-item" onClick={()=>{setGsSeed('');setGsOpen(true)}}>🔍</button><button className="mobile-nav-item" onClick={toggleTheme}>{theme==='auto'?'自动':isLight?'白天':'夜间'}</button></nav>
     </div>}
     {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
     <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}
+    {user && gsOpen && <GlobalSearch initial={gsSeed} onClose={()=>setGsOpen(false)} Avatar={Avatar} onOpenUser={(id)=>{setProfileUserId(id);setGsOpen(false)}} onOpenPost={(p)=>{setSelectedPost(p);setGsOpen(false)}} />}
   </ToastProvider>
 }
 

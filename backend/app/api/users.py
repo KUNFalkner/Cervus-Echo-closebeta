@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Query
 from sqlalchemy.orm import Session
+from typing import List, Optional
 import random
 import os
 import io
@@ -104,6 +105,26 @@ def login_user(body: LoginRequest, request: Request, db: Session = Depends(get_d
 @router.get("/me", response_model=UserSchema)
 def get_me(user: UserModel = Depends(require_user)):
     return user
+
+@router.get("/search", response_model=List[PublicUser])
+def search_users(
+    q: str = Query(..., min_length=1, max_length=40, description="按昵称或用户名搜索"),
+    db: Session = Depends(get_db),
+):
+    """全局搜索：按昵称或用户名模糊匹配（不暴露 uid / 真实姓名，排除已封禁）。"""
+    like = f"%{q}%"
+    users = (
+        db.query(UserModel)
+        .filter(
+            UserModel.banned == False,
+            (UserModel.nickname.ilike(like)) | (UserModel.username.ilike(like)),
+        )
+        .order_by(UserModel.karma.desc())
+        .limit(20)
+        .all()
+    )
+    return users
+
 
 @router.get("/{user_id}", response_model=PublicUser)
 def get_user(user_id: int, db: Session = Depends(get_db)):
