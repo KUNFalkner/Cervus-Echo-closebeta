@@ -632,6 +632,21 @@ export const TAROT_DECK = [
 // 三张时间牌阵的槽位标签
 export const TAROT_POSITIONS = ['过去', '现在', '未来']
 
+// 凯尔特十字十张大牌阵：经典的十字+权杖结构，覆盖当下/阻碍/根源/未来/期许/潜流/
+// 自处/环境/隐忧/终局。每个槽位带一句提示，帮助理解该位置在牌阵里的含义。
+export const CELTIC_POSITIONS = [
+  { name: '现状', hint: '你正身处的当下处境' },
+  { name: '挑战', hint: '横亘眼前的阻碍' },
+  { name: '根源', hint: '形塑现状的过去根基' },
+  { name: '近因', hint: '近来仍起作用的影响' },
+  { name: '期许', hint: '你心之所向的可能' },
+  { name: '潜流', hint: '潜意识里的内在驱动' },
+  { name: '自处', hint: '你应对此事的态度' },
+  { name: '环境', hint: '外部的人与境遇' },
+  { name: '隐忧', hint: '心底的希望与恐惧' },
+  { name: '终局', hint: '事情最终的走向' },
+]
+
 // 元素 → 点缀色（天体色系，呼应星空神秘感）
 export const ELEMENT_THEME = {
   wands: { label: '火 · 行动', color: '#e0915a' },

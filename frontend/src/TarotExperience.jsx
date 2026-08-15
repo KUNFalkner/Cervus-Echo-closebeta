@@ -3,7 +3,7 @@ import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { animate, createScope } from 'animejs'
 gsap.registerPlugin(useGSAP)
-import { TAROT_DECK, TAROT_POSITIONS, ELEMENT_THEME } from './tarotData'
+import { TAROT_DECK, TAROT_POSITIONS, CELTIC_POSITIONS, ELEMENT_THEME } from './tarotData'
 import { useToast } from './ToastContext'
 import TarotBack from './TarotBack'
 import TarotHistoryCalendar from './TarotHistoryCalendar'
@@ -16,11 +16,18 @@ const GOLD = '#e3c478'
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : '/api'
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// ── 抽牌历史（localStorage 多日留存，每日一条，最多 30 条）──
+// ── 抽牌历史（localStorage 持久化，每次抽牌独立留一条，最多 30 条）──
 const HISTORY_KEY = 'treehole_tarot_history_v1'
+// 最近一次抽牌结果（刷新后可恢复当前牌面，便于翻看/解读/分享）；不绑定日期。
+const LAST_KEY = 'treehole_tarot_last_v1'
+const pad2 = (n) => String(n).padStart(2, '0')
+// 本地时间字符串：日期 YYYY-MM-DD（与用户时区一致）
+const todayStrOf = (ts) => { const d = ts ? new Date(ts) : new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+// 本地时间 HH:MM（用于历史展示「何时抽的」）
+const timeStrOf = (ts) => { const d = new Date(ts); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
 // 只接受结构完整的 entry；旧版本/损坏的历史可能缺 cards 等字段，
 // 直接进 state 会在历史面板 h.cards.map 时抛错、导致整页历史打不开（表现为「抽了却不记录」）
-const validEntry = (e) => !!e && typeof e === 'object' && typeof e.date === 'string' && Array.isArray(e.cards)
+const validEntry = (e) => !!e && typeof e === 'object' && typeof e.date === 'string' && typeof e.ts === 'number' && Array.isArray(e.cards)
 const loadHistory = () => {
   try {
     const v = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
@@ -31,7 +38,7 @@ const loadHistory = () => {
   } catch { return [] }
 }
 const persistHistory = (list) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)) } catch {} }
-// 跨端同步：把当日一抽推到服务器（本地 localStorage 仍作离线缓存）。无 token 时静默跳过。
+// 跨端同步：把本次抽牌推到服务器（本地 localStorage 仍作离线缓存）。无 token 时静默跳过。
 const pushHistory = async (entry) => {
   try {
     const t = localStorage.getItem('token')
@@ -43,7 +50,7 @@ const pushHistory = async (entry) => {
     })
   } catch {}
 }
-// 跨端同步：拉取服务器历史，与本地按日期合并，取最新一次写入（ts 大者胜）
+// 跨端同步：拉取服务器历史，与本地按 ts 合并（每条抽牌 ts 唯一，无去重合并 → 同日可累加多条）
 const pullHistory = async (setHistory) => {
   try {
     const t = localStorage.getItem('token')
@@ -54,14 +61,13 @@ const pullHistory = async (setHistory) => {
     if (!Array.isArray(server)) return
     setHistory(prev => {
       const local = Array.isArray(prev) ? prev : []
-      const byDate = new Map()
+      const byTs = new Map()
+      // 旧格式缺 ts 的兜底：用 date 作键，避免丢失
       for (const h of [...local, ...server]) {
         if (!validEntry(h)) continue
-        const k = h.date
-        const ex = byDate.get(k)
-        if (!ex || (h.ts || 0) > (ex.ts || 0)) byDate.set(k, h)
+        byTs.set(h.ts, h)
       }
-      const merged = [...byDate.values()].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 30)
+      const merged = [...byTs.values()].sort((a, b) => b.ts - a.ts).slice(0, 30)
       persistHistory(merged)
       return merged
     })
@@ -163,28 +169,34 @@ const TarotExperience = () => {
   // 用 contextSafe 包裹后，它们会被纳入该作用域，组件卸载时自动 revert，
   // 避免游离补间在已卸载节点上继续跑（GSAP × React 官方推荐模式）。
   const { contextSafe } = useGSAP({ scope: pageRef })
-  // 按「本地日期」分日（非 UTC），保证「每日一抽」与用户所在时区一致；
-  // 跨端同步也以本地日期合并，避免深夜跨本地日却落在同一 UTC 日导致两次抽牌被合并
-  const todayStr = (() => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` })()
-  const todayKey = 'treehole_tarot_' + todayStr
-  const [drawn, setDrawn] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(todayKey) || 'null') } catch { return null }
-  })
-  const [revealed, setRevealed] = useState(() => drawn ? [true, true, true] : [false, false, false])
+  // 最近一次抽牌（刷新后恢复当前牌面）；不绑定日期，每次抽牌独立留痕。
+  const lastInit = (() => {
+    try { const v = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); return v && Array.isArray(v.cards) ? v : null }
+    catch { return null }
+  })()
+  const [spread, setSpread] = useState(lastInit ? (lastInit.spread || 'time') : 'time')
+  const [drawn, setDrawn] = useState(() => lastInit ? lastInit.cards : null)
+  const [drawnTs, setDrawnTs] = useState(lastInit ? (lastInit.ts || 0) : 0)
+  const [revealed, setRevealed] = useState(() => lastInit ? lastInit.cards.map(() => true) : [])
   const [openIdx, setOpenIdx] = useState(-1)
   const [shuffling, setShuffling] = useState(false)
-  const [question, setQuestion] = useState('')
+  const [question, setQuestion] = useState(lastInit ? (lastInit.question || '') : '')
   const [interpreting, setInterpreting] = useState(false)
-  const [counsel, setCounsel] = useState(null) // { text, source }
+  const [counsel, setCounsel] = useState(() => lastInit ? (lastInit.counsel || null) : null)
   const counselRef = useRef(null)
   const freshRef = useRef(false)
-  const r0 = useRef(null), r1 = useRef(null), r2 = useRef(null)
-  const cardRefs = [r0, r1, r2]
-  // 抽牌历史（多日）：每次每日一抽写入一条，可回看与展开解读
+  // 动态卡牌引用：支持 3 张（过去·现在·未来）或 10 张（凯尔特十字）
+  const cardRefs = useRef([])
+  // 抽牌历史：每次抽牌独立写入一条（按 ts 累加），可回看与展开解读
   const [history, setHistory] = useState(() => loadHistory())
   const [showHistory, setShowHistory] = useState(false)
   const [historyView, setHistoryView] = useState('list') // 'list' | 'calendar'
   const [openTs, setOpenTs] = useState(null)
+
+  // 当前牌阵的槽位定义（名称 + 可选提示）
+  const POS = spread === 'celtic'
+    ? CELTIC_POSITIONS
+    : TAROT_POSITIONS.map((n) => ({ name: n }))
 
   // 跨端同步：进入塔罗即拉取服务器历史，与本地合并（手机/电脑一致）
   useEffect(() => { pullHistory(setHistory) }, [])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -269,13 +281,13 @@ const TarotExperience = () => {
         onComplete: () => gsap.to(sweep, { autoAlpha: 0, duration: 0.25, onComplete: () => sweep.remove() }) })
   }
 
-  // 发牌：三张牌从中央牌库飞向各自位置（GSAP 时间线 + 有机错位 + 柔和彗星尾迹）
+  // 发牌：卡牌从中央牌库飞向各自位置（GSAP 时间线 + 有机错位 + 柔和彗星尾迹）
   // 设计原则：每张牌略有不同（时长/角度/延迟微随机），避免机器般的整齐划一；
   // 发牌时只出彗星（轻量），翻面时才迸发星屑（隆重），减少同屏 DOM 动画压力。
   const dealCards = contextSafe(() => {
     if (reduceMotion()) return
     // 发牌窗口冻结最吃主线程的星空粒子 + 模糊光晕（见 TarotCanvas / App.css .tarot-dealing），
-    // 把算力让给三张牌飞行，消除抽牌卡顿；落位完成后解除。
+    // 把算力让给卡牌飞行，消除抽牌卡顿；落位完成后解除。
     document.body.classList.add('tarot-dealing')
     const cx = window.innerWidth / 2
     const cy = window.innerHeight * 0.62
@@ -283,8 +295,9 @@ const TarotExperience = () => {
       defaults: { ease: 'expo.out', force3D: true },
       onComplete: () => document.body.classList.remove('tarot-dealing'),
     })
-    cardRefs.forEach((r, i) => {
-      const el = r.current
+    const refs = cardRefs.current
+    const step = spread === 'celtic' ? 0.14 : 0.22 // 十张牌错位更紧凑，避免发牌拖太久
+    refs.forEach((el, i) => {
       if (!el) return
       const rect = el.getBoundingClientRect()
       const x0 = cx - (rect.left + rect.width / 2)
@@ -293,7 +306,7 @@ const TarotExperience = () => {
       const rotStart = gsap.utils.random(-50, 50)
       gsap.set(el, { x: x0, y: y0, scale: 0.25, rotation: rotStart, autoAlpha: 0, transformOrigin: '50% 50%' })
       // 微随机化：起始延迟 ±0.06s，时长 ±0.12s，让节奏像"手洗牌"而非机器
-      const at = i * 0.22 + gsap.utils.random(-0.06, 0.06)
+      const at = i * step + gsap.utils.random(-0.06, 0.06)
       const dur = 1.0 + gsap.utils.random(-0.12, 0.12)
       // 主飞入：expo.out 平滑减速落位（含自然摆正）。不再叠加独立摇摆补间，
       // 避免它与 rotation 主补间争用同一属性造成跳变/卡顿。
@@ -309,23 +322,28 @@ const TarotExperience = () => {
     freshRef.current = true
     setTimeout(() => {
       const finish = () => {
+        const n = spread === 'celtic' ? 10 : 3
         const deck = [...TAROT_DECK]
         for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]] }
-        const picks = deck.slice(0, 3).map(c => ({ ...c, revMeaning: c.reversed, reversed: Math.random() < 0.5 }))
-        setDrawn(picks); setRevealed([false, false, false]); setOpenIdx(-1); setShuffling(false)
-        try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
-        // 写入历史：同日更新、否则置顶，最多留 30 条。
+        const picks = deck.slice(0, n).map(c => ({ ...c, revMeaning: c.reversed, reversed: Math.random() < 0.5 }))
+        const ts = Date.now()
+        const dstr = todayStrOf(ts)
+        const tstr = timeStrOf(ts)
+        setDrawn(picks); setDrawnTs(ts); setSpread(spread); setRevealed(picks.map(() => false)); setOpenIdx(-1); setShuffling(false); setCounsel(null)
+        // 保存当前结果（刷新可恢复牌面），并写入历史：每次抽牌由 ts 唯一标识，故同日可累加多条。
         // 注意：副作用（持久化 / 同步）放在 setState 之外，避免更新函数被 React 重复调用导致双写。
+        const last = { spread, ts, cards: picks, question, counsel: null }
+        try { localStorage.setItem(LAST_KEY, JSON.stringify(last)) } catch {}
         const entry = {
-          date: todayStr, ts: Date.now(), question,
+          spread, date: dstr, time: tstr, ts, question,
           cards: picks.map(c => ({ name: c.name, en: c.en, reversed: c.reversed, suit: c.suit, arcana: c.arcana, num: c.num })),
           counsel: null,
         }
-        const next = [entry, ...history.filter(h => h.date !== entry.date)].slice(0, 30)
+        const next = [entry, ...history.filter(h => h.ts !== entry.ts)].slice(0, 30)
         setHistory(next)
         persistHistory(next)
         pushHistory(entry)
-        try { toast && toast.success('已记录今日抽牌 ✦') } catch {}
+        try { toast && toast.success('已记录本次抽牌 ✦') } catch {}
         setTimeout(() => dealCards(), 70)
       }
       // 洗牌收束：星盘减速回正 + 容器淡出，再发牌，衔接更顺（不突兀消失）
@@ -342,7 +360,7 @@ const TarotExperience = () => {
     if (!drawn) return
     if (!revealed[i]) {
       setRevealed(p => { const n = [...p]; n[i] = true; return n })
-      const el = cardRefs[i].current
+      const el = cardRefs.current[i]
       if (el && !reduceMotion()) {
         gsap.fromTo(el, { scale: 0.86 }, { scale: 1, duration: 0.5, ease: 'back.out(2.2)' })
         spawnSweep(el)
@@ -355,11 +373,12 @@ const TarotExperience = () => {
 
   const guidance = !drawn ? '' : (() => {
     const rev = drawn.filter(c => c.reversed).length
-    const now = drawn[1]
-    const head = rev === 0 ? '三星皆顺位，命途澄明——'
-      : rev === 3 ? '三星皆逆位，宜守宜内省——'
+    const total = drawn.length
+    const head = rev === 0 ? '星牌皆顺位，命途澄明——'
+      : rev === total ? '星牌皆逆位，宜守宜内省——'
       : rev === 1 ? '一星轻逆，留意暗处的低语——'
-      : '两星逆位，先安内而后向外——'
+      : `${rev} 星逆位，先安内而后向外——`
+    const now = drawn[spread === 'celtic' ? 0 : 1] // 凯尔特十字「现状」为首，三张牌阵「现在」居中
     const tail = now.reversed
       ? `「${now.name}」逆位：放慢脚步，回望那些被略过的微光。`
       : `「${now.name}」顺位：顺势而行，握住眼前的星火。`
@@ -385,7 +404,7 @@ const TarotExperience = () => {
       question,
       focus: 'general',
       cards: drawn.map((c, i) => ({
-        position: TAROT_POSITIONS[i],
+        position: POS[i] ? POS[i].name : `第${i + 1}张`,
         name: c.name,
         en: c.en,
         orientation: c.reversed ? 'reversed' : 'upright',
@@ -416,13 +435,15 @@ const TarotExperience = () => {
         d = await runOnce()
       }
       setCounsel({ text: d.text, source: d.source })
-      // 把 AI 解读同步存回当日历史记录；同时把「抽牌后补填」的问题也写回，避免历史里问题丢失
-      const today = todayStr
-      const next = history.map(h => h.date === today ? { ...h, question: question || h.question, counsel: { text: d.text, source: d.source } } : h)
+      // 把 AI 解读同步存回本次抽牌的历史记录（按 ts 定位）；同时把「抽牌后补填」的问题也写回，避免历史里问题丢失
+      const next = history.map(h => h.ts === drawnTs ? { ...h, question: question || h.question, counsel: { text: d.text, source: d.source } } : h)
       setHistory(next)
       persistHistory(next)
-      const updated = next.find(h => h.date === today)
-      if (updated) pushHistory(updated)
+      const updated = next.find(h => h.ts === drawnTs)
+      if (updated) {
+        pushHistory(updated)
+        try { localStorage.setItem(LAST_KEY, JSON.stringify({ spread, ts: drawnTs, cards: drawn, question: question || updated.question, counsel: { text: d.text, source: d.source } })) } catch {}
+      }
     } catch (e) {
       // 两次皆失败：区分超时（繁忙）与连接错误，给出明确提示
       const busy = e && e.name === 'AbortError'
@@ -435,12 +456,13 @@ const TarotExperience = () => {
   // 分享：复制结果文案到剪贴板
   const copyShare = async () => {
     if (!drawn) return
-    const date = todayKey.slice(-10)
+    const date = todayStrOf(drawnTs)
+    const time = timeStrOf(drawnTs)
     const text = [
-      `【树洞塔罗 · ${date}】`,
+      `【树洞塔罗 · ${date} ${time} · ${spread === 'celtic' ? '凯尔特十字' : '过去现在未来'}】`,
       question ? `疑问：${question}` : '疑问：（未填写，由牌面自语）',
       '',
-      drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}${c.reversed ? '（逆位）' : '（正位）'}`).join('　'),
+      drawn.map((c, i) => `${POS[i] ? POS[i].name : (i + 1)}·${c.name}${c.reversed ? '（逆位）' : '（正位）'}`).join('　'),
       '',
       counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）',
       '',
@@ -456,18 +478,22 @@ const TarotExperience = () => {
   // 分享：把牌面 + 正逆位 + 解读绘成一张图下载（牌面图加载失败则回退为文字占位）
   const saveShareImage = async () => {
     if (!drawn) return
-    const date = todayKey.slice(-10)
+    const date = todayStrOf(drawnTs)
+    const time = timeStrOf(drawnTs)
+    const cols = spread === 'celtic' ? 5 : 3
+    const rows = Math.ceil(drawn.length / cols)
     const W = 720, P = 32, gap = 20
-    const cardW = Math.floor((W - P * 2 - gap * 2) / 3)
+    const cardW = Math.floor((W - P * 2 - gap * (cols - 1)) / cols)
     const cardH = Math.floor(cardW * 1.5)
     const topY = 116
     const nameY = topY + cardH + 28
+    const rowH = cardH + 44
     const counselText = counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）'
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     ctx.font = '16px sans-serif'
     const counselLines = measureLines(ctx, counselText, W - P * 2)
-    const counselTop = nameY + 18
+    const counselTop = nameY + (rows - 1) * rowH + 18
     const H = counselTop + counselLines * 26 + 36
     canvas.width = W; canvas.height = H
     const bg = ctx.createLinearGradient(0, 0, 0, H)
@@ -476,18 +502,20 @@ const TarotExperience = () => {
     ctx.strokeStyle = 'rgba(227,196,120,.5)'; ctx.lineWidth = 2; ctx.strokeRect(9, 9, W - 18, H - 18)
     ctx.textAlign = 'left'
     ctx.fillStyle = '#e3c478'; ctx.font = '600 30px serif'; ctx.fillText('树洞塔罗', P, 52)
-    ctx.fillStyle = 'rgba(227,196,120,.75)'; ctx.font = '15px sans-serif'; ctx.fillText(date, P, 78)
+    ctx.fillStyle = 'rgba(227,196,120,.75)'; ctx.font = '15px sans-serif'; ctx.fillText(`${date}  ${time}  ${spread === 'celtic' ? '凯尔特十字' : '过去现在未来'}`, P, 78)
     if (question) { ctx.fillStyle = '#c9c9e6'; ctx.font = '15px sans-serif'; wrapText(ctx, '疑问：' + question, P, 100, W - P * 2, 22) }
     let imgs = []
     try { imgs = await Promise.all(drawn.map(c => loadImg(faceSrc(c)))) } catch {}
     drawn.forEach((c, i) => {
-      const x = P + i * (cardW + gap)
+      const col = i % cols, row = Math.floor(i / cols)
+      const x = P + col * (cardW + gap)
+      const y = topY + row * rowH
       const im = imgs[i]
-      if (im) ctx.drawImage(im, x, topY, cardW, cardH)
-      else { ctx.fillStyle = 'rgba(227,196,120,.08)'; ctx.fillRect(x, topY, cardW, cardH); ctx.strokeStyle = 'rgba(227,196,120,.4)'; ctx.strokeRect(x, topY, cardW, cardH) }
-      ctx.fillStyle = '#e3c478'; ctx.font = '600 16px sans-serif'; ctx.fillText(c.name, x, nameY)
+      if (im) ctx.drawImage(im, x, y, cardW, cardH)
+      else { ctx.fillStyle = 'rgba(227,196,120,.08)'; ctx.fillRect(x, y, cardW, cardH); ctx.strokeStyle = 'rgba(227,196,120,.4)'; ctx.strokeRect(x, y, cardW, cardH) }
+      ctx.fillStyle = '#e3c478'; ctx.font = '600 16px sans-serif'; ctx.fillText(c.name, x, y + cardH + 20)
       ctx.fillStyle = c.reversed ? 'rgba(190,110,150,.95)' : 'rgba(227,196,120,.8)'; ctx.font = '13px sans-serif'
-      ctx.fillText(c.reversed ? '逆位' : '正位', x, nameY + 18)
+      ctx.fillText(c.reversed ? '逆位' : '正位', x, y + cardH + 38)
     })
     ctx.fillStyle = '#e8e6f0'; ctx.font = '16px sans-serif'; ctx.textAlign = 'left'
     wrapText(ctx, counselText, P, counselTop, W - P * 2, 26)
@@ -528,7 +556,11 @@ const TarotExperience = () => {
         </div>
         <div className="tarot-rule" />
         {!drawn && (
-          <p className="tarot-sub">静心凝神，先在心中默念、或写下此刻盘桓的疑问——为「过去 · 现在 · 未来」各引一张星牌。</p>
+          <p className="tarot-sub">
+            {spread === 'celtic'
+              ? '静心凝神，先在心中默念、或写下此刻盘桓的疑问——以「凯尔特十字」十张大牌阵，照见处境与去向。'
+              : '静心凝神，先在心中默念、或写下此刻盘桓的疑问——为「过去 · 现在 · 未来」各引一张星牌。'}
+          </p>
         )}
         {/* 问题始终可编辑：抽牌前写下、抽牌后想补问也能改，AI 解读与历史都会带上最新问题 */}
         <div className="tarot-ask-first">
@@ -543,9 +575,16 @@ const TarotExperience = () => {
         </div>
 
         {!drawn
-          ? <button className="tarot-start" onClick={draw} disabled={shuffling}>
+          ? <>
+            {/* 牌阵选择：三张时间牌阵 / 凯尔特十字十张（抽牌前切换） */}
+            <div className="tarot-spread-pick">
+              <button type="button" className={`tarot-spread-opt ${spread === 'time' ? 'active' : ''}`} onClick={() => setSpread('time')}>三张 · 过去现在未来</button>
+              <button type="button" className={`tarot-spread-opt ${spread === 'celtic' ? 'active' : ''}`} onClick={() => setSpread('celtic')}>凯尔特十字 · 十张</button>
+            </div>
+            <button className="tarot-start" onClick={draw} disabled={shuffling}>
               {shuffling ? <span className="tarot-shuffle"><span className="dot" /> 星盘流转中…</span> : '开始抽牌'}
             </button>
+          </>
           : <>
             <div className="tarot-spread-wrap">
               <svg className="tarot-arc" viewBox="0 0 300 120" preserveAspectRatio="none" aria-hidden>
@@ -554,16 +593,17 @@ const TarotExperience = () => {
                 <circle cx="150" cy="14" r="2.5" fill={GOLD} opacity="0.6" />
                 <circle cx="280" cy="100" r="2.5" fill={GOLD} opacity="0.6" />
               </svg>
-              <div className="tarot-spread">
+              <div className={`tarot-spread ${spread === 'celtic' ? 'tarot-spread-celtic' : ''}`}>
                 {drawn.map((card, i) => {
                   const th = themeOf(card)
                   return (
                     <div className="tarot-col" key={i}>
-                      <div className="tarot-pos">{TAROT_POSITIONS[i]}</div>
+                      <div className="tarot-pos">{POS[i] ? POS[i].name : (i + 1)}</div>
+                      {POS[i] && POS[i].hint && <div className="tarot-pos-hint">{POS[i].hint}</div>}
                       <div
                         className={`tarot-card ${revealed[i] ? 'flipped' : ''} ${card.reversed ? 'is-rev' : ''}`}
                         style={{ '--edge': th.color }}
-                        onClick={() => flip(i)} ref={cardRefs[i]}
+                        onClick={() => flip(i)} ref={(el) => { cardRefs.current[i] = el }}
                       >
                         <div className="tarot-inner">
                           <div className="tarot-face tarot-back"><TarotBack /></div>
@@ -598,7 +638,7 @@ const TarotExperience = () => {
               const th = themeOf(c)
               return <div className="tarot-detail" style={{ '--edge': th.color }}>
                 <div className="tarot-detail-head">
-                  <span className="tarot-detail-pos">{TAROT_POSITIONS[openIdx]}</span>
+                  <span className="tarot-detail-pos">{POS[openIdx] ? POS[openIdx].name : (openIdx + 1)}</span>
                   <b>{c.name}</b>
                   <span className="tarot-detail-en">{c.en}</span>
                   <span className={`tarot-ori ${c.reversed ? 'rev' : ''}`}>{c.reversed ? '逆位' : '正位'}</span>
@@ -615,7 +655,7 @@ const TarotExperience = () => {
               </div>
             })()}
             <div className="tarot-summary">
-              今日牌阵：{drawn.map((c, i) => `${TAROT_POSITIONS[i]}·${c.name}${c.reversed ? '(逆)' : ''}`).join(' · ')}
+              {spread === 'celtic' ? '凯尔特十字牌阵' : '今日牌阵'}：{drawn.map((c, i) => `${POS[i] ? POS[i].name : (i + 1)}·${c.name}${c.reversed ? '(逆)' : ''}`).join(' · ')}
             </div>
             {guidance && <div className="tarot-guidance">{guidance}</div>}
             <div className="tarot-hint">点击卡牌翻面 · 再点「展开详情」查看英文释义与爱情 / 事业 / 情绪 / 灵性参考</div>
@@ -656,7 +696,7 @@ const TarotExperience = () => {
               })()}
             </div>
 
-            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(todayKey); setDrawn(null); setRevealed([false, false, false]); setOpenIdx(-1); setCounsel(null); setQuestion(''); toast.success('已重新洗牌') }}>重新洗牌</button>
+            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(LAST_KEY); setDrawn(null); setDrawnTs(0); setRevealed([]); setOpenIdx(-1); setCounsel(null); setQuestion(''); toast.success('已重新洗牌') }}>重新洗牌</button>
 
             {/* 分享：复制结果文案 / 保存为星图 */}
             <div className="tarot-share">
@@ -697,13 +737,15 @@ const TarotExperience = () => {
             </div>
             {historyView === 'calendar'
               ? <TarotHistoryCalendar history={history} onClose={() => setShowHistory(false)} />
-              : <div className="tarot-history-list">
+              :                 <div className="tarot-history-list">
                   {history.length === 0
-                    ? <p className="tarot-history-empty">还没有抽牌记录，每次「每日一抽」都会被静静收藏在这里。</p>
+                    ? <p className="tarot-history-empty">还没有抽牌记录，每次抽牌都会被静静收藏在这里。</p>
                     : history.map(h => (
                       <div className="tarot-history-item" key={h.ts}>
                         <div className="tarot-history-meta">
                           <span className="tarot-history-date">{h.date}</span>
+                          {h.time && <span className="tarot-history-time">{h.time}</span>}
+                          <span className="tarot-history-spread">{h.spread === 'celtic' ? '凯尔特十字' : '三张'}</span>
                           {h.question && <span className="tarot-history-q">「{h.question}」</span>}
                         </div>
                         <div className="tarot-history-cards">

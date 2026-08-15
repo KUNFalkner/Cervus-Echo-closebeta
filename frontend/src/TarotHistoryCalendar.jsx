@@ -5,45 +5,43 @@ const firstDayOfMonth = (year, month) => new Date(year, month, 1).getDay() // 0 
 
 const pad2 = (n) => String(n).padStart(2, '0')
 
-const HistoryEntryDetail = ({ entry, openTs, setOpenTs }) => {
-  const isOpen = openTs === entry.ts
-  return (
-    <div className="tarot-history-item tarot-cal-detail" key={entry.ts}>
-      <div className="tarot-history-meta">
-        <span className="tarot-history-date">{entry.date}</span>
-        {entry.question && <span className="tarot-history-q">「{entry.question}」</span>}
-      </div>
-      <div className="tarot-history-cards">
-        {Array.isArray(entry.cards) && entry.cards.map((c, i) => (
-          <span className="tarot-history-chip" key={i}>
-            <i className={c.reversed ? 'rev' : ''}>{c.reversed ? '逆' : '正'}</i>
-            {c.name}
-          </span>
-        ))}
-      </div>
-      {entry.counsel && (
-        <button className="tarot-history-toggle" onClick={() => setOpenTs(isOpen ? null : entry.ts)}>
-          {isOpen ? '收起解读 ▴' : '查看解读 ▾'}
-        </button>
-      )}
-      {entry.counsel && isOpen && <p className="tarot-history-counsel">{entry.counsel.text}</p>}
+const HistoryEntryDetail = ({ entry }) => (
+  <div className="tarot-history-item tarot-cal-detail">
+    <div className="tarot-history-meta">
+      <span className="tarot-history-date">{entry.date}</span>
+      {entry.time && <span className="tarot-history-time">{entry.time}</span>}
+      <span className="tarot-history-spread">{entry.spread === 'celtic' ? '凯尔特十字' : '三张'}</span>
+      {entry.question && <span className="tarot-history-q">「{entry.question}」</span>}
     </div>
-  )
-}
+    <div className="tarot-history-cards">
+      {Array.isArray(entry.cards) && entry.cards.map((c, i) => (
+        <span className="tarot-history-chip" key={i}>
+          <i className={c.reversed ? 'rev' : ''}>{c.reversed ? '逆' : '正'}</i>
+          {c.name}
+        </span>
+      ))}
+    </div>
+  </div>
+)
 
 export default function TarotHistoryCalendar({ history, onClose }) {
   const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
-  const [openTs, setOpenTs] = useState(null)
   const year = cursor.getFullYear()
   const month = cursor.getMonth()
 
-  const entriesByDate = useMemo(() => {
+  // 按日期分组：同一天可能有多次抽牌（累加），故每个日期对应一个数组
+  const entriesByDay = useMemo(() => {
     const m = new Map()
-    for (const h of history) { if (h.date) m.set(h.date, h) }
+    for (const h of history) {
+      if (!h.date) continue
+      if (!m.has(h.date)) m.set(h.date, [])
+      m.get(h.date).push(h)
+    }
     return m
   }, [history])
 
-  const selected = openTs ? history.find(h => h.ts === openTs) || null : null
+  const [openDate, setOpenDate] = useState(null)
+  const selected = openDate ? (entriesByDay.get(openDate) || []) : []
 
   const cells = []
   const pad = firstDayOfMonth(year, month)
@@ -65,29 +63,35 @@ export default function TarotHistoryCalendar({ history, onClose }) {
         {['日','一','二','三','四','五','六'].map(d => <div key={d} className="tarot-cal-weekday">{d}</div>)}
         {cells.map((day, idx) => {
           const dateStr = day ? `${year}-${pad2(month + 1)}-${pad2(day)}` : ''
-          const entry = day ? entriesByDate.get(dateStr) : null
+          const entries = day ? entriesByDay.get(dateStr) : null
+          const has = !!entries && entries.length > 0
           const isToday = dateStr === todayStr
           return (
             <button
               key={idx}
-              className={`tarot-cal-cell ${day ? '' : 'empty'} ${entry ? 'has-entry' : ''} ${isToday ? 'is-today' : ''}`}
-              disabled={!entry}
-              onClick={() => entry && setOpenTs(entry.ts)}
-              aria-label={entry ? `${dateStr} 有抽牌记录` : dateStr}
+              className={`tarot-cal-cell ${day ? '' : 'empty'} ${has ? 'has-entry' : ''} ${isToday ? 'is-today' : ''}`}
+              disabled={!has}
+              onClick={() => has && setOpenDate(dateStr === openDate ? null : dateStr)}
+              aria-label={has ? `${dateStr} 有 ${entries.length} 条抽牌记录` : dateStr}
             >
               {day && <span className="tarot-cal-day">{day}</span>}
-              {entry && <span className="tarot-cal-dot" title={entry.cards.map(c => c.name).join(' · ')}>✦</span>}
+              {has && (
+                <span className="tarot-cal-dot" title={(entries[0].cards || []).map(c => c.name).join(' · ')}>
+                  ✦{entries.length > 1 ? <i className="tarot-cal-count">{entries.length}</i> : null}
+                </span>
+              )}
             </button>
           )
         })}
       </div>
-      {selected && (
+      {selected.length > 0 && (
         <div className="tarot-cal-detail-wrap">
-          <HistoryEntryDetail entry={selected} openTs={openTs} setOpenTs={setOpenTs} />
+          <div className="tarot-cal-detail-day">{openDate} · 共 {selected.length} 次抽牌</div>
+          {selected.map(e => <HistoryEntryDetail key={e.ts} entry={e} />)}
         </div>
       )}
       {history.length === 0 && (
-        <p className="tarot-history-empty">还没有抽牌记录，每次「每日一抽」都会被静静收藏在这里。</p>
+        <p className="tarot-history-empty">还没有抽牌记录，每次抽牌都会被静静收藏在这里。</p>
       )}
     </div>
   )

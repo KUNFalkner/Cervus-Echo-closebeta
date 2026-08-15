@@ -630,8 +630,10 @@ body[data-time="day"] .login-input:focus {
 .tarot-history-empty { color: rgba(220,220,240,.6); font-size: .9rem; line-height: 1.6; padding: .8rem 0; }
 .tarot-history-item { padding: .9rem 0; border-bottom: 1px dashed rgba(227,196,120,.14); }
 .tarot-history-item:last-child { border-bottom: none; }
-.tarot-history-meta { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .5rem; }
+.tarot-history-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: .55rem; margin-bottom: .5rem; }
 .tarot-history-date { color: var(--t-gold, #e3c478); font-size: .92rem; letter-spacing: .05em; }
+.tarot-history-time { color: rgba(227,196,120,.7); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.tarot-history-spread { font-size: .72rem; padding: .06rem .42rem; border-radius: 6px; background: rgba(227,196,120,.12); border: 1px solid rgba(227,196,120,.22); color: rgba(227,196,120,.85); letter-spacing: .04em; }
 .tarot-history-q { color: rgba(220,220,240,.7); font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tarot-history-cards { display: flex; flex-wrap: wrap; gap: .5rem; }
 .tarot-history-chip {
@@ -664,8 +666,10 @@ body[data-time="day"] .login-input:focus {
 .tarot-cal-cell.has-entry:hover { background: rgba(227,196,120,.18); box-shadow: 0 0 12px rgba(227,196,120,.12); }
 .tarot-cal-cell.is-today { box-shadow: inset 0 0 0 1px rgba(227,196,120,.45); }
 .tarot-cal-day { font-size: .8rem; }
-.tarot-cal-dot { color: var(--t-gold, #e3c478); font-size: .7rem; line-height: 1; text-shadow: 0 0 6px rgba(227,196,120,.5); }
+.tarot-cal-dot { color: var(--t-gold, #e3c478); font-size: .7rem; line-height: 1; text-shadow: 0 0 6px rgba(227,196,120,.5); display: inline-flex; align-items: center; gap: .12rem; }
+.tarot-cal-count { font-style: normal; font-size: .58rem; padding: .02rem .26rem; border-radius: 999px; background: rgba(227,196,120,.22); color: var(--t-gold, #e3c478); text-shadow: none; }
 .tarot-cal-detail-wrap { margin-top: .8rem; padding-top: .6rem; border-top: 1px dashed rgba(227,196,120,.14); }
+.tarot-cal-detail-day { color: rgba(227,196,120,.8); font-size: .82rem; letter-spacing: .05em; margin-bottom: .4rem; }
 .tarot-cal-detail.tarot-history-item { border-bottom: none; padding: .5rem 0; }
 
 @media (max-width: 640px) {
@@ -675,8 +679,27 @@ body[data-time="day"] .login-input:focus {
 }
 
 .tarot-spread { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0 1rem; }
+/* 凯尔特十字：十张牌 5×2 网格 */
+.tarot-spread-celtic { grid-template-columns: repeat(5, 1fr); gap: .7rem .6rem; }
+.tarot-spread-celtic .tarot-card { max-width: 150px; }
 .tarot-col { display: flex; flex-direction: column; align-items: center; gap: .6rem; position: relative; }
-.tarot-pos { font-size: .9rem; letter-spacing: .14em; }
+.tarot-pos { font-size: .9rem; letter-spacing: .14em; color: rgba(235,230,245,.9); }
+.tarot-pos-hint { font-size: .66rem; letter-spacing: .02em; color: rgba(200,200,225,.5); text-align: center; line-height: 1.3; max-width: 9.5em; }
+.tarot-spread-celtic .tarot-pos { font-size: .8rem; letter-spacing: .08em; }
+.tarot-spread-celtic .tarot-pos-hint { display: none; }
+/* 牌阵选择：抽牌前切换三张 / 凯尔特十字 */
+.tarot-spread-pick { display: flex; gap: .6rem; justify-content: center; margin: .4rem 0 .2rem; flex-wrap: wrap; }
+.tarot-spread-opt {
+  background: rgba(227,196,120,.07); border: 1px solid rgba(227,196,120,.2);
+  color: rgba(227,196,120,.75); border-radius: 999px; padding: .35rem .9rem;
+  font-size: .82rem; cursor: pointer; transition: .2s; letter-spacing: .03em;
+}
+.tarot-spread-opt:hover { background: rgba(227,196,120,.14); color: #fff; }
+.tarot-spread-opt.active { background: rgba(227,196,120,.26); color: #fff; border-color: rgba(227,196,120,.44); box-shadow: 0 0 14px rgba(227,196,120,.14); }
+@media (max-width: 640px) {
+  .tarot-spread-celtic { grid-template-columns: repeat(3, 1fr); }
+  .tarot-spread-celtic .tarot-card { max-width: 118px; }
+}
 .tarot-card { width: 100%; aspect-ratio: 2 / 3; max-width: 180px; perspective: 1000px; cursor: pointer; position: relative; transition: box-shadow .2s ease; will-change: transform, opacity; }
 .tarot-card:not(.flipped):hover { transform: translateY(-5px); transition: transform .2s ease, box-shadow .2s ease; }
 .tarot-inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2,.8,.25,1); }
@@ -900,9 +923,10 @@ body[data-time="day"] .login-input:focus {
    旋转后即「头在前、尾拖后」地斜掠。opacity/位移/伸缩由 anime.js 控制，这里只定外观。 */
 .tarot-meteor {
   position: absolute; top: 0; left: 0; width: 140px; height: 2px; border-radius: 3px;
-  /* 拖尾更柔：左端长段透明渐入、中段只微微提亮、亮头收在右端，避免硬边 */
-  background: linear-gradient(90deg, rgba(227,196,120,0) 0%, rgba(227,196,120,.16) 42%, rgba(255,232,184,.62) 86%, rgba(255,247,222,.98) 100%);
-  box-shadow: 0 0 11px 1px rgba(227,196,120,.3), 0 0 3px rgba(255,243,214,.5);
+  /* 拖尾更柔更自然：左端长段近乎透明、中段只极淡提亮、亮头收在右端一小撮，
+     像夜空里将散未散的一缕流光，而非硬白横条 */
+  background: linear-gradient(90deg, rgba(227,196,120,0) 0%, rgba(227,196,120,.06) 50%, rgba(255,232,184,.34) 84%, rgba(255,247,222,.9) 100%);
+  box-shadow: 0 0 9px 1px rgba(227,196,120,.2), 0 0 2px rgba(255,243,214,.36);
   opacity: 0; pointer-events: none;
   transform-origin: right center;
   will-change: transform, opacity;

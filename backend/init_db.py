@@ -15,14 +15,23 @@ from app.services.password import hash_password
 Base.metadata.create_all(bind=engine)
 
 # 既有库可能缺少新增列（SQLAlchemy create_all 不会给已存在的表加列），做一次补齐迁移
+import sqlalchemy as _sa
 from sqlalchemy import inspect as _inspect
 _alembic_conn = engine.connect()
 try:
     _cols = [c["name"] for c in _inspect(engine).get_columns("users")]
     if "banned" not in _cols:
-        _alembic_conn.execute(__import__("sqlalchemy").text("ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT 0"))
+        _alembic_conn.execute(_sa.text("ALTER TABLE users ADD COLUMN banned BOOLEAN DEFAULT 0"))
         _alembic_conn.commit()
         print("已为 users 表补齐 banned 列")
+
+    _tcols = [c["name"] for c in _inspect(engine).get_columns("tarot_history")]
+    if "time" not in _tcols:
+        _alembic_conn.execute(_sa.text("ALTER TABLE tarot_history ADD COLUMN time VARCHAR(8)"))
+        print("已为 tarot_history 表补齐 time 列")
+    if "spread" not in _tcols:
+        _alembic_conn.execute(_sa.text("ALTER TABLE tarot_history ADD COLUMN spread VARCHAR(16)"))
+        print("已为 tarot_history 表补齐 spread 列")
 finally:
     _alembic_conn.close()
 

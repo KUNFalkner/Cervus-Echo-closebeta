@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api/tarot", tags=["tarot"])
 # ── 抽牌历史（跨端同步）──
 class HistoryItem(BaseModel):
     date: str
+    time: str = ""
+    spread: str = "time"
     ts: int = 0
     question: str = ""
     cards: List[dict] = Field(default_factory=list)
@@ -29,6 +31,8 @@ class HistoryItem(BaseModel):
 
 class HistoryIn(BaseModel):
     date: str
+    time: str = ""
+    spread: str = "time"
     ts: int = 0
     question: str = ""
     cards: List[dict] = Field(default_factory=list)
@@ -37,7 +41,7 @@ class HistoryIn(BaseModel):
 
 @router.get("/history", response_model=List[HistoryItem])
 async def get_history(user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
-    """拉取当前用户的抽牌历史（跨端一致的数据源）。"""
+    """拉取当前用户的抽牌历史（跨端一致的数据源，按 ts 倒序）。"""
     rows = (
         db.query(TarotHistory)
         .filter(TarotHistory.user_id == user.id)
@@ -45,7 +49,8 @@ async def get_history(user: UserModel = Depends(require_user), db: Session = Dep
         .all()
     )
     return [
-        HistoryItem(date=r.date, ts=r.ts, question=r.question or "", cards=r.cards or [], counsel=r.counsel)
+        HistoryItem(date=r.date, time=r.time or "", spread=r.spread or "time", ts=r.ts,
+                    question=r.question or "", cards=r.cards or [], counsel=r.counsel)
         for r in rows
     ]
 
@@ -56,25 +61,31 @@ async def upsert_history(
     user: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    """按 (user_id, date) upsert 一条历史；ts 更大才覆盖，避免旧写覆盖新写。"""
-    if not payload.date:
-        raise HTTPException(status_code=400, detail="缺少日期")
+    """按 (user_id, ts) upsert 一条历史；每条抽牌由 ts 唯一标识，故同日可累积多条。
+
+    抽牌时前端用全新 ts 推送（新建一行）；之后「补问/AI 解读」用同一 ts 推送（更新该行）。
+    """
+    if not payload.date or not payload.ts:
+        raise HTTPException(status_code=400, detail="缺少日期或时间戳")
     existing = (
         db.query(TarotHistory)
-        .filter(TarotHistory.user_id == user.id, TarotHistory.date == payload.date)
+        .filter(TarotHistory.user_id == user.id, TarotHistory.ts == payload.ts)
         .first()
     )
     if existing:
-        if payload.ts >= existing.ts:
-            existing.question = payload.question
-            existing.cards = payload.cards
-            existing.counsel = payload.counsel
-            existing.ts = payload.ts
-            db.commit()
+        existing.question = payload.question
+        existing.cards = payload.cards
+        existing.counsel = payload.counsel
+        existing.date = payload.date
+        existing.time = payload.time
+        existing.spread = payload.spread
+        db.commit()
         return {"ok": True, "updated": True}
     row = TarotHistory(
         user_id=user.id,
         date=payload.date,
+        time=payload.time,
+        spread=payload.spread,
         ts=payload.ts,
         question=payload.question,
         cards=payload.cards,
@@ -110,13 +121,14 @@ class InterpretRequest(BaseModel):
 
 SYSTEM_PROMPT = (
     "你是「星语」塔罗咨询师，语气神秘、温柔而有洞察力。"
-    "用户会带着一个具体问题（或泛泛的人生困惑）来抽「过去·现在·未来」三张牌。"
+    "用户会带着一个具体问题（或泛泛的人生困惑）来抽一组牌——可能是「过去·现在·未来」三张，"
+    "也可能是「凯尔特十字」十张大局。请依据实际给出的牌阵来解读，不要假设牌数。\n"
     "请务必做到：\n"
     "1. 直接呼应用户的问题——不要回避，要就他面临的选择或困境给出明确态度"
     "（例如是否该换工作、该如何相处、该如何决断），而非只讲牌意。\n"
     "2. 逐张结合牌的正逆位与「爱情/事业/心境/灵性」各维度释义，说明它如何映照他当下处境。\n"
-    "3. 把三张串成一条连贯的建议：过去给了他什么、现在卡在哪里、未来指向什么行动。\n"
-    "4. 用空行分段，约 180–260 字，结尾可加一句诗意收束。\n"
+    "3. 把整组牌串成一条连贯的建议：过去/根源给了他什么、现在卡在哪里、未来指向什么行动。\n"
+    "4. 用空行分段，约 180–320 字，结尾可加一句诗意收束。\n"
     "避免空泛套话（如「站在新旧临界点」），避免绝对化断言，不做医疗/法律/投资承诺。"
     "只输出纯文本，不要使用任何 Markdown 标记（如 **、#、-> 等）。"
 )

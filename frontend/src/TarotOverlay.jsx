@@ -10,35 +10,40 @@ const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-redu
 // 比纯 CSS 直线平移更自然。角度由外层 pivot 承载（anime.js 会覆盖 transform，
 // 故不把 rotate 放进补间，否则每轮循环会从 0 重播造成抖动）；位移/伸缩/渐隐走 anime.js。
 // 抽牌时随 body.tarot-dealing 暂停全部流星 JS 动画，避免 hero 面板 backdrop-filter 每帧重算。
-// 自然化：角度/长度/粗细/出现位置/节奏全部随机化 → 每次进场都不重样；且「偶尔成双」
-// （同一方向、近同时掠过两颗），更接近真实夜空「时不时划过」的稀疏感。
+// 自然化（用户反馈：太丑/太快/路径假）：
+//  - 更慢：单次掠过 3.8~6.4s（真实流星其实很快，但作为背景氛围需要可观赏的缓速拖光）；
+//  - 更稀：相邻两次出现间隔 6~13s，基础流星降到 3~4 颗，避免「一直在刷」；
+//  - 角度更多样（18~68°），且起点散布在上方/左上不同位置、终点落在对侧下方，路径不再千篇一律；
+//  - 拖尾更长更细、亮头更收、整体峰值更低，像夜空里一缕将散未散的流光，而非硬白横条。
 function buildMeteors() {
   const rnd = (a, b) => a + Math.random() * (b - a)
   const out = []
-  const count = 4 + (Math.random() < 0.5 ? 0 : 1) // 4~5 颗基础流星
+  const count = 3 + (Math.random() < 0.5 ? 0 : 1) // 3~4 颗基础流星（稀疏）
   for (let i = 0; i < count; i++) {
     out.push({
-      angle: +rnd(12, 34).toFixed(1),
-      len: Math.round(rnd(96, 210)),
-      thick: +rnd(1.4, 2.6).toFixed(2),
-      x0: `-${rnd(6, 18).toFixed(1)}vw`, x1: `${rnd(70, 92).toFixed(1)}vw`,
-      y0: `-${rnd(4, 16).toFixed(1)}vh`, y1: `${rnd(46, 66).toFixed(1)}vh`,
-      dur: Math.round(rnd(2000, 3200)),
-      delay: Math.round(rnd(0, 5200)),
-      loop: Math.round(rnd(3400, 6500)),
-      peak: +rnd(0.7, 0.95).toFixed(2),
+      angle: +rnd(18, 68).toFixed(1),          // 角度更多样，斜掠更自然
+      len: Math.round(rnd(150, 320)),           // 更长
+      thick: +rnd(1, 2).toFixed(2),             // 更细
+      x0: `${-rnd(2, 22).toFixed(1)}vw`,        // 起点散布在上方/左上
+      y0: `${-rnd(2, 24).toFixed(1)}vh`,
+      x1: `${rnd(58, 110).toFixed(1)}vw`,       // 终点落在对侧下方不同位置
+      y1: `${rnd(40, 86).toFixed(1)}vh`,
+      dur: Math.round(rnd(3800, 6400)),         // 更慢
+      delay: Math.round(rnd(0, 7000)),
+      loop: Math.round(rnd(6000, 13000)),       // 更稀疏
+      peak: +rnd(0.5, 0.82).toFixed(2),
     })
   }
-  // 偶尔成双：挑一颗做近孪生的第二颗（同角度、近同时、略短）
-  if (Math.random() < 0.72) {
+  // 偶尔成双：挑一颗做近孪生的第二颗（同角度、近同时、略短），像真实夜空「时不时划过两颗」
+  if (Math.random() < 0.5) {
     const s = out[Math.floor(Math.random() * out.length)]
     out.push({
-      angle: +(s.angle + rnd(-3, 3)).toFixed(1),
+      angle: +(s.angle + rnd(-4, 4)).toFixed(1),
       len: Math.round(s.len * rnd(0.7, 1)),
       thick: s.thick,
       x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1,
       dur: s.dur, peak: +(s.peak * rnd(0.8, 1)).toFixed(2),
-      delay: s.delay + Math.round(rnd(140, 460)),
+      delay: s.delay + Math.round(rnd(160, 520)),
       loop: s.loop,
     })
   }
@@ -60,18 +65,18 @@ const MeteorField = ({ perfTier }) => {
       anims.push(animate(m, {
         translateX: [c.x0, c.x1],
         translateY: [c.y0, c.y1],
-        scaleX: [0.4, 1],
+        scaleX: [0.5, 1],
         opacity: [
           { to: 0, duration: 1 },
-          { to: c.peak, duration: 240 },
-          { to: c.peak, duration: 1500 },
-          { to: 0, duration: 600 },
+          { to: c.peak, duration: 360 },
+          { to: c.peak, duration: Math.max(900, c.dur - 1100) },
+          { to: 0, duration: 700 },
         ],
         duration: c.dur,
         delay: c.delay,
         loop: true,
         loopDelay: c.loop,
-        ease: 'inOutQuad',
+        ease: 'inOutSine',
       }))
     })
     const mo = new MutationObserver(() => {
