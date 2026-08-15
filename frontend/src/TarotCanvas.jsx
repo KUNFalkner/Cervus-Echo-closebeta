@@ -8,13 +8,17 @@ const STAR_COLORS = ['#ffffff', '#fff3d4', '#bcd2ff', '#d9c4ff', '#ffe2b8']
 const rand = (a, b) => a + Math.random() * (b - a)
 const pick = (arr) => arr[(Math.random() * arr.length) | 0]
 
-export default function TarotCanvas({ active }) {
+export default function TarotCanvas({ active, quality = 'high' }) {
   const ref = useRef(null)
 
   useEffect(() => {
     const canvas = ref.current
     if (!canvas || !active) return
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // 性能分档：low 直接静态单帧（不进 rAF 循环），med 降密度但保持动画
+    const staticMode = reduce || quality === 'low'
+    const densityDiv = quality === 'low' ? 3 : quality === 'med' ? 1.7 : 1
+    const canShoot = quality !== 'low'
     const ctx = canvas.getContext('2d')
     let raf = 0
     let W = 0, H = 0, dpr = 1
@@ -33,8 +37,8 @@ export default function TarotCanvas({ active }) {
 
     function seed() {
       stars = []
-      // 密度随面积缩放（约每 7000px² 一颗），比原 DOM 94 颗更繁复且零 DOM 成本
-      const count = Math.max(120, Math.round((W * H) / 7000))
+      // 密度随面积缩放（约每 7000px² 一颗），弱设备按档位降密度
+      const count = Math.max(40, Math.round((W * H) / 7000 / densityDiv))
       for (let i = 0; i < count; i++) {
         const near = Math.random() < 0.42
         stars.push({
@@ -66,6 +70,9 @@ export default function TarotCanvas({ active }) {
     }
 
     function frame(now) {
+      // 发牌期间（body.tarot-dealing）冻结星空重绘，把主线程让给三张牌飞行，消除卡顿。
+      // 仅跳过绘制、保留 rAF，星图定格在最后一帧，发牌结束即恢复。
+      if (!document.body.classList.contains('tarot-dealing')) {
       const t = now * 0.001
       ctx.clearRect(0, 0, W, H)
 
@@ -105,8 +112,8 @@ export default function TarotCanvas({ active }) {
         if (m.y < -4) { m.y = H + 4; m.x = Math.random() * W }
       }
 
-      // 偶发流星（每 3.5–7s 一颗，斜向划过）
-      if (!shooting && now - lastShoot > rand(3500, 7000)) {
+      // 偶发流星（每 3.5–7s 一颗，斜向划过；弱设备关闭以降载）
+      if (canShoot && !shooting && now - lastShoot > rand(3500, 7000)) {
         shooting = { x: rand(0, W * 0.45), y: rand(0, H * 0.4), len: rand(120, 260), sp: rand(9, 15), a: 0, life: rand(42, 70) }
         lastShoot = now
       }
@@ -125,6 +132,7 @@ export default function TarotCanvas({ active }) {
       }
 
       ctx.globalAlpha = 1
+      }
       raf = requestAnimationFrame(frame)
     }
 
@@ -145,14 +153,14 @@ export default function TarotCanvas({ active }) {
 
     resize()
     window.addEventListener('resize', resize)
-    if (reduce) renderStatic()
+    if (staticMode) renderStatic()
     else raf = requestAnimationFrame(frame)
 
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
     }
-  }, [active])
+  }, [active, quality])
 
   return <canvas ref={ref} className="tarot-stars-canvas" aria-hidden="true" />
 }

@@ -5,5 +5,6 @@ from app.models.message import Message
 from app.models.report import Report
 from app.models.follow import Follow
 from app.models.conversation import Conversation, DirectMessage
+from app.models.tarot_history import TarotHistory
 
-__all__ = ["Base", "User", "Post", "Comment", "Message", "Report", "Follow", "Conversation", "DirectMessage"]
+__all__ = ["Base", "User", "Post", "Comment", "Message", "Report", "Follow", "Conversation", "DirectMessage", "TarotHistory"]

@@ -9,6 +9,7 @@ from app.models.like import UserLike
 from app.models.notification import Notification
 from app.models.follow import Follow
 from app.models.conversation import Conversation, DirectMessage
+from app.models.tarot_history import TarotHistory
 from app.services.password import hash_password
 
 Base.metadata.create_all(bind=engine)

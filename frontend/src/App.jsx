@@ -199,14 +199,15 @@ const ReportModal = ({type,tid,onClose}) => {
 // 白天 = 黛蓝信纸（冷调纸面 + 左上柔光 + 颗粒 + 浮动尘埃）
 function useStarfield(canvasRef) {
   useEffect(() => { const c=canvasRef.current; if(!c) return; const ctx=c.getContext('2d'); let w=c.width=window.innerWidth,h=c.height=window.innerHeight;
+    const isMobile=()=>window.innerWidth<=520; let mobile=isMobile();
     const stars=Array.from({length:200},()=>({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.6+.3,a:Math.random(),phase:Math.random()*Math.PI*2,ts:Math.random()*.04+.01}));
     const nebulae=[{x:w*.25,y:h*.3,r:Math.max(w,h)*.55,c:[92,110,220],ox:0,oy:0,sx:.00012,sy:.0001},{x:w*.72,y:h*.72,r:Math.max(w,h)*.5,c:[150,100,210],ox:0,oy:0,sx:.0001,sy:.00016}];
     const dust=Array.from({length:46},()=>({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.4+.6,sp:Math.random()*.4+.15,ph:Math.random()*Math.PI*2,sw:Math.random()*.025+.008,a:Math.random()*.1+.04}));
     const grains=Array.from({length:900},()=>({x:Math.random()*w,y:Math.random()*h,s:Math.random()*1+.5,a:Math.random()*.08+.03}));
-    const meteors=[]; let time=0,anim,prevNight=null;
+    const meteors=[]; let time=0,anim=null,prevNight=null;
     const forced=typeof location!=='undefined'?new URLSearchParams(location.search).get('theme'):null;
     const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; try{ const s=localStorage.getItem('treehole_theme'); if(s==='light')return false; if(s==='dark')return true; }catch(e){} const hr=new Date().getHours();return hr>=19||hr<6; };
-    const draw=()=>{const night=isNight();
+    const draw=(staticFrame=false)=>{const night=isNight();
       if(prevNight!==night){ document.body.dataset.time=night?'night':'day'; prevNight=night; }
       if(night){
         const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#080b18');bg.addColorStop(.5,'#0b1024');bg.addColorStop(1,'#0a0916');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
@@ -220,8 +221,11 @@ function useStarfield(canvasRef) {
       }
       if(night&&meteors.length<3&&Math.random()<.012) meteors.push({x:Math.random()*w*1.5-w*.25,y:-10,len:Math.random()*120+60,speed:Math.random()*8+5,angle:Math.PI/4+(Math.random()-.5)*.3,a:1,life:1});
       for(let i=meteors.length-1;i>=0;i--){const m=meteors[i];m.x+=Math.cos(m.angle)*m.speed;m.y+=Math.sin(m.angle)*m.speed;m.life-=.015;m.a=m.life;if(m.life<=0||m.y>h+50){meteors.splice(i,1);continue}const tx=m.x-Math.cos(m.angle)*m.len,ty=m.y-Math.sin(m.angle)*m.len,g=ctx.createLinearGradient(tx,ty,m.x,m.y);g.addColorStop(0,'rgba(255,255,255,0)');g.addColorStop(.7,`rgba(200,220,255,${m.a*.4})`);g.addColorStop(1,`rgba(255,255,255,${m.a*.9})`);ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(m.x,m.y);ctx.strokeStyle=g;ctx.lineWidth=1.5;ctx.stroke();ctx.beginPath();ctx.arc(m.x,m.y,2,0,Math.PI*2);ctx.fillStyle=`rgba(255,255,255,${m.a})`;ctx.fill()}
-      time++;anim=requestAnimationFrame(draw)};draw();
-    const resize=()=>{w=c.width=window.innerWidth;h=c.height=window.innerHeight;stars.forEach(s=>{s.x=Math.random()*w;s.y=Math.random()*h});dust.forEach(d=>{if(d.x>w)d.x=Math.random()*w;if(d.y>h)d.y=Math.random()*h});grains.forEach(g=>{g.x=Math.random()*w;g.y=Math.random()*h})};window.addEventListener('resize',resize);
+      if(!mobile){time++;anim=requestAnimationFrame(loop)}};
+    const loop=()=>draw(false);
+    const schedule=()=>{cancelAnimationFrame(anim);mobile=isMobile();draw(mobile)};
+    schedule();
+    const resize=()=>{w=c.width=window.innerWidth;h=c.height=window.innerHeight;stars.forEach(s=>{s.x=Math.random()*w;s.y=Math.random()*h});dust.forEach(d=>{if(d.x>w)d.x=Math.random()*w;if(d.y>h)d.y=Math.random()*h});grains.forEach(g=>{g.x=Math.random()*w;g.y=Math.random()*h});schedule()};window.addEventListener('resize',resize);
     return ()=>{cancelAnimationFrame(anim);window.removeEventListener('resize',resize)}},[])
 }
 
@@ -479,7 +483,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     </div>
   }
   const peer=convs.find(c=>c.id===activeConv)?.peer;
-  return <div className="dm-page">
+  return <div className="dm-page dm-thread">
     <div className="dm-thread-head"><button className="dm-back" onClick={()=>{setActiveConv(null);onOpenConvChange&&onOpenConvChange(null);loadConvs()}}>←</button>
       <Avatar src={peer?.avatar} seed={peer?.nickname} className="dm-conv-avatar"/>
       <span className="dm-conv-name" onClick={()=>peer?.id&&onOpenUser&&onOpenUser(peer.id)}>{peer?.nickname||'用户'}</span>
@@ -616,6 +620,8 @@ const ProfilePage = ({user,setUser,onOpenPost,onOpenUser}) => {
   const [ptab,setPtab]=useState('posts'); const [myPosts,setMyPosts]=useState([]); const [myComments,setMyComments]=useState([]); const [loadingTab,setLoadingTab]=useState(false)
   const [myStats,setMyStats]=useState({followers:0,following:0}); const [showMyFollow,setShowMyFollow]=useState(null)
   const [showDelete,setShowDelete]=useState(false); const [delPw,setDelPw]=useState(''); const [delBusy,setDelBusy]=useState(false)
+  // 多端同步：服务器拉到的新背景即时覆盖本地编辑态，避免手机改完电脑仍显示旧背景
+  useEffect(()=>{ setProfileBg(user.profile_bg||'') },[user.profile_bg])
   useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch(`/social/stats/${user.id}`); if(r.ok)setMyStats(await r.json()) }catch{} }; f() },[user.id])
   const deleteAccount=async()=>{ if(!confirm('确定要注销账号吗？此操作不可恢复'))return; setDelBusy(true); try{ const r=await apiFetch('/users/me',{method:'DELETE',body:JSON.stringify({password:delPw})}); if(!r.ok)throw new Error(await errMsg(r,'注销失败')); localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); toast.success('账号已注销') }catch(e){ toast.error(e.message) }finally{ setDelBusy(false) } }
   useEffect(()=>{ let m=true; (async()=>{ setLoadingTab(true);
@@ -630,7 +636,8 @@ const ProfilePage = ({user,setUser,onOpenPost,onOpenUser}) => {
       const u=await r.json(); setUser(u); localStorage.setItem('user',JSON.stringify(u)); setPw(''); toast.success(pw?.trim()?'保存成功，密码已更新':'保存成功') }catch(e){toast.error(e.message)} }
   const applyBg=(css)=>{ setProfileBg(css); save({profile_bg:css}) }
   const bgColorValue = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(profileBg) ? profileBg : '#7c3aed'
-  return <div className="profile-page"><div className="glass-card profile-card" style={profileBg?{background:profileBg}:undefined}><label className="avatar-upload"><img src={avatarUrl(user.avatar) || fallbackAvatar(user.username)} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/avatar`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'头像更新失败'));const u=await r.json();u.avatar=(u.avatar||'')+'?t='+Date.now();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}catch(err){toast.error(err.message||'头像更新失败')}}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="profile-follow-row"><button className="follow-count-btn" onClick={()=>setShowMyFollow('followers')}>粉丝 {myStats.followers}</button><button className="follow-count-btn" onClick={()=>setShowMyFollow('following')}>关注 {myStats.following}</button></div>{showMyFollow&&<FollowListModal type={showMyFollow} userId={user.id} onClose={()=>setShowMyFollow(null)} onOpenUser={onOpenUser}/>}<div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div>
+  const isImgBg = profileBg && !profileBg.startsWith('linear-gradient') && !profileBg.startsWith('#')
+  return <div className="profile-page"><div className={`glass-card profile-card ${isImgBg?'profile-card-img-bg':''}`} style={profileBg?{background:profileBg}:undefined}><label className="avatar-upload"><img src={avatarUrl(user.avatar) || fallbackAvatar(user.username)} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/avatar`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'头像更新失败'));const u=await r.json();u.avatar=(u.avatar||'')+'?t='+Date.now();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}catch(err){toast.error(err.message||'头像更新失败')}}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="profile-follow-row"><button className="follow-count-btn" onClick={()=>setShowMyFollow('followers')}>粉丝 {myStats.followers}</button><button className="follow-count-btn" onClick={()=>setShowMyFollow('following')}>关注 {myStats.following}</button></div>{showMyFollow&&<FollowListModal type={showMyFollow} userId={user.id} onClose={()=>setShowMyFollow(null)} onOpenUser={onOpenUser}/>}<div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div>
   <div className="profile-bg-row"><button className="bg-toggle-btn" onClick={()=>setBgOpen(!bgOpen)}>{profileBg?'更换背景':'设置背景'} {bgOpen?'▲':'▼'}</button>{bgOpen&&<div className="bg-panel glass-card"><div className="bg-panel-head"><span>卡片背景</span><button className="bg-clear" onClick={()=>{applyBg('');setBgOpen(false)}}>清除</button></div><div className="bg-swatches">{PROFILE_BGS.map(b=><button key={b.key} className={`bg-swatch ${profileBg===b.css?'active':''}`} style={{background:b.css||'rgba(255,255,255,0.18)'}} title={b.label} onClick={()=>applyBg(b.css)}/>)}<label className="bg-swatch bg-custom" title="自定义颜色"><input type="color" value={bgColorValue} onChange={e=>applyBg(e.target.value)}/></label><label className="bg-swatch bg-upload" title="上传图片"><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/background`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'背景上传失败'));const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));setProfileBg(u.profile_bg);toast.success('背景已更新')}catch(err){toast.error(err.message||'背景上传失败')}}}/>}</label></div></div>}</div>
 </div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={()=>save()}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div><div className="settings-item danger-item" onClick={()=>setShowDelete(true)}><span>注销账号</span><span className="settings-arrow">→</span></div></div></div>{showDelete&&<AnimatedModal onClose={()=>setShowDelete(false)} className="delete-account-modal">{({requestClose})=>(<><h3>注销账号</h3><p className="delete-warn">此操作不可恢复，将永久删除你的账号、帖子与评论。</p><input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="请输入密码确认" className="glass-input"/><div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-danger" onClick={deleteAccount} disabled={delBusy}>{delBusy?'注销中...':'确认注销'}</button></div></>)}</AnimatedModal>}</div>
 <div className="glass-card my-stuff-card">
@@ -715,7 +722,28 @@ function App() {
   useEffect(()=>{ const el=document.querySelector('.main-content'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; gsap.fromTo(el,{opacity:0,y:12},{opacity:1,y:0,duration:.3,ease:'power2.out'}) },[curPage])
   // 分类标签错落入场（与帖子卡片呼应）
   useEffect(()=>{ const el=document.querySelector('.category-tabs'); if(!el)return; if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return; const ctx=gsap.context(()=>{ gsap.from('.category-tab',{opacity:0,y:10,duration:.35,ease:'power2.out',stagger:.04,clearProps:'opacity,transform'}) }); return ()=>ctx.revert(); },[activeCat])
-  useEffect(()=>{ const saved=localStorage.getItem('user'); if(saved){try{const u=JSON.parse(saved); if(u&&typeof u.id==='number'){setUser(u)}else{localStorage.removeItem('user');localStorage.removeItem('token')}}catch{localStorage.removeItem('user')} } },[])
+  // 多端同步：从服务器拉取当前用户最新数据，覆盖可能滞后的本地缓存
+  const refreshUser = useCallback(async () => {
+    const tk = getToken(); if (!tk) return
+    try {
+      const r = await apiFetch('/users/me')
+      if (!r.ok) return
+      const u = await r.json()
+      if (!u || typeof u.id !== 'number') return
+      const saved = localStorage.getItem('user')
+      if (saved === JSON.stringify(u)) return  // 数据一致则不触发重复渲染
+      setUser(u); localStorage.setItem('user', JSON.stringify(u))
+    } catch {}
+  }, [setUser])
+  // 启动：从本地缓存恢复身份，并立即向服务器同步最新用户
+  useEffect(()=>{
+    const saved=localStorage.getItem('user');
+    if(saved){ try{ const u=JSON.parse(saved); if(u&&typeof u.id==='number'){ setUser(u) } else { localStorage.removeItem('user'); localStorage.removeItem('token') } }catch{ localStorage.removeItem('user') } }
+    refreshUser();
+  },[refreshUser])
+  // 切回标签页时再同步一次（手机改完，电脑切回来即更新）
+  useEffect(()=>{ const onVis=()=>{ if(document.visibilityState==='visible') refreshUser() }; document.addEventListener('visibilitychange',onVis); return ()=>document.removeEventListener('visibilitychange',onVis) },[refreshUser])
+
   // token 失效时由请求层回调，统一清身份并回到登录页
   useEffect(()=>{ setUnauthorizedHandler(()=>{ localStorage.removeItem('token'); localStorage.removeItem('user'); setUser(null); setCurPage('home'); setSessionExpired(true) }); return ()=>setUnauthorizedHandler(null) },[])
   useEffect(()=>{ if(!sessionExpired) return; const t=setTimeout(()=>setSessionExpired(false),4000); return ()=>clearTimeout(t) },[sessionExpired])
@@ -845,7 +873,7 @@ function App() {
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost} onOpenUser={setProfileUserId}/>}
       </main>
-      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}>我的</button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className="mobile-nav-item" onClick={()=>{setGsSeed('');setGsOpen(true)}}>🔍</button><button className="mobile-nav-item" onClick={toggleTheme}>{theme==='auto'?'自动':isLight?'白天':'夜间'}</button></nav>
+      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}>我的</button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className="mobile-nav-item mobile-nav-icon" onClick={()=>{setGsSeed('');setGsOpen(true)}}><span className="nav-icon">🔍</span><span className="nav-label">搜索</span></button><button className="mobile-nav-item mobile-nav-icon" onClick={toggleTheme}><span className="nav-icon">{theme==='auto'?'🌗':isLight?'☀️':'🌙'}</span><span className="nav-label">{theme==='auto'?'自动':isLight?'白天':'夜间'}</span></button></nav>
     </div>}
     {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
     <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}
