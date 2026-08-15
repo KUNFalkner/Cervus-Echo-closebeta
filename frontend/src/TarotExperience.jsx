@@ -6,6 +6,7 @@ gsap.registerPlugin(useGSAP)
 import { TAROT_DECK, TAROT_POSITIONS, ELEMENT_THEME } from './tarotData'
 import { useToast } from './ToastContext'
 import TarotBack from './TarotBack'
+import TarotHistoryCalendar from './TarotHistoryCalendar'
 
 // 牌面图：纯函数映射，与 scripts/convert_tarot.py 输出名一致
 const faceSrc = (c) => `/tarot/${c.suit}-${String(c.num).padStart(2, '0')}.webp`
@@ -182,6 +183,7 @@ const TarotExperience = () => {
   // 抽牌历史（多日）：每次每日一抽写入一条，可回看与展开解读
   const [history, setHistory] = useState(() => loadHistory())
   const [showHistory, setShowHistory] = useState(false)
+  const [historyView, setHistoryView] = useState('list') // 'list' | 'calendar'
   const [openTs, setOpenTs] = useState(null)
 
   // 跨端同步：进入塔罗即拉取服务器历史，与本地合并（手机/电脑一致）
@@ -687,34 +689,40 @@ const TarotExperience = () => {
           <div className="tarot-history" onClick={e => e.stopPropagation()}>
             <div className="tarot-history-head">
               <b>抽牌历史</b>
-              <button className="tarot-history-x" onClick={() => setShowHistory(false)} aria-label="关闭">×</button>
+              <div className="tarot-history-controls">
+                <button className={`tarot-history-view-btn ${historyView === 'list' ? 'active' : ''}`} onClick={() => setHistoryView('list')}>列表</button>
+                <button className={`tarot-history-view-btn ${historyView === 'calendar' ? 'active' : ''}`} onClick={() => setHistoryView('calendar')}>日历</button>
+                <button className="tarot-history-x" onClick={() => setShowHistory(false)} aria-label="关闭">×</button>
+              </div>
             </div>
-            <div className="tarot-history-list">
-              {history.length === 0
-                ? <p className="tarot-history-empty">还没有抽牌记录，每次「每日一抽」都会被静静收藏在这里。</p>
-                : history.map(h => (
-                  <div className="tarot-history-item" key={h.ts}>
-                    <div className="tarot-history-meta">
-                      <span className="tarot-history-date">{h.date}</span>
-                      {h.question && <span className="tarot-history-q">「{h.question}」</span>}
-                    </div>
-                    <div className="tarot-history-cards">
-                      {Array.isArray(h.cards) && h.cards.map((c, i) => (
-                        <span className="tarot-history-chip" key={i}>
-                          <i className={c.reversed ? 'rev' : ''}>{c.reversed ? '逆' : '正'}</i>
-                          {c.name}
-                        </span>
-                      ))}
-                    </div>
-                    {h.counsel && (
-                      <button className="tarot-history-toggle" onClick={() => setOpenTs(openTs === h.ts ? null : h.ts)}>
-                        {openTs === h.ts ? '收起解读 ▴' : '查看解读 ▾'}
-                      </button>
-                    )}
-                    {h.counsel && openTs === h.ts && <p className="tarot-history-counsel">{h.counsel.text}</p>}
-                  </div>
-                ))}
-            </div>
+            {historyView === 'calendar'
+              ? <TarotHistoryCalendar history={history} onClose={() => setShowHistory(false)} />
+              : <div className="tarot-history-list">
+                  {history.length === 0
+                    ? <p className="tarot-history-empty">还没有抽牌记录，每次「每日一抽」都会被静静收藏在这里。</p>
+                    : history.map(h => (
+                      <div className="tarot-history-item" key={h.ts}>
+                        <div className="tarot-history-meta">
+                          <span className="tarot-history-date">{h.date}</span>
+                          {h.question && <span className="tarot-history-q">「{h.question}」</span>}
+                        </div>
+                        <div className="tarot-history-cards">
+                          {Array.isArray(h.cards) && h.cards.map((c, i) => (
+                            <span className="tarot-history-chip" key={i}>
+                              <i className={c.reversed ? 'rev' : ''}>{c.reversed ? '逆' : '正'}</i>
+                              {c.name}
+                            </span>
+                          ))}
+                        </div>
+                        {h.counsel && (
+                          <button className="tarot-history-toggle" onClick={() => setOpenTs(openTs === h.ts ? null : h.ts)}>
+                            {openTs === h.ts ? '收起解读 ▴' : '查看解读 ▾'}
+                          </button>
+                        )}
+                        {h.counsel && openTs === h.ts && <p className="tarot-history-counsel">{h.counsel.text}</p>}
+                      </div>
+                    ))}
+                </div>}
           </div>
         </div>
       )}

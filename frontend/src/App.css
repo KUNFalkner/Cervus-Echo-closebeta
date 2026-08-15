@@ -644,6 +644,36 @@ body[data-time="day"] .login-input:focus {
 .tarot-history-toggle { margin-top: .55rem; background: none; border: none; color: rgba(227,196,120,.75); font-size: .82rem; cursor: pointer; letter-spacing: .04em; }
 .tarot-history-toggle:hover { color: #fff; }
 .tarot-history-counsel { margin: .5rem 0 0; color: rgba(225,222,238,.85); font-size: .88rem; line-height: 1.7; white-space: pre-wrap; }
+.tarot-history-controls { display: flex; align-items: center; gap: .4rem; }
+.tarot-history-view-btn { background: rgba(227,196,120,.08); border: 1px solid rgba(227,196,120,.18); color: rgba(227,196,120,.7); border-radius: 6px; padding: .2rem .55rem; font-size: .78rem; cursor: pointer; transition: .2s; }
+.tarot-history-view-btn:hover { background: rgba(227,196,120,.16); color: #fff; }
+.tarot-history-view-btn.active { background: rgba(227,196,120,.24); color: #fff; border-color: rgba(227,196,120,.42); }
+
+/* 抽牌历史日历视图 */
+.tarot-history-calendar { padding: .4rem 1.1rem 1.1rem; }
+.tarot-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .7rem; padding: 0 .2rem; }
+.tarot-cal-month { color: var(--t-gold, #e3c478); font-size: .95rem; letter-spacing: .06em; }
+.tarot-cal-nav { background: none; border: none; color: rgba(227,196,120,.7); font-size: 1rem; cursor: pointer; padding: .2rem .5rem; border-radius: 6px; }
+.tarot-cal-nav:hover { background: rgba(227,196,120,.12); color: #fff; }
+.tarot-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .35rem; }
+.tarot-cal-weekday { text-align: center; color: rgba(220,220,240,.55); font-size: .72rem; padding: .35rem 0; }
+.tarot-cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; background: rgba(227,196,120,.05); border: 1px solid rgba(227,196,120,.08); border-radius: 8px; color: rgba(235,230,245,.8); font-size: .8rem; cursor: default; position: relative; transition: .2s; }
+.tarot-cal-cell.empty { background: transparent; border-color: transparent; }
+.tarot-cal-cell:not(.empty):hover { background: rgba(227,196,120,.1); }
+.tarot-cal-cell.has-entry { cursor: pointer; border-color: rgba(227,196,120,.28); background: rgba(227,196,120,.1); }
+.tarot-cal-cell.has-entry:hover { background: rgba(227,196,120,.18); box-shadow: 0 0 12px rgba(227,196,120,.12); }
+.tarot-cal-cell.is-today { box-shadow: inset 0 0 0 1px rgba(227,196,120,.45); }
+.tarot-cal-day { font-size: .8rem; }
+.tarot-cal-dot { color: var(--t-gold, #e3c478); font-size: .7rem; line-height: 1; text-shadow: 0 0 6px rgba(227,196,120,.5); }
+.tarot-cal-detail-wrap { margin-top: .8rem; padding-top: .6rem; border-top: 1px dashed rgba(227,196,120,.14); }
+.tarot-cal-detail.tarot-history-item { border-bottom: none; padding: .5rem 0; }
+
+@media (max-width: 640px) {
+  .tarot-cal-cell { border-radius: 6px; }
+  .tarot-cal-day { font-size: .74rem; }
+  .tarot-cal-dot { font-size: .6rem; }
+}
+
 .tarot-spread { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0 1rem; }
 .tarot-col { display: flex; flex-direction: column; align-items: center; gap: .6rem; position: relative; }
 .tarot-pos { font-size: .9rem; letter-spacing: .14em; }
