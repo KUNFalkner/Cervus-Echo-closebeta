@@ -870,8 +870,9 @@ body[data-time="day"] .login-input:focus {
    旋转后即「头在前、尾拖后」地斜掠。opacity/位移/伸缩由 anime.js 控制，这里只定外观。 */
 .tarot-meteor {
   position: absolute; top: 0; left: 0; width: 140px; height: 2px; border-radius: 3px;
-  background: linear-gradient(90deg, rgba(227,196,120,0) 0%, rgba(227,196,120,.45) 58%, rgba(255,243,214,.95) 100%);
-  box-shadow: 0 0 9px 1px rgba(227,196,120,.4), 0 0 2px rgba(255,243,214,.6);
+  /* 拖尾更柔：左端长段透明渐入、中段只微微提亮、亮头收在右端，避免硬边 */
+  background: linear-gradient(90deg, rgba(227,196,120,0) 0%, rgba(227,196,120,.16) 42%, rgba(255,232,184,.62) 86%, rgba(255,247,222,.98) 100%);
+  box-shadow: 0 0 11px 1px rgba(227,196,120,.3), 0 0 3px rgba(255,243,214,.5);
   opacity: 0; pointer-events: none;
   transform-origin: right center;
   will-change: transform, opacity;
@@ -912,7 +913,8 @@ body[data-time="day"] .login-input:focus {
   .tarot-aurora, .tarot-constellation-map, .tarot-cosmos::after,
   .tarot-meteor,
   .tarot-title-star,
-  .tarot-mystic .tarot-hero h2::after { animation: none !important; }
+  .tarot-mystic .tarot-hero h2::after,
+  .tarot-mystic .tarot-hero { animation: none !important; }
 }
 
 /* ── 性能分档：弱设备自动降特效（与 reduced-motion 并存，互不冲突）──
@@ -952,9 +954,17 @@ body[data-time="day"] .login-input:focus {
      又不遮星盘旋转观感 */
   background: radial-gradient(circle at 50% 40%, rgba(8,10,26,.55), rgba(8,10,26,0) 58%),
               linear-gradient(160deg, rgba(28,32,70,.74), rgba(13,15,40,.66));
-  border: 1px solid var(--t-border);
+  /* 极淡金边：呼应背景星盘的暗金古铜调，卡片保持干净（无内部星盘） */
+  border: 1px solid rgba(227,196,120,.24);
   border-radius: 18px;
-  box-shadow: 0 0 0 1px rgba(120,140,255,.08), 0 18px 60px rgba(0,0,0,.5), inset 0 0 50px rgba(120,140,255,.08);
+  /* 呼吸微光：金边辉光缓慢起伏，强化「星盘」氛围而不喧宾夺主 */
+  box-shadow: 0 0 0 1px rgba(227,196,120,.06), 0 0 22px rgba(227,196,120,.08), 0 18px 60px rgba(0,0,0,.5), inset 0 0 46px rgba(120,140,255,.07);
+  animation: tarotHeroGlow 7s ease-in-out infinite alternate;
+}
+/* 卡片金边呼吸微光：极淡→略亮间缓变，与背景星盘同色系 */
+@keyframes tarotHeroGlow {
+  from { box-shadow: 0 0 0 1px rgba(227,196,120,.05), 0 0 18px rgba(227,196,120,.06), 0 18px 60px rgba(0,0,0,.5), inset 0 0 42px rgba(120,140,255,.06); }
+  to   { box-shadow: 0 0 0 1px rgba(227,196,120,.16), 0 0 40px rgba(227,196,120,.16), 0 18px 60px rgba(0,0,0,.5), inset 0 0 52px rgba(120,140,255,.10); }
 }
 /* 英雄星盘：开页即居中、缓缓反向旋转，作为「塔罗即星盘」的第一观感。
    置于面板背景之上、文字之下（z-index 0 < 文字 1），pointer-events:none 不挡交互。 */
@@ -1225,6 +1235,18 @@ body[data-time="day"] .login-input:focus {
   .tarot-mystic .tarot-sub { font-size: 1.02rem; max-width: 640px; margin-left: auto; margin-right: auto; }
 }
 
+/* 移动端背景适配（≤640）：缩小星盘密度——大星盘收一圈、齿轮略缩，
+   既不空（保留外圈+右下齿轮+角落浑仪的签名观感）也不挤（去掉最繁杂的装饰盘）。 */
+@media (max-width: 640px) {
+  .tarot-astrolabe { width: 64vmin; height: 64vmin; margin: -32vmin 0 0 -32vmin; opacity: .12; }
+  .tarot-astrolabe-inner { width: 46vmin; height: 46vmin; margin: -23vmin 0 0 -23vmin; }
+  .tarot-astrolabe-mid-r { width: 54vmin; height: 54vmin; opacity: .13; }
+  .tarot-astrolabe-armillary-br { width: 42vmin; height: 42vmin; margin: 0 -12vmin -12vmin 0; }
+  .tarot-nebula-1 { width: 38vw; height: 38vw; }
+  .tarot-nebula-2 { width: 32vw; height: 32vw; }
+  .tarot-nebula-3 { width: 28vw; height: 28vw; opacity: .42; }
+}
+
 /* 窄屏适配：按屏幕等比例收紧、固定背景、防止拥挤 */
 @media (max-width: 520px) {
   /* 英雄面板更贴边，减少上下留白 */
@@ -1262,15 +1284,21 @@ body[data-time="day"] .login-input:focus {
   .tarot-detail-row { grid-template-columns: 1fr; gap: .12rem; }
   .tarot-detail-row b { font-size: .72rem; }
 
-  /* 手机端背景固定：停止星云/极光/星座/背景星盘的动画，流星由组件按宽度跳过 */
+  /* 手机端背景固定：降密度、降动效，保留「外圈+右下齿轮+角落浑仪+旋转内圈」签名观感，不空不挤 */
+  .tarot-astrolabe-zodiac,
+  .tarot-astrolabe-orbits,
+  .tarot-astrolabe-dial-tl { display: none !important; }   /* 去掉最繁杂的装饰盘，降密度 */
   .tarot-cosmos::after,
   .tarot-nebula,
   .tarot-aurora,
   .tarot-constellation-map,
-  .tarot-astrolabe-zodiac,
-  .tarot-astrolabe-orbits,
+  .tarot-astrolabe-outer,
+  .tarot-astrolabe-inner,
   .tarot-astrolabe-mid-r,
-  .tarot-astrolabe-mid-l { animation: none !important; }
+  .tarot-astrolabe-armillary-br { animation: none !important; }  /* 其余冻结动画，省电且不空 */
+  .tarot-nebula-1 { width: 32vw; height: 32vw; }
+  .tarot-nebula-2 { width: 28vw; height: 28vw; }
+  .tarot-nebula-3 { width: 24vw; height: 24vw; opacity: .36; }
   .tarot-meteor-field { display: none !important; }
 }
 

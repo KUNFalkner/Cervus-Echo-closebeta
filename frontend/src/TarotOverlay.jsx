@@ -6,30 +6,61 @@ import TarotCanvas from './TarotCanvas'
 
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// 流星场：每颗独立角度/路径/节奏，anime.js 驱动（加速掠过 + 渐隐 + 拖尾伸缩），
+// 流星场：每颗独立角度/长度/路径/节奏，anime.js 驱动（加速掠过 + 渐隐 + 拖尾伸缩），
 // 比纯 CSS 直线平移更自然。角度由外层 pivot 承载（anime.js 会覆盖 transform，
 // 故不把 rotate 放进补间，否则每轮循环会从 0 重播造成抖动）；位移/伸缩/渐隐走 anime.js。
 // 抽牌时随 body.tarot-dealing 暂停全部流星 JS 动画，避免 hero 面板 backdrop-filter 每帧重算。
-const METEORS = [
-  { angle: 24, x0: '-12vw', x1: '82vw', y0: '-14vh', y1: '64vh', dur: 2600, delay: 0,    loop: 3600, peak: 0.95 },
-  { angle: 18, x0: '-6vw',  x1: '72vw', y0: '-8vh',  y1: '50vh', dur: 3000, delay: 1700, loop: 5200, peak: 0.8  },
-  { angle: 31, x0: '-16vw', x1: '90vw', y0: '-4vh',  y1: '58vh', dur: 2200, delay: 3400, loop: 4400, peak: 0.85 },
-]
-const MeteorField = () => {
+// 自然化：角度/长度/粗细/出现位置/节奏全部随机化 → 每次进场都不重样；且「偶尔成双」
+// （同一方向、近同时掠过两颗），更接近真实夜空「时不时划过」的稀疏感。
+function buildMeteors() {
+  const rnd = (a, b) => a + Math.random() * (b - a)
+  const out = []
+  const count = 4 + (Math.random() < 0.5 ? 0 : 1) // 4~5 颗基础流星
+  for (let i = 0; i < count; i++) {
+    out.push({
+      angle: +rnd(12, 34).toFixed(1),
+      len: Math.round(rnd(96, 210)),
+      thick: +rnd(1.4, 2.6).toFixed(2),
+      x0: `-${rnd(6, 18).toFixed(1)}vw`, x1: `${rnd(70, 92).toFixed(1)}vw`,
+      y0: `-${rnd(4, 16).toFixed(1)}vh`, y1: `${rnd(46, 66).toFixed(1)}vh`,
+      dur: Math.round(rnd(2000, 3200)),
+      delay: Math.round(rnd(0, 5200)),
+      loop: Math.round(rnd(3400, 6500)),
+      peak: +rnd(0.7, 0.95).toFixed(2),
+    })
+  }
+  // 偶尔成双：挑一颗做近孪生的第二颗（同角度、近同时、略短）
+  if (Math.random() < 0.72) {
+    const s = out[Math.floor(Math.random() * out.length)]
+    out.push({
+      angle: +(s.angle + rnd(-3, 3)).toFixed(1),
+      len: Math.round(s.len * rnd(0.7, 1)),
+      thick: s.thick,
+      x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1,
+      dur: s.dur, peak: +(s.peak * rnd(0.8, 1)).toFixed(2),
+      delay: s.delay + Math.round(rnd(140, 460)),
+      loop: s.loop,
+    })
+  }
+  return out
+}
+const MeteorField = ({ perfTier }) => {
   const ref = useRef(null)
+  const meteors = useMemo(buildMeteors, [])
   useEffect(() => {
     if (reduceMotion()) return
+    if (perfTier === 'low') return
     // 手机端背景固定：不启动流星动画，CSS 会兜底隐藏整个流星场
     if (window.innerWidth <= 520) return
     const root = ref.current
     if (!root) return
     const anims = []
     root.querySelectorAll('.tarot-meteor').forEach((m, i) => {
-      const c = METEORS[i % METEORS.length]
+      const c = meteors[i % meteors.length]
       anims.push(animate(m, {
         translateX: [c.x0, c.x1],
         translateY: [c.y0, c.y1],
-        scaleX: [0.45, 1],
+        scaleX: [0.4, 1],
         opacity: [
           { to: 0, duration: 1 },
           { to: c.peak, duration: 240 },
@@ -49,12 +80,12 @@ const MeteorField = () => {
     })
     mo.observe(document.body, { attributes: true, attributeFilter: ['class'] })
     return () => { mo.disconnect(); anims.forEach(a => a.cancel && a.cancel()) }
-  }, [])
+  }, [perfTier, meteors])
   return (
     <div className="tarot-meteor-field" ref={ref} aria-hidden>
-      {METEORS.map((c, i) => (
+      {meteors.map((c, i) => (
         <span className="tarot-meteor-pivot" key={i} style={{ transform: `rotate(${c.angle}deg)` }}>
-          <span className="tarot-meteor" />
+          <span className="tarot-meteor" style={{ width: c.len + 'px', height: c.thick + 'px' }} />
         </span>
       ))}
     </div>
@@ -306,7 +337,7 @@ const TarotOverlay = ({ open, onClose }) => {
           ))}
         </div>
         {/* 流星场：anime.js 驱动的有机流光，错峰掠过背景 */}
-        <MeteorField />
+        <MeteorField perfTier={perfTier} />
       </div>
       <div className="tarot-overlay-inner" ref={innerRef}>
         <button className="tarot-overlay-close" onClick={onClose} aria-label="关闭">×</button>
