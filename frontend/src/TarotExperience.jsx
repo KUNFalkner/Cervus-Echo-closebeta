@@ -150,7 +150,10 @@ const TarotExperience = () => {
   // 用 contextSafe 包裹后，它们会被纳入该作用域，组件卸载时自动 revert，
   // 避免游离补间在已卸载节点上继续跑（GSAP × React 官方推荐模式）。
   const { contextSafe } = useGSAP({ scope: pageRef })
-  const todayKey = 'treehole_tarot_' + new Date().toISOString().slice(0, 10)
+  // 按「本地日期」分日（非 UTC），保证「每日一抽」与用户所在时区一致；
+  // 跨端同步也以本地日期合并，避免深夜跨本地日却落在同一 UTC 日导致两次抽牌被合并
+  const todayStr = (() => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` })()
+  const todayKey = 'treehole_tarot_' + todayStr
   const [drawn, setDrawn] = useState(() => {
     try { return JSON.parse(localStorage.getItem(todayKey) || 'null') } catch { return null }
   })
@@ -297,18 +300,18 @@ const TarotExperience = () => {
         const picks = deck.slice(0, 3).map(c => ({ ...c, revMeaning: c.reversed, reversed: Math.random() < 0.5 }))
         setDrawn(picks); setRevealed([false, false, false]); setOpenIdx(-1); setShuffling(false)
         try { localStorage.setItem(todayKey, JSON.stringify(picks)) } catch {}
-        // 写入历史：同日更新、否则置顶，最多留 30 条
-        setHistory(prev => {
-          const entry = {
-            date: todayKey.slice(-10), ts: Date.now(), question,
-            cards: picks.map(c => ({ name: c.name, en: c.en, reversed: c.reversed, suit: c.suit, arcana: c.arcana, num: c.num })),
-            counsel: null,
-          }
-          const next = [entry, ...prev.filter(h => h.date !== entry.date)].slice(0, 30)
-          persistHistory(next)
-          pushHistory(entry)
-          return next
-        })
+        // 写入历史：同日更新、否则置顶，最多留 30 条。
+        // 注意：副作用（持久化 / 同步）放在 setState 之外，避免更新函数被 React 重复调用导致双写。
+        const entry = {
+          date: todayStr, ts: Date.now(), question,
+          cards: picks.map(c => ({ name: c.name, en: c.en, reversed: c.reversed, suit: c.suit, arcana: c.arcana, num: c.num })),
+          counsel: null,
+        }
+        const next = [entry, ...history.filter(h => h.date !== entry.date)].slice(0, 30)
+        setHistory(next)
+        persistHistory(next)
+        pushHistory(entry)
+        try { toast && toast.success('已记录今日抽牌 ✦') } catch {}
         setTimeout(() => dealCards(), 70)
       }
       // 洗牌收束：星盘减速回正 + 容器淡出，再发牌，衔接更顺（不突兀消失）
@@ -400,14 +403,12 @@ const TarotExperience = () => {
       }
       setCounsel({ text: d.text, source: d.source })
       // 把 AI 解读同步存回当日历史记录；同时把「抽牌后补填」的问题也写回，避免历史里问题丢失
-      const today = todayKey.slice(-10)
-      setHistory(prev => {
-        const next = prev.map(h => h.date === today ? { ...h, question: question || h.question, counsel: { text: d.text, source: d.source } } : h)
-        persistHistory(next)
-        const updated = next.find(h => h.date === today)
-        if (updated) pushHistory(updated)
-        return next
-      })
+      const today = todayStr
+      const next = history.map(h => h.date === today ? { ...h, question: question || h.question, counsel: { text: d.text, source: d.source } } : h)
+      setHistory(next)
+      persistHistory(next)
+      const updated = next.find(h => h.date === today)
+      if (updated) pushHistory(updated)
     } catch (e) {
       // 两次皆失败：区分超时（繁忙）与连接错误，给出明确提示
       const busy = e && e.name === 'AbortError'
