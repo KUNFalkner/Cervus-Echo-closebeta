@@ -17,7 +17,18 @@ const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-redu
 
 // ── 抽牌历史（localStorage 多日留存，每日一条，最多 30 条）──
 const HISTORY_KEY = 'treehole_tarot_history_v1'
-const loadHistory = () => { try { const v = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] } }
+// 只接受结构完整的 entry；旧版本/损坏的历史可能缺 cards 等字段，
+// 直接进 state 会在历史面板 h.cards.map 时抛错、导致整页历史打不开（表现为「抽了却不记录」）
+const validEntry = (e) => !!e && typeof e === 'object' && typeof e.date === 'string' && Array.isArray(e.cards)
+const loadHistory = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+    if (!Array.isArray(v)) return []
+    const good = v.filter(validEntry)
+    if (good.length !== v.length) console.warn('[tarot] 已过滤', v.length - good.length, '条结构损坏的历史记录')
+    return good
+  } catch { return [] }
+}
 const persistHistory = (list) => { try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list)) } catch {} }
 // 跨端同步：把当日一抽推到服务器（本地 localStorage 仍作离线缓存）。无 token 时静默跳过。
 const pushHistory = async (entry) => {
@@ -44,6 +55,7 @@ const pullHistory = async (setHistory) => {
       const local = Array.isArray(prev) ? prev : []
       const byDate = new Map()
       for (const h of [...local, ...server]) {
+        if (!validEntry(h)) continue
         const k = h.date
         const ex = byDate.get(k)
         if (!ex || (h.ts || 0) > (ex.ts || 0)) byDate.set(k, h)
@@ -687,7 +699,7 @@ const TarotExperience = () => {
                       {h.question && <span className="tarot-history-q">「{h.question}」</span>}
                     </div>
                     <div className="tarot-history-cards">
-                      {h.cards.map((c, i) => (
+                      {Array.isArray(h.cards) && h.cards.map((c, i) => (
                         <span className="tarot-history-chip" key={i}>
                           <i className={c.reversed ? 'rev' : ''}>{c.reversed ? '逆' : '正'}</i>
                           {c.name}
