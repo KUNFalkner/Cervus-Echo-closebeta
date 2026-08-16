@@ -81,7 +81,7 @@ export function renderMarkdown(text) {
     if (h) {
       const lvl = h[1].length
       const Tag = lvl === 1 ? 'h3' : lvl === 2 ? 'h4' : 'h5'
-      blocks.push(<Tag key={`b${bi++}`} className="md-h md-h{lvl}">{renderInline(h[2], `b${bi}`)}</Tag>)
+      blocks.push(<Tag key={`b${bi++}`} className={`md-h md-h${lvl}`}>{renderInline(h[2], `b${bi}`)}</Tag>)
       i++; continue
     }
     // 引用（连续 > 行）
