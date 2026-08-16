@@ -11,6 +11,7 @@ from app.auth import require_user
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.tarot_history import TarotHistory
+from app.tarot_guide_loader import guide_available, guide_system_block, lookup_card_meaning
 
 # 塔罗 AI 咨询师：用户问题 + 抽到的过去/现在/未来三张牌 → 解读文本
 # 设计：可插拔的 OpenAI 兼容接口。配置了 TAROT_LLM_API_KEY 时调用真 LLM；
@@ -191,7 +192,8 @@ def _keywords(c: CardIn) -> str:
     return "、".join(kws)
 
 
-def _build_prompt(req: InterpretRequest) -> str:
+def _build_prompt(req: InterpretRequest, use_guide: bool = False) -> str:
+    spread_hint = "celtic" if len(req.cards) == 10 else "time"
     lines = []
     if req.question.strip():
         lines.append(f"用户的问题：{req.question.strip()}")
@@ -202,9 +204,22 @@ def _build_prompt(req: InterpretRequest) -> str:
         lines.append("（用户当前最关心事业 / 学业发展，请侧重结合各牌的「事业」维度与整体趋势给出建议。）")
     elif req.focus == "love":
         lines.append("（用户当前最关心感情 / 人际关系，请侧重结合各牌的「爱情」维度给出建议。）")
-    lines.append("抽到的牌阵（过去 · 现在 · 未来）：")
-    for c in req.cards:
+    if use_guide and spread_hint == "celtic":
+        lines.append("抽到的牌阵（凯尔特十字 · 十张，位置含义见上方系统提示）：")
+    else:
+        lines.append("抽到的牌阵（过去 · 现在 · 未来）：")
+    for i, c in enumerate(req.cards):
         ori = _orientation_cn(c)
+        # 指南开启时，用复制来的荣格牌义替换紧凑释义（仅注入抽到的牌，不一次性灌 78 张）
+        if use_guide:
+            guide_meaning = lookup_card_meaning(c.en)
+            if guide_meaning:
+                lines.append(f"牌 {i + 1}（{c.position}）：{c.name}（{c.en or ''}）{ori}")
+                lines.append("【荣格牌义参考】")
+                lines.append(guide_meaning)
+                lines.append("")  # 空行分隔
+                continue
+        # 原紧凑格式（指南未开启，或该牌未在指南中命中时的兜底）
         mean = _meaning(c)
         kws = _keywords(c)
         dims = []
@@ -251,6 +266,11 @@ async def interpret(req: InterpretRequest):
     if not (key or has_custom_base):
         return {"text": _builtin_interpret(req), "source": "builtin"}
 
+    # 本地塔罗指南开关：默认关闭，不影响线上行为；开启后把复制来的荣格指南
+    # 作为系统提示补充块注入、并用指南牌义替换每牌紧凑释义。qwen3 权重不动。
+    use_guide = os.environ.get("TAROT_USE_GUIDE", "").lower() in ("1", "true", "yes", "on") and guide_available()
+    spread_hint = "celtic" if len(req.cards) == 10 else "time"
+
     base = os.environ.get("TAROT_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
     model = os.environ.get("TAROT_LLM_MODEL", "gpt-4o-mini")
     headers = {"Content-Type": "application/json"}
@@ -261,9 +281,12 @@ async def interpret(req: InterpretRequest):
     # 让输出直接是解读正文；云端 OpenAI 不传此参数，避免未知字段报错。
     extra = {"enable_thinking": False} if has_custom_base else {}
     try:
-        user_msg = _build_prompt(req)
+        user_msg = _build_prompt(req, use_guide=use_guide)
+        system_content = SYSTEM_PROMPT
+        if use_guide:
+            system_content = SYSTEM_PROMPT + "\n\n" + guide_system_block(spread_hint)
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_content},
             # 少样本：先给一个「好解读」样本，让模型模仿格式与直接回应的语气
             {"role": "user", "content": FEWSHOT_USER},
             {"role": "assistant", "content": FEWSHOT_ASSISTANT},
