@@ -1929,3 +1929,16 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .markdown-body a { color: #9cc4ff; text-decoration: underline; }
 .markdown-body strong { color: var(--ink); font-weight: 700; }
 .markdown-body em { color: #f3e6b8; }
+.markdown-body .md-mention { color: #d4af37; font-weight: 600; cursor: pointer; }
+.markdown-body .md-mention:hover { text-decoration: underline; }
+
+/* 评论楼中楼 */
+.comment-thread-child { border-left: 2px solid rgba(212,175,55,.22); border-radius: 0 0 0 10px; margin-top: .5rem; }
+.comment-reply-to { font-size: .8rem; color: var(--muted); margin: .15rem 0 .1rem; }
+.comment-footer { margin-top: .35rem; }
+.comment-reply-btn { background: none; border: none; color: #d4af37; cursor: pointer; font-size: .82rem; padding: 0; }
+.comment-reply-btn:hover { text-decoration: underline; }
+.reply-indicator { font-size: .85rem; color: var(--muted); margin-bottom: .4rem; display: flex; align-items: center; gap: .4rem; }
+.reply-indicator b { color: #d4af37; }
+.reply-cancel { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .9rem; line-height: 1; padding: 0 .2rem; }
+.reply-cancel:hover { color: #fff; }

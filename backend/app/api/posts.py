@@ -408,6 +408,29 @@ def create_comment(
         raise HTTPException(status_code=404, detail="帖子不存在")
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
+
+    # 楼中楼：校验父评论存在且同属本帖，并限制嵌套深度（最多 5 层）
+    parent_comment = None
+    if comment.parent_id is not None:
+        parent_comment = db.query(CommentModel).filter(
+            CommentModel.id == comment.parent_id,
+            CommentModel.post_id == post_id,
+        ).first()
+        if parent_comment is None:
+            raise HTTPException(status_code=400, detail="回复的评论不存在")
+        # 向上追溯父链统计深度
+        depth = 1
+        cur = parent_comment
+        seen = {cur.id}
+        while cur.parent_id is not None:
+            if depth >= 5:
+                raise HTTPException(status_code=400, detail="评论层级过深，最多嵌套 5 层")
+            cur = db.query(CommentModel).filter(CommentModel.id == cur.parent_id).first()
+            if cur is None or cur.id in seen:
+                break
+            seen.add(cur.id)
+            depth += 1
+
     comment.content = sensitive_filter.filter_text(comment.content)
     data = comment.model_dump()
     data["post_id"] = post_id
@@ -418,9 +441,9 @@ def create_comment(
     post.comment_count += 1
     db.commit()
     db.refresh(db_comment)
-    # 生成通知：帖子作者的新回复 + 评论中的 @ 提及
+    # 生成通知：帖子作者的新回复 + 评论中的 @ 提及 + 被回复评论的作者
     try:
-        notify_from_comment(db, post=post, comment=db_comment, actor=user)
+        notify_from_comment(db, post=post, comment=db_comment, actor=user, parent_comment=parent_comment)
     except Exception:
         pass
     return _mask_comment(db_comment, user, author_avatar=user.avatar)

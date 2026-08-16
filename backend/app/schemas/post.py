@@ -75,6 +75,7 @@ class CommentCreate(CommentBase):
     # post_id 取自路径，user_id / user_uid 取自 JWT 认证结果
     display_name: Optional[str] = None
     hide_uid: bool = False
+    parent_id: Optional[int] = None  # 楼中楼：回复的父评论 id；NULL=顶层
 
 class CommentUpdate(CommentBase):
     # 编辑评论只改内容
@@ -87,6 +88,7 @@ class Comment(CommentBase):
     display_name: Optional[str] = None
     user_uid: Optional[str] = None
     hide_uid: bool = False
+    parent_id: Optional[int] = None  # 楼中楼：父评论 id；NULL=顶层
     author_avatar: Optional[str] = None
     created_at: datetime
 

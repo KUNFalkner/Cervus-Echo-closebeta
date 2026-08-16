@@ -28,6 +28,26 @@ app = FastAPI(
     version="0.1.8"
 )
 
+
+# ── 增量迁移：评论楼中楼需要 comments.parent_id 列 ────────────────────────
+# 项目未使用自动建表/迁移工具，部署库已存在但可能缺少新列，
+# 在启动时幂等补齐，保证新功能在旧库上也能直接工作。
+def _migrate_comment_parent():
+    try:
+        from sqlalchemy import inspect as _sa_inspect, text as _text
+        from app.models.database import engine
+        _insp = _sa_inspect(engine)
+        _cols = [c["name"] for c in _insp.get_columns("comments")]
+        if "parent_id" not in _cols:
+            with engine.begin() as _conn:
+                _conn.execute(_text("ALTER TABLE comments ADD COLUMN parent_id INTEGER"))
+            print("[MIGRATE] comments.parent_id 已添加")
+    except Exception as _e:
+        print(f"[MIGRATE] 跳过 comments.parent_id 迁移: {_e}")
+
+
+_migrate_comment_parent()
+
 # 构建后的前端目录（production preview 同源托管用）
 _DIST = pathlib.Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 

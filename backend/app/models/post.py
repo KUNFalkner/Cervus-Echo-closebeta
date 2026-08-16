@@ -34,4 +34,6 @@ class Comment(Base):
     display_name = Column(String)
     user_uid = Column(String)
     hide_uid = Column(Boolean, default=False)
+    # 楼中楼：父评论 id；NULL 表示顶层评论。自引用，不强制外键以保证迁移简单。
+    parent_id = Column(Integer, default=None, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

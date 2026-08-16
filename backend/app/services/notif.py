@@ -33,8 +33,8 @@ def create_notification(db: Session, *, recipient_id: int, actor_id: int = None,
 _MENTION_RE = re.compile(r"@([^\s@]{1,20})")
 
 
-def notify_from_comment(db: Session, *, post, comment, actor: UserModel) -> None:
-    """评论产生两类通知：① 帖子作者的新回复；② 评论中 @ 提及的人。"""
+def notify_from_comment(db: Session, *, post, comment, actor: UserModel, parent_comment=None) -> None:
+    """评论产生的通知：① 帖子作者的新回复；② 楼中楼中被回复评论的作者；③ 评论中 @ 提及的人。"""
     # ① 通知帖子作者（非自己评论）
     create_notification(
         db, recipient_id=post.user_id, actor_id=actor.id,
@@ -42,7 +42,15 @@ def notify_from_comment(db: Session, *, post, comment, actor: UserModel) -> None
         ntype="reply", post_id=post.id, comment_id=comment.id,
         post_title=post.title,
     )
-    # ② @ 提及：在评论内容里找 @用户名，匹配已注册用户
+    # ② 楼中楼：通知被回复的评论作者（避免与①重复：自己/帖子作者不再通知）
+    if parent_comment is not None and parent_comment.user_id not in (actor.id, post.user_id):
+        create_notification(
+            db, recipient_id=parent_comment.user_id, actor_id=actor.id,
+            actor_name=comment.display_name or actor.nickname or actor.username,
+            ntype="reply", post_id=post.id, comment_id=comment.id,
+            post_title=post.title,
+        )
+    # ③ @ 提及：在评论内容里找 @用户名，匹配已注册用户
     mentioned = set(_MENTION_RE.findall(comment.content or ""))
     if mentioned:
         users = db.query(UserModel).filter(UserModel.username.in_(mentioned)).all()

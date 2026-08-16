@@ -19,6 +19,8 @@ build/
 # 数据库
 *.db
 *.sqlite
+*.db.backup-*
+*.db.cleanup-backup-*
 
 # IDE
 .vscode/
@@ -32,6 +34,7 @@ Thumbs.db
 
 # 日志
 *.log
+*.err
 npm-debug.log*
 
 # 临时/验证截图
@@ -42,3 +45,6 @@ uploads/
 backend/static/avatars/
 backend/static/backgrounds/
 ppt/
+
+# 运行时生成的数据（塔罗历史等）
+backend/h.json
