@@ -96,6 +96,29 @@ async def upsert_history(
     return {"ok": True, "created": True}
 
 
+@router.delete("/history/{ts}")
+async def delete_history(ts: int, user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
+    """删除单条抽牌历史（按 user_id + ts 隔离，只能删自己的）。"""
+    row = (
+        db.query(TarotHistory)
+        .filter(TarotHistory.user_id == user.id, TarotHistory.ts == ts)
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="未找到该记录")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "deleted": 1}
+
+
+@router.delete("/history")
+async def clear_history(user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
+    """清空当前用户全部抽牌历史。"""
+    n = db.query(TarotHistory).filter(TarotHistory.user_id == user.id).delete()
+    db.commit()
+    return {"ok": True, "deleted": n}
+
+
 
 class CardIn(BaseModel):
     position: str = ""          # 过去 / 现在 / 未来

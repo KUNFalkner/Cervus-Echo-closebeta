@@ -73,6 +73,21 @@ const pullHistory = async (setHistory) => {
     })
   } catch {}
 }
+// 跨端同步：删除单条 / 清空全部（仅删自己 user_id 下的记录）。失败静默，本地仍更新。
+const deleteHistoryRemote = async (ts) => {
+  try {
+    const t = localStorage.getItem('token')
+    if (!t) return
+    await fetch(`${API_BASE}/tarot/history/${ts}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + t } })
+  } catch {}
+}
+const clearHistoryRemote = async () => {
+  try {
+    const t = localStorage.getItem('token')
+    if (!t) return
+    await fetch(`${API_BASE}/tarot/history`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + t } })
+  } catch {}
+}
 
 // 分享图：按字符换行（兼容中英，避免单词截断），measureLines 返回行数、wrapText 实际绘制
 const measureLines = (ctx, text, maxW) => {
@@ -453,6 +468,23 @@ const TarotExperience = () => {
     }
   }
 
+  // 删除单条 / 清空历史：本地立即更新，并同步服务器（仅删自己 user_id 下记录）
+  const deleteHistory = (ts) => {
+    setHistory(prev => {
+      const next = prev.filter(h => h.ts !== ts)
+      persistHistory(next)
+      return next
+    })
+    if (openTs === ts) setOpenTs(null)
+    deleteHistoryRemote(ts)
+  }
+  const clearHistory = () => {
+    if (!window.confirm('确定清空全部抽牌历史？此操作不可恢复。')) return
+    setHistory([])
+    persistHistory([])
+    clearHistoryRemote()
+  }
+
   // 分享：复制结果文案到剪贴板
   const copyShare = async () => {
     if (!drawn) return
@@ -475,50 +507,80 @@ const TarotExperience = () => {
     } catch { toast.error('复制失败，请手动选择') }
   }
 
-  // 分享：把牌面 + 正逆位 + 解读绘成一张图下载（牌面图加载失败则回退为文字占位）
+  // 分享：暗金神秘风成品卡——牌阵名/问题/每张正逆位/AI 解读精华，保存为长图
   const saveShareImage = async () => {
     if (!drawn) return
+    try { if (document.fonts && document.fonts.ready) await document.fonts.ready } catch {}
     const date = todayStrOf(drawnTs)
     const time = timeStrOf(drawnTs)
+    const spreadName = spread === 'celtic' ? '凯尔特十字' : '过去 · 现在 · 未来'
     const cols = spread === 'celtic' ? 5 : 3
     const rows = Math.ceil(drawn.length / cols)
-    const W = 720, P = 32, gap = 20
+    const W = 760, P = 40, gap = 22
     const cardW = Math.floor((W - P * 2 - gap * (cols - 1)) / cols)
-    const cardH = Math.floor(cardW * 1.5)
-    const topY = 116
-    const nameY = topY + cardH + 28
-    const rowH = cardH + 44
+    const cardH = Math.floor(cardW * 1.45)
+    const titleY = 62, subY = 92, qY = 118
+    const posY = 150
+    const topY = 172
+    const nameY = topY + cardH + 24
+    const revY = nameY + 20
+    const rowH = cardH + 60
     const counselText = counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）'
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     ctx.font = '16px sans-serif'
     const counselLines = measureLines(ctx, counselText, W - P * 2)
-    const counselTop = nameY + (rows - 1) * rowH + 18
-    const H = counselTop + counselLines * 26 + 36
+    const counselTop = topY + rows * rowH + 14
+    const footerY = counselTop + counselLines * 24 + 30
+    const H = footerY + 34
     canvas.width = W; canvas.height = H
+    // 背景：深蓝紫渐变 + 顶部中央暗金光晕
     const bg = ctx.createLinearGradient(0, 0, 0, H)
-    bg.addColorStop(0, '#0c0e22'); bg.addColorStop(1, '#070816')
+    bg.addColorStop(0, '#10142e'); bg.addColorStop(0.5, '#0a0c1e'); bg.addColorStop(1, '#06070f')
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H)
-    ctx.strokeStyle = 'rgba(227,196,120,.5)'; ctx.lineWidth = 2; ctx.strokeRect(9, 9, W - 18, H - 18)
+    const glow = ctx.createRadialGradient(W / 2, 70, 10, W / 2, 70, W * 0.7)
+    glow.addColorStop(0, 'rgba(227,196,120,.16)'); glow.addColorStop(1, 'rgba(227,196,120,0)')
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H)
+    // 双层暗金边框 + 四角星饰
+    ctx.strokeStyle = 'rgba(227,196,120,.55)'; ctx.lineWidth = 2; ctx.strokeRect(12, 12, W - 24, H - 24)
+    ctx.strokeStyle = 'rgba(227,196,120,.28)'; ctx.lineWidth = 1; ctx.strokeRect(19, 19, W - 38, H - 38)
+    ctx.fillStyle = 'rgba(227,196,120,.7)'; ctx.font = '20px serif'
+    ;[[26, 26], [W - 26, 26], [26, H - 26], [W - 26, H - 26]].forEach(([sx, sy]) => ctx.fillText('✦', sx - 8, sy + 7))
+    const GOLD = '#e3c478'
     ctx.textAlign = 'left'
-    ctx.fillStyle = '#e3c478'; ctx.font = '600 30px serif'; ctx.fillText('树洞塔罗', P, 52)
-    ctx.fillStyle = 'rgba(227,196,120,.75)'; ctx.font = '15px sans-serif'; ctx.fillText(`${date}  ${time}  ${spread === 'celtic' ? '凯尔特十字' : '过去现在未来'}`, P, 78)
-    if (question) { ctx.fillStyle = '#c9c9e6'; ctx.font = '15px sans-serif'; wrapText(ctx, '疑问：' + question, P, 100, W - P * 2, 22) }
+    // 标题（尽用哥特字体，回退 serif）
+    ctx.fillStyle = GOLD; ctx.font = "700 40px 'UnifrakturMaguntia', 'Songti SC', serif"
+    ctx.fillText('tarot divination', P, titleY)
+    ctx.fillStyle = 'rgba(227,196,120,.8)'; ctx.font = '15px sans-serif'
+    ctx.fillText(`${date}   ${time}   ${spreadName}`, P, subY)
+    if (question) { ctx.fillStyle = '#cfcfe8'; ctx.font = '15px sans-serif'; wrapText(ctx, '疑问：' + question, P, qY, W - P * 2, 22) }
+    // 牌阵：位置标签 + 牌面 + 牌名 + 正逆位
     let imgs = []
     try { imgs = await Promise.all(drawn.map(c => loadImg(faceSrc(c)))) } catch {}
     drawn.forEach((c, i) => {
       const col = i % cols, row = Math.floor(i / cols)
       const x = P + col * (cardW + gap)
       const y = topY + row * rowH
+      const pos = POS[i] ? POS[i].name : (i + 1)
+      ctx.fillStyle = 'rgba(227,196,120,.7)'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'
+      ctx.fillText(pos, x + cardW / 2, posY + row * rowH)
+      ctx.textAlign = 'left'
       const im = imgs[i]
-      if (im) ctx.drawImage(im, x, y, cardW, cardH)
+      if (im) { ctx.drawImage(im, x, y, cardW, cardH); ctx.strokeStyle = 'rgba(227,196,120,.45)'; ctx.lineWidth = 1; ctx.strokeRect(x + .5, y + .5, cardW - 1, cardH - 1) }
       else { ctx.fillStyle = 'rgba(227,196,120,.08)'; ctx.fillRect(x, y, cardW, cardH); ctx.strokeStyle = 'rgba(227,196,120,.4)'; ctx.strokeRect(x, y, cardW, cardH) }
-      ctx.fillStyle = '#e3c478'; ctx.font = '600 16px sans-serif'; ctx.fillText(c.name, x, y + cardH + 20)
-      ctx.fillStyle = c.reversed ? 'rgba(190,110,150,.95)' : 'rgba(227,196,120,.8)'; ctx.font = '13px sans-serif'
-      ctx.fillText(c.reversed ? '逆位' : '正位', x, y + cardH + 38)
+      ctx.fillStyle = GOLD; ctx.font = '600 16px sans-serif'; ctx.fillText(c.name, x, nameY + row * rowH)
+      ctx.fillStyle = c.reversed ? 'rgba(201,130,170,.95)' : 'rgba(227,196,120,.8)'; ctx.font = '13px sans-serif'
+      ctx.fillText(c.reversed ? '逆位' : '正位', x, revY + row * rowH)
     })
+    // 解读分隔 + 文本
+    ctx.strokeStyle = 'rgba(227,196,120,.25)'; ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(P, counselTop - 8); ctx.lineTo(W - P, counselTop - 8); ctx.stroke()
+    ctx.fillStyle = 'rgba(227,196,120,.6)'; ctx.font = '13px sans-serif'; ctx.fillText('星语', P, counselTop + 4)
     ctx.fillStyle = '#e8e6f0'; ctx.font = '16px sans-serif'; ctx.textAlign = 'left'
-    wrapText(ctx, counselText, P, counselTop, W - P * 2, 26)
+    wrapText(ctx, counselText, P, counselTop + 24, W - P * 2, 24)
+    // 页脚
+    ctx.fillStyle = 'rgba(227,196,120,.6)'; ctx.font = '14px serif'; ctx.textAlign = 'center'
+    ctx.fillText('✦  来自 树洞 · 星语自照  ✦', W / 2, footerY + 6)
     canvas.toBlob((blob) => {
       if (!blob) { toast.error('生成图片失败'); return }
       const url = URL.createObjectURL(blob)
@@ -732,6 +794,9 @@ const TarotExperience = () => {
               <div className="tarot-history-controls">
                 <button className={`tarot-history-view-btn ${historyView === 'list' ? 'active' : ''}`} onClick={() => setHistoryView('list')}>列表</button>
                 <button className={`tarot-history-view-btn ${historyView === 'calendar' ? 'active' : ''}`} onClick={() => setHistoryView('calendar')}>日历</button>
+                {historyView === 'list' && history.length > 0 && (
+                  <button className="tarot-history-clear" onClick={clearHistory} title="清空全部历史">清空</button>
+                )}
                 <button className="tarot-history-x" onClick={() => setShowHistory(false)} aria-label="关闭">×</button>
               </div>
             </div>
@@ -742,6 +807,7 @@ const TarotExperience = () => {
                     ? <p className="tarot-history-empty">还没有抽牌记录，每次抽牌都会被静静收藏在这里。</p>
                     : history.map(h => (
                       <div className="tarot-history-item" key={h.ts}>
+                        <button className="tarot-history-del" onClick={() => deleteHistory(h.ts)} title="删除这条" aria-label="删除这条">✕</button>
                         <div className="tarot-history-meta">
                           <span className="tarot-history-date">{h.date}</span>
                           {h.time && <span className="tarot-history-time">{h.time}</span>}
