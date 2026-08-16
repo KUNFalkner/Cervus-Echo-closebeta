@@ -2,12 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timezone, timedelta
+from collections import Counter
 
 from app.auth import require_admin
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.report import Report as ReportModel
+from app.models.tarot_history import TarotHistory
+from app.models.board import Board
 from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban
 
 router = APIRouter()
@@ -166,11 +169,77 @@ def admin_stats(
     admin: UserModel = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    """创始人 / 大使数据看板：仅做数据聚合展示，不含任何管理操作。"""
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=30)
+    total_users = db.query(UserModel).count()
+    total_posts = db.query(PostModel).count()
+    total_comments = db.query(CommentModel).count()
+    pending_reports = db.query(ReportModel).filter(ReportModel.status == "pending").count()
+    new_users_30d = db.query(UserModel).filter(UserModel.created_at >= since).count()
+    posts_30d = db.query(PostModel).filter(PostModel.created_at >= since).count()
+
+    # ── 塔罗使用频率 ──
+    th = db.query(TarotHistory).all()
+    tarot_total = len(th)
+    ai_count = 0
+    builtin_count = 0
+    spread_counter = Counter()
+    card_counter = Counter()
+    for r in th:
+        spread_counter[r.spread or "time"] += 1
+        if r.counsel:
+            src = r.counsel.get("source") if isinstance(r.counsel, dict) else None
+            if src == "llm":
+                ai_count += 1
+            else:
+                builtin_count += 1
+        for c in (r.cards or []):
+            name = c.get("name") if isinstance(c, dict) else None
+            if name:
+                card_counter[name] += 1
+    today = datetime.now().date()
+    days = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(29, -1, -1)]
+    tarot_daily_map = Counter(r.date for r in th if r.date)
+    tarot_daily = [{"date": d, "count": tarot_daily_map.get(d, 0)} for d in days]
+    tarot = {
+        "total_draws": tarot_total,
+        "ai_count": ai_count,
+        "builtin_count": builtin_count,
+        "spread_dist": [{"spread": s, "count": c} for s, c in spread_counter.most_common()],
+        "top_cards": [{"name": n, "count": c} for n, c in card_counter.most_common(10)],
+        "daily": tarot_daily,
+    }
+
+    # ── 近 30 天发帖 / 评论活跃 ──
+    posts_rows = db.query(PostModel.created_at).filter(PostModel.created_at >= since).all()
+    comments_rows = db.query(CommentModel.created_at).filter(CommentModel.created_at >= since).all()
+    pmap = Counter(r[0].strftime("%Y-%m-%d") for r in posts_rows if r[0])
+    cmap = Counter(r[0].strftime("%Y-%m-%d") for r in comments_rows if r[0])
+    activity_daily = [{"date": d, "posts": pmap.get(d, 0), "comments": cmap.get(d, 0)} for d in days]
+
+    # ── 板块帖子分布 ──
+    boards = db.query(Board).order_by(Board.sort_order, Board.id).all()
+    board_dist = []
+    for b in boards:
+        cnt = db.query(PostModel).filter(
+            (PostModel.category == b.key) |
+            PostModel.category.like(f"%,{b.key},%") |
+            PostModel.category.like(f"{b.key},%") |
+            PostModel.category.like(f"%,{b.key}")
+        ).count()
+        board_dist.append({"key": b.key, "name": b.name, "icon": b.icon, "count": cnt})
+
     return {
-        "total_users": db.query(UserModel).count(),
-        "total_posts": db.query(PostModel).count(),
-        "total_comments": db.query(CommentModel).count(),
-        "pending_reports": db.query(ReportModel).filter(ReportModel.status == "pending").count()
+        "total_users": total_users,
+        "total_posts": total_posts,
+        "total_comments": total_comments,
+        "pending_reports": pending_reports,
+        "new_users_30d": new_users_30d,
+        "posts_30d": posts_30d,
+        "tarot": tarot,
+        "activity_daily": activity_daily,
+        "board_dist": board_dist,
     }
 
 @router.get("/posts")

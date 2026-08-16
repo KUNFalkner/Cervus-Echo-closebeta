@@ -5,6 +5,7 @@ import './App.css'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
 import GlobalSearch from './GlobalSearch'
+import { renderMarkdown } from './markdown'
 
 // 生产走同源相对路径：后端/nginx 都在同一 origin 下托管前端，
 // 这样换端口、上 nginx、上 HTTPS 域名都不用改代码，也不会触发混合内容拦截。
@@ -260,6 +261,12 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
   const [cats,setCats]=useState(['general']); const [submitting,setSubmitting]=useState(false);
   const [tags,setTags]=useState(''); const [tagInput,setTagInput]=useState('');
   const [imgs,setImgs]=useState([]); const [uploading,setUploading]=useState(false);
+  // ── 轻量 Markdown 编辑器（工具栏 + 表情面板 + 实时预览）──
+  const [cVal,setCVal]=useState(''); const [emojiOpen,setEmojiOpen]=useState(false); const [showPrev,setShowPrev]=useState(false);
+  const MD_EMOJIS=['😀','😂','🥺','😍','😎','🤔','😭','👍','🙏','🔥','💡','✨','🌟','💬','❤️','🎉','🍀','🌈','⚡','💰','📚','🎮','🌙','☕'];
+  const wrapSel=(pre,post='')=>{ const ta=cRef.current; if(!ta)return; const s=ta.selectionStart,e=ta.selectionEnd,v=ta.value,sel=v.slice(s,e)||''; ta.value=v.slice(0,s)+pre+sel+post+v.slice(e); ta.focus(); ta.selectionStart=s+pre.length; ta.selectionEnd=s+pre.length+sel.length; setCVal(ta.value); saveDraft() };
+  const addLink=()=>{ const ta=cRef.current; if(!ta)return; const s=ta.selectionStart,e=ta.selectionEnd,v=ta.value,sel=v.slice(s,e)||'链接文字'; ta.value=v.slice(0,s)+`[${sel}](https://)`+v.slice(e); ta.focus(); ta.selectionStart=s+1; ta.selectionEnd=s+1+sel.length; setCVal(ta.value); saveDraft() };
+  const insertEmoji=(em)=>{ const ta=cRef.current; if(!ta)return; const s=ta.selectionStart,v=ta.value; ta.value=v.slice(0,s)+em+v.slice(ta.selectionEnd); ta.focus(); ta.selectionStart=ta.selectionEnd=s+em.length; setCVal(ta.value); saveDraft() };
   const pickImgs = (e) => { const files=Array.from(e.target.files||[]); const room=9-imgs.length;
     const next=files.slice(0,room).map(f=>({file:f,url:URL.createObjectURL(f)})); setImgs(prev=>[...prev,...next]); e.target.value='' }
   const removeImg = (i) => setImgs(prev=>{ const n=[...prev]; if(n[i].url)URL.revokeObjectURL(n[i].url); n.splice(i,1); return n })
@@ -290,7 +297,21 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
         const ur=await apiFetch(`/uploads/`,{method:'POST',body:fd}); if(!ur.ok)throw new Error(await errMsg(ur,'图片上传失败')); imageUrls=(await ur.json()).urls||[] }
       catch(err){ setUploading(false); toast.error(err.message||'图片上传失败'); return } setUploading(false) }
     try{const r=await apiFetch(`/posts/`,{method:'POST',body:JSON.stringify({title,content,category:cats.join(','),forum,tags:tags||null,display_name:dn,hide_uid:hu,images:imageUrls.length?imageUrls:null,is_announcement:false})});if(!r.ok)throw new Error(await errMsg(r,'发布失败'));tRef.current.value='';cRef.current.value='';setCats(['general']);setHideUid(false);setTags('');setTagInput('');setImgs([]);onPostCreated();clearDraft();try{const sb=document.querySelector('.create-post-card .submit-btn');if(sb){spawnBurst(sb,'🎉',12);spawnFloatPlus(sb,'发布成功 🎉')}}catch(_){}toast.success('发布成功')}catch(e){toast.error((e&&e.name==='TypeError')?'网络异常：无法连接服务器，请确认后端已启动于 localhost:8000':(e&&e.message||'发布失败'))}finally{setSubmitting(false)}}
-  return <div className="glass-card create-post-card"><h3>发布新帖子</h3><form onSubmit={submit} className="create-post-form"><input ref={tRef} type="text" placeholder="帖子标题" className="glass-input" required onChange={saveDraft}/><textarea ref={cRef} placeholder="分享你的想法..." className="glass-textarea" required rows={4} onChange={saveDraft}/><div className="forum-select"><label className="forum-label">发布到：</label><div className="forum-options">{visibleForums.map(f=><button key={f.code} type="button" className={`forum-option ${forum===f.code?'active':''}`} onClick={()=>setForum(f.code)}>{f.code==='main'?'🏠 ':'🏫 '}{f.name}</button>)}</div></div>{!isAdmin&&<div className="post-options"><label className="checkbox-label"><input type="checkbox" checked={isAnon} onChange={e=>setIsAnon(e.target.checked)}/><span>匿名发布</span></label><label className="checkbox-label"><input type="checkbox" checked={hideUid} onChange={e=>setHideUid(e.target.checked)}/><span>隐藏 UID</span></label></div>}<div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div><div className="tag-input-row"><div className="tag-chips">{tags?tags.split(',').map(x=>x.trim()).filter(Boolean).map(t=><span key={t} className="tag-chip" onClick={()=>removeTag(t)}>#{t} ✕</span>):null}<input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.key===','||e.key===' '){e.preventDefault();addTag(tagInput)}else if(e.key==='Backspace'&&!tagInput&&tags){const arr=tags.split(',').map(x=>x.trim()).filter(Boolean);arr.pop();setTags(arr.join(','))}}} placeholder={tags?'':'添加标签（回车确认，最多5个）'} className="glass-input tag-input"/></div></div><div className="img-upload-row"><label className="img-pick-btn"><input type="file" accept="image/*" multiple onChange={pickImgs} hidden/>📷 添加图片{imgs.length?` (${imgs.length}/9)`:''}</label>{imgs.length>0&&<div className="img-thumbs">{imgs.map((it,i)=><div key={i} className="img-thumb"><img src={it.url} alt=""/><button type="button" className="img-thumb-del" onClick={()=>removeImg(i)}>✕</button></div>)}</div>}</div><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||uploading}>{submitting?'发布中...':uploading?'图片上传中...':'发布'}</button></form></div>
+  return <div className="glass-card create-post-card"><h3>发布新帖子</h3><form onSubmit={submit} className="create-post-form"><input ref={tRef} type="text" placeholder="帖子标题" className="glass-input" required onChange={saveDraft}/><div className="md-editor">
+  <div className="md-toolbar">
+    <button type="button" className="md-btn" onClick={()=>wrapSel('**','**')} title="粗体"><b>B</b></button>
+    <button type="button" className="md-btn" onClick={()=>wrapSel('*','*')} title="斜体"><i>I</i></button>
+    <button type="button" className="md-btn" onClick={()=>wrapSel('## ','')} title="标题">H</button>
+    <button type="button" className="md-btn" onClick={()=>wrapSel('> ','')} title="引用">❝</button>
+    <button type="button" className="md-btn" onClick={()=>wrapSel('- ','')} title="列表">•</button>
+    <button type="button" className="md-btn" onClick={addLink} title="链接">🔗</button>
+    <button type="button" className="md-btn" onClick={()=>setEmojiOpen(o=>!o)} title="表情">😊</button>
+    <button type="button" className={`md-btn ${showPrev?'active':''}`} onClick={()=>setShowPrev(p=>!p)} title="预览">{showPrev?'✏️ 编辑':'👁 预览'}</button>
+  </div>
+  {emojiOpen&&<div className="emoji-panel">{MD_EMOJIS.map(e=<button type="button" key={e} className="emoji-item" onClick={()=>insertEmoji(e)}>{e}</button>)}</div>}
+  <textarea ref={cRef} placeholder="分享你的想法（支持 Markdown：**粗体** *斜体* # 标题 > 引用 - 列表 [链接](url)）" className="glass-textarea" required rows={4} onChange={(e)=>{ setCVal(e.target.value); saveDraft() }}/>
+  {showPrev&&<div className="md-preview markdown-body">{renderMarkdown(cVal)}</div>}
+</div><div className="forum-select"><label className="forum-label">发布到：</label><div className="forum-options">{visibleForums.map(f=><button key={f.code} type="button" className={`forum-option ${forum===f.code?'active':''}`} onClick={()=>setForum(f.code)}>{f.code==='main'?'🏠 ':'🏫 '}{f.name}</button>)}</div></div>{!isAdmin&&<div className="post-options"><label className="checkbox-label"><input type="checkbox" checked={isAnon} onChange={e=>setIsAnon(e.target.checked)}/><span>匿名发布</span></label><label className="checkbox-label"><input type="checkbox" checked={hideUid} onChange={e=>setHideUid(e.target.checked)}/><span>隐藏 UID</span></label></div>}<div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div><div className="tag-input-row"><div className="tag-chips">{tags?tags.split(',').map(x=>x.trim()).filter(Boolean).map(t=><span key={t} className="tag-chip" onClick={()=>removeTag(t)}>#{t} ✕</span>):null}<input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'||e.key===','||e.key===' '){e.preventDefault();addTag(tagInput)}else if(e.key==='Backspace'&&!tagInput&&tags){const arr=tags.split(',').map(x=>x.trim()).filter(Boolean);arr.pop();setTags(arr.join(','))}}} placeholder={tags?'':'添加标签（回车确认，最多5个）'} className="glass-input tag-input"/></div></div><div className="img-upload-row"><label className="img-pick-btn"><input type="file" accept="image/*" multiple onChange={pickImgs} hidden/>📷 添加图片{imgs.length?` (${imgs.length}/9)`:''}</label>{imgs.length>0&&<div className="img-thumbs">{imgs.map((it,i)=><div key={i} className="img-thumb"><img src={it.url} alt=""/><button type="button" className="img-thumb-del" onClick={()=>removeImg(i)}>✕</button></div>)}</div>}</div><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||uploading}>{submitting?'发布中...':uploading?'图片上传中...':'发布'}</button></form></div>
 }
 
 // ── StarButton（星标：GSAP 弹跳 + Anime.js 星光粒子爆裂 + 数字滚动）──
@@ -336,7 +357,7 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar,myLikes,onT
   useEffect(()=>{ if(!prefersReduced()&&rootRef.current) gsap.from(rootRef.current,{opacity:0,y:20,duration:.3,ease:'power2.out'}) },[]);
   useEffect(()=>{const h=e=>{if(e.key==='Escape')close()};window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h)},[close]);
   const submitComment=async e=>{e.preventDefault();const text=nc.trim();if(!text)return;setSubmitting(true);const dn=user?.role==='founder'||user?.role==='ambassador'?user.nickname:genNick();const tmpId='tmp-'+Date.now();const optimistic={id:tmpId,content:text,display_name:dn,author_avatar:user?.avatar||null,user_id:user?.id,created_at:new Date().toISOString(),_pending:true};setComments(prev=>[...prev,optimistic]);setAnimIds(a=>[...a,String(tmpId)]);setNc('');try{const r=await apiFetch(`/posts/${post.id}/comments`,{method:'POST',body:JSON.stringify({content:text,display_name:dn})});if(!r.ok)throw new Error(await errMsg(r,'评论失败'));const u=await r.json();setComments(prev=>prev.map(x=>x.id===tmpId?u:x));toast.success('评论成功');onRefresh?.();try{localStorage.removeItem(CDRAFT)}catch{}}catch(err){setComments(prev=>prev.filter(x=>x.id!==tmpId));setAnimIds(a=>a.filter(id=>id!==String(tmpId)));toast.error(err.message||'评论失败')}finally{setSubmitting(false)}}
-  return <div className="post-detail" ref={rootRef}><button className="back-btn" onClick={close}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><Avatar src={post.author_avatar} seed={post.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(post.user_id);setSelectedPost(null)}}/><span className="post-author-name" onClick={e=>{e.stopPropagation();setProfileUserId(post.user_id);setSelectedPost(null)}}>{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><p className="post-content">{post.content}</p>{post.images&&post.images.length>0&&<PostImages images={post.images}/>}<div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><LikeButton post={post} liked={!!myLikes[post.id]} count={post.like_count} onToggle={onToggleLike}/><StarButton post={post} starred={!!myStars[post.id]} count={post.star_count} onToggle={onToggleStar}/><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<><button onClick={()=>onEditPost&&onEditPost(post)} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={async()=>{if(!confirm('确定删除？'))return;const r=await apiFetch(`/posts/${post.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button></>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={onCommentChange} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className={"glass-card comment-card"+(animIds.includes(String(c.id))?" comment-enter":"")+(c._pending?" comment-pending":"")}><div className="comment-header"><div className="comment-author-info"><Avatar src={c.author_avatar} seed={c.display_name} className="comment-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(c.user_id);setSelectedPost(null)}}/><span className="comment-author" onClick={e=>{e.stopPropagation();setProfileUserId(c.user_id);setSelectedPost(null)}}>{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<><button onClick={async()=>{const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}fc();onRefresh?.()}} className="action-btn delete-btn">🗑️</button><button onClick={()=>{setEditId(c.id);setEditText(c.content)}} className="action-btn edit-btn">✏️</button></>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div>{editId===c.id?(<div className="comment-edit"><textarea className="comment-edit-input" value={editText} onChange={e=>setEditText(e.target.value)} rows={3}/><div className="comment-edit-actions"><button className="glass-button btn-primary" disabled={savingEdit} onClick={async()=>{ if(!editText.trim())return; setSavingEdit(true); try{ const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'PUT',body:JSON.stringify({content:editText})}); if(!r.ok)throw new Error(await errMsg(r,'修改失败')); const u=await r.json(); setComments(prev=>prev.map(x=>x.id===c.id?{...x,content:u.content}:x)); setEditId(null); toast.success('已修改') }catch(e){toast.error(e.message)}finally{setSavingEdit(false)} }}>保存</button><button className="glass-button btn-secondary" onClick={()=>setEditId(null)}>取消</button></div></div>):(<p className="comment-content">{c.content}</p>)}</div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} onClose={()=>setShowR(false)}/>}</div>
+  return <div className="post-detail" ref={rootRef}><button className="back-btn" onClick={close}>← 返回</button><div className="glass-card post-detail-card"><div className="post-header"><Avatar src={post.author_avatar} seed={post.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(post.user_id);setSelectedPost(null)}}/><span className="post-author-name" onClick={e=>{e.stopPropagation();setProfileUserId(post.user_id);setSelectedPost(null)}}>{post.display_name||'匿名用户'}</span>{canSeeUid(user,post)&&<span className="uid-badge">{post.user_uid}{post.hide_uid&&' (隐藏)'}</span>}<span className="post-category-badge">{post.category?post.category.split(',').map(c=>{const x=CATEGORIES.find(y=>y.id===c);return x?`${x.icon} ${x.name}`:'📝 综合'}).join(' · '):'📝 综合'}</span></div><h2>{post.title}</h2><div className="post-content markdown-body">{renderMarkdown(post.content)}</div>{post.images&&post.images.length>0&&<PostImages images={post.images}/>}<div className="post-meta"><span className="post-time">{fmtTime(post.created_at)}</span><div className="post-actions"><LikeButton post={post} liked={!!myLikes[post.id]} count={post.like_count} onToggle={onToggleLike}/><StarButton post={post} starred={!!myStars[post.id]} count={post.star_count} onToggle={onToggleStar}/><button onClick={()=>{setRt({type:'post',id:post.id});setShowR(true)}} className="action-btn">🚩</button>{(user?.id===post.user_id||isAdmin)&&<><button onClick={()=>onEditPost&&onEditPost(post)} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={async()=>{if(!confirm('确定删除？'))return;const r=await apiFetch(`/posts/${post.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}toast.success('已删除');onBack()}} className="action-btn delete-btn">🗑️</button></>}</div></div></div><div className="glass-card comments-section"><h3>评论 ({comments.length})</h3><form onSubmit={submitComment} className="comment-form"><textarea value={nc} onChange={onCommentChange} placeholder="说点什么..." className="comment-input" rows={3}/><button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||!nc.trim()}>{submitting?'发送中...':'发表评论'}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{comments.map(c=><div key={c.id} className={"glass-card comment-card"+(animIds.includes(String(c.id))?" comment-enter":"")+(c._pending?" comment-pending":"")}><div className="comment-header"><div className="comment-author-info"><Avatar src={c.author_avatar} seed={c.display_name} className="comment-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(c.user_id);setSelectedPost(null)}}/><span className="comment-author" onClick={e=>{e.stopPropagation();setProfileUserId(c.user_id);setSelectedPost(null)}}>{c.display_name||'匿名用户'}</span>{canSeeUid(user,c)&&<span className="uid-badge">{c.user_uid}</span>}</div><div className="comment-actions"><span className="comment-time">{fmtTime(c.created_at)}</span>{(user?.id===c.user_id||isAdmin)&&<><button onClick={async()=>{const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'DELETE'});if(!r.ok){toast.error(await errMsg(r,'删除失败'));return}fc();onRefresh?.()}} className="action-btn delete-btn">🗑️</button><button onClick={()=>{setEditId(c.id);setEditText(c.content)}} className="action-btn edit-btn">✏️</button></>}<button onClick={()=>{setRt({type:'comment',id:c.id});setShowR(true)}} className="action-btn">🚩</button></div></div>{editId===c.id?(<div className="comment-edit"><textarea className="comment-edit-input" value={editText} onChange={e=>setEditText(e.target.value)} rows={3}/><div className="comment-edit-actions"><button className="glass-button btn-primary" disabled={savingEdit} onClick={async()=>{ if(!editText.trim())return; setSavingEdit(true); try{ const r=await apiFetch(`/posts/${post.id}/comments/${c.id}`,{method:'PUT',body:JSON.stringify({content:editText})}); if(!r.ok)throw new Error(await errMsg(r,'修改失败')); const u=await r.json(); setComments(prev=>prev.map(x=>x.id===c.id?{...x,content:u.content}:x)); setEditId(null); toast.success('已修改') }catch(e){toast.error(e.message)}finally{setSavingEdit(false)} }}>保存</button><button className="glass-button btn-secondary" onClick={()=>setEditId(null)}>取消</button></div></div>):(<p className="comment-content">{c.content}</p>)}</div>)}</div>}</div>{showR&&<ReportModal type={rt.type} tid={rt.id} onClose={()=>setShowR(false)}/>}</div>
 }
 
 // ── RulesModal ──
@@ -463,7 +484,7 @@ const PostEditModal = ({post, onClose, onSaved}) => {
       <h3>编辑帖子</h3>
       <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="标题" className="glass-input" />
       <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="内容" className="glass-textarea" rows={6}/>
-      <div className="category-select">{CATEGORIES.map(c=><button key={c.id} type="button" className={`category-option ${cats.includes(c.id)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.id)?p.filter(x=>x!==c.id):[...p,c.id])}>{c.icon} {c.name}</button>)}</div>
+      <div className="category-select">{boards.map(c=><button key={c.key} type="button" className={`category-option ${cats.includes(c.key)?'active':''}`} onClick={()=>setCats(p=>p.includes(c.key)?p.filter(x=>x!==c.key):[...p,c.key])}>{c.icon} {c.name}</button>)}</div>
       <input value={tags} onChange={e=>setTags(e.target.value)} placeholder="标签（逗号分隔，可留空）" className="glass-input" />
       <div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-primary" onClick={submit} disabled={submitting}>{submitting?'保存中...':'保存'}</button></div>
     </>)}
@@ -514,12 +535,168 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   </div>
 }
 
+// ── PollsSection（信息流投票特殊卡片：顶部展示进行中的投票）──
+const PollCard = ({ p, picking, setPicking, onVote, onRetract }) => {
+  const voted = (p.my_votes || []).length > 0
+  const max = Math.max(1, ...(p.results || []))
+  const toggle = (idx) => {
+    if (voted || p.closed) return
+    setPicking(prev => {
+      const n = new Set(prev)
+      if (p.multi) { n.has(idx) ? n.delete(idx) : n.add(idx) }
+      else { n.clear(); n.add(idx) }
+      return n
+    })
+  }
+  const sel = [...picking]
+  return (
+    <div className="glass-card poll-card">
+      <div className="poll-head">
+        <span className="poll-badge">📊 投票</span>
+        {p.closed && <span className="poll-closed">已截止</span>}
+      </div>
+      <h4 className="poll-q">{p.question}</h4>
+      <div className="poll-opts">
+        {p.options.map((opt, idx) => {
+          const cnt = (p.results || [])[idx] || 0
+          const pct = p.total_votes ? Math.round(cnt / p.total_votes * 100) : 0
+          const chosen = voted ? p.my_votes.includes(idx) : picking.has(idx)
+          return (
+            <button key={idx} type="button" className={`poll-opt ${chosen ? 'chosen' : ''} ${voted ? 'voted' : ''}`}
+              onClick={() => toggle(idx)} disabled={p.closed && !voted}>
+              <span className="poll-opt-label">{p.multi ? (chosen ? '☑' : '▫') : (chosen ? '🔘' : '○')} {opt}</span>
+              {voted && <span className="poll-opt-bar"><span className="poll-opt-fill" style={{ width: pct + '%' }} /></span>}
+              {voted && <span className="poll-opt-pct">{cnt} 票 · {pct}%</span>}
+            </button>
+          )
+        })}
+      </div>
+      <div className="poll-foot">
+        <span className="poll-total">{p.total_votes} 人参与 · {p.multi ? '多选' : '单选'}</span>
+        {!p.closed && (voted
+          ? <button className="poll-retract" onClick={() => onRetract(p)}>撤票</button>
+          : <button className="poll-vote-btn" disabled={sel.length === 0} onClick={() => onVote(p, sel)}>投票</button>)}
+      </div>
+    </div>
+  )
+}
+
+const PollsSection = () => {
+  const toast = useToast()
+  const [polls, setPolls] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [picking, setPicking] = useState({})
+  const load = useCallback(async () => {
+    setLoading(true)
+    try { const r = await apiFetch('/polls'); if (r.ok) setPolls(await r.json()) } catch {} finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+  const vote = async (p, sel) => {
+    try {
+      const r = await apiFetch(`/polls/${p.id}/vote`, { method: 'POST', body: JSON.stringify({ options: sel }) })
+      if (!r.ok) throw new Error(await errMsg(r, '投票失败'))
+      const d = await r.json(); setPolls(ps => ps.map(x => x.id === p.id ? d : x))
+      setPicking(pk => { const n = { ...pk }; delete n[p.id]; return n })
+      toast.success('投票成功')
+    } catch (e) { toast.error(e.message || '投票失败') }
+  }
+  const retract = async (p) => {
+    try {
+      const r = await apiFetch(`/polls/${p.id}/vote`, { method: 'DELETE' })
+      if (!r.ok) throw new Error(await errMsg(r, '撤票失败'))
+      const d = await r.json(); setPolls(ps => ps.map(x => x.id === p.id ? d : x))
+      toast.success('已撤票')
+    } catch (e) { toast.error(e.message || '撤票失败') }
+  }
+  if (loading) return <Spinner />
+  if (!polls.length) return null
+  return (
+    <div className="polls-section">
+      {polls.map(p => (
+        <PollCard key={p.id} p={p} picking={picking[p.id] || new Set()}
+          setPicking={(s) => setPicking(pk => ({ ...pk, [p.id]: s }))}
+          onVote={vote} onRetract={retract} />
+      ))}
+    </div>
+  )
+}
+
+// ── 手写 SVG 迷你图表（暗金风，零依赖）──
+const StatLine = ({ data, color = '#d4af37', height = 70 }) => {
+  const W = 300, H = height
+  const vals = data.map(d => d.value != null ? d.value : (d.count || 0))
+  const max = Math.max(1, ...vals)
+  const n = data.length
+  const x = i => (n <= 1 ? 0 : i / (n - 1) * W)
+  const y = v => H - (v / max) * (H - 10) - 5
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const area = `0,${H} ${pts} ${W},${H}`
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="stat-svg" preserveAspectRatio="none" width="100%" height={H}>
+      <polygon points={area} fill={color} opacity="0.12" />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+    </svg>
+  )
+}
+const StatDualLine = ({ data, height = 70 }) => {
+  const W = 300, H = height
+  const pv = data.map(d => d.posts || 0), cv = data.map(d => d.comments || 0)
+  const max = Math.max(1, ...pv, ...cv)
+  const n = data.length
+  const x = i => (n <= 1 ? 0 : i / (n - 1) * W)
+  const y = v => H - (v / max) * (H - 10) - 5
+  const line = arr => arr.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="stat-svg" preserveAspectRatio="none" width="100%" height={H}>
+      <polyline points={line(pv)} fill="none" stroke="#d4af37" strokeWidth="2" />
+      <polyline points={line(cv)} fill="none" stroke="#9fb4ff" strokeWidth="2" />
+    </svg>
+  )
+}
+const StatBars = ({ data, color = '#d4af37', height = 90 }) => {
+  const W = 300, H = height
+  const max = Math.max(1, ...data.map(d => d.count || 0))
+  const n = data.length || 1
+  const bw = W / n
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="stat-svg" preserveAspectRatio="none" width="100%" height={H}>
+      {data.map((d, i) => {
+        const h = (d.count || 0) / max * (H - 16)
+        const label = String(d.name || d.spread || '').slice(0, 4)
+        return (
+          <g key={i}>
+            <rect x={i * bw + 3} y={H - h - 14} width={Math.max(2, bw - 6)} height={h} rx="2" fill={color} opacity="0.8" />
+            <text x={i * bw + bw / 2} y={H - 3} fontSize="9" fill="#cbb27a" textAnchor="middle">{label}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 // ── AdminPage ──
 const AdminPage = ({user}) => {
   const toast=useToast(); const [stats,setStats]=useState(null); const [ulist,setUlist]=useState([]); const [reports,setReports]=useState([]); const [plist,setPlist]=useState([]); const [psearch,setPsearch]=useState(''); const [tab,setTab]=useState('stats'); const [loading,setLoading]=useState(true); const [muteMins,setMuteMins]=useState(60); const [reportStatus,setReportStatus]=useState('')
   const loadReports = useCallback(async()=>{ try{ const r=await apiFetch('/admin/reports'+(reportStatus?`?status=${reportStatus}`:'')); if(r.ok)setReports(await r.json()) }catch{} },[reportStatus])
   useEffect(()=>{ const f=async()=>{ setLoading(true); try{ const [sr,ur,pr]=await Promise.all([apiFetch(`/admin/stats`),apiFetch(`/admin/users`),apiFetch(`/admin/posts`)]); if(sr.ok)setStats(await sr.json()); if(ur.ok)setUlist(await ur.json()); if(pr.ok)setPlist(await pr.json()); await loadReports() }catch(e){toast.error('加载失败')} finally{setLoading(false)} }; f() },[loadReports])
   useEffect(()=>{ if(tab==='reports') loadReports() },[tab,loadReports])
+  const [blist,setBlist]=useState([])
+  const [bkKey,setBkKey]=useState(''); const [bkName,setBkName]=useState(''); const [bkIcon,setBkIcon]=useState('📝'); const [bkOrder,setBkOrder]=useState(0); const [bkEditId,setBkEditId]=useState(null)
+  const loadBoards = useCallback(async()=>{ try{ const r=await apiFetch('/boards?all=1'); if(r.ok)setBlist(await r.json()) }catch{} },[])
+  useEffect(()=>{ if(tab==='boards') loadBoards() },[tab,loadBoards])
+  const resetBk=()=>{ setBkEditId(null); setBkKey(''); setBkName(''); setBkIcon('📝'); setBkOrder(0) }
+  const saveBk=async()=>{ try{ if(!bkKey.trim()||!bkName.trim()){toast.error('key 与名称不能为空');return} const body=JSON.stringify({key:bkKey.trim(),name:bkName.trim(),icon:bkIcon,description:'',sort_order:bkOrder}); let r; if(bkEditId){ r=await apiFetch(`/boards/${bkEditId}`,{method:'PUT',body}) } else { r=await apiFetch('/boards',{method:'POST',body}) } if(!r.ok)throw new Error(await errMsg(r,'保存失败')); await loadBoards(); resetBk(); toast.success('已保存板块') }catch(e){ toast.error(e.message||'保存失败') } }
+  const toggleBk=async(b)=>{ try{ const r=await apiFetch(`/boards/${b.id}`,{method:'PUT',body:JSON.stringify({key:b.key,name:b.name,icon:b.icon,description:b.description,sort_order:b.sort_order,active:!b.active})}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); setBlist(bs=>bs.map(x=>x.id===b.id?{...x,active:!b.active}:x)); toast.success(b.active?'已隐藏板块':'已显示板块') }catch(e){ toast.error(e.message) } }
+  const delBk=async(b)=>{ if(!confirm(`确认删除板块「${b.name}」？`))return; try{ const r=await apiFetch(`/boards/${b.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setBlist(bs=>bs.filter(x=>x.id!==b.id)); toast.success('已删除板块') }catch(e){ toast.error(e.message) } }
+  const editBk=(b)=>{ setBkEditId(b.id); setBkKey(b.key); setBkName(b.name); setBkIcon(b.icon); setBkOrder(b.sort_order) }
+  // ── 投票管理（创始人 / 大使可发起、截止、删除）──
+  const [pollList,setPollList]=useState([])
+  const [pq,setPq]=useState(''); const [popts,setPopts]=useState(''); const [pmulti,setPmulti]=useState(false)
+  const loadPolls = useCallback(async()=>{ try{ const r=await apiFetch('/polls?all=1'); if(r.ok)setPollList(await r.json()) }catch{} },[])
+  useEffect(()=>{ if(tab==='polls') loadPolls() },[tab,loadPolls])
+  const savePoll=async()=>{ try{ const opts=popts.split('\n').map(s=>s.trim()).filter(Boolean); if(!pq.trim()){toast.error('问题不能为空');return} if(opts.length<2){toast.error('至少两个选项（每行一个）');return} const body=JSON.stringify({question:pq.trim(),options:opts,multi:pmulti}); const r=await apiFetch('/polls',{method:'POST',body}); if(!r.ok)throw new Error(await errMsg(r,'发起失败')); await loadPolls(); setPq(''); setPopts(''); setPmulti(false); toast.success('已发起投票') }catch(e){ toast.error(e.message||'发起失败') } }
+  const closePoll=async(p)=>{ try{ const r=await apiFetch(`/polls/${p.id}/close`,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); setPollList(ps=>ps.map(x=>x.id===p.id?{...x,closed:!x.closed}:x)); toast.success(p.closed?'已重新开启':'已截止') }catch(e){ toast.error(e.message) } }
+  const delPoll=async(p)=>{ if(!confirm(`确认删除投票「${p.question}」？删除后票数一并清除`))return; try{ const r=await apiFetch(`/polls/${p.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setPollList(ps=>ps.filter(x=>x.id!==p.id)); toast.success('已删除投票') }catch(e){ toast.error(e.message) } }
   const updReport = async(id,st,action='none')=>{ try{ const url=`/admin/reports/${id}/status?status=${st}`+(action!=='none'?`&action=${action}`:''); const r=await apiFetch(url,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'更新失败')); setReports(rs=>rs.map(x=>x.id===id?{...x,status:st}:x)); toast.success(action!=='none'?'已删除内容并处理举报':'状态已更新') }catch(e){toast.error(e.message||'更新失败')} }
   const delPost = async(id)=>{ if(!confirm('确认删除该帖子？此操作不可恢复'))return; try{ const r=await apiFetch(`/posts/${id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setPlist(ps=>ps.filter(x=>x.id!==id)); toast.success('帖子已删除') }catch(e){toast.error(e.message)} }
   // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
@@ -534,8 +711,29 @@ const AdminPage = ({user}) => {
   const unbanUser = async(u)=>{ try{ const r=await apiFetch(`/admin/users/${u.id}/unban`,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'解封失败')); const d=await r.json(); setUlist(us=>us.map(x=>x.id===u.id?{...x,banned:d.banned}:x)); toast.success('已解封') }catch(e){toast.error(e.message)} }
   if(loading) return <Spinner/>
   return <div className="admin-page"><h2 className="admin-title">管理后台</h2>
-  <div className="admin-tabs"><button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button><button className={`admin-tab ${tab==='content'?'active':''}`} onClick={()=>setTab('content')}>内容 ({plist.length})</button></div>
-  {tab==='stats'&&stats&&<div className="admin-stats"><div className="glass-card stat-card"><span className="stat-number">{stats.total_users}</span><span className="stat-desc">注册用户</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_posts}</span><span className="stat-desc">帖子总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.total_comments}</span><span className="stat-desc">评论总数</span></div><div className="glass-card stat-card"><span className="stat-number">{stats.pending_reports}</span><span className="stat-desc">待处理举报</span></div></div>}
+  <div className="admin-tabs"><button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button><button className={`admin-tab ${tab==='content'?'active':''}`} onClick={()=>setTab('content')}>内容 ({plist.length})</button><button className={`admin-tab ${tab==='boards'?'active':''}`} onClick={()=>setTab('boards')}>板块</button><button className={`admin-tab ${tab==='polls'?'active':''}`} onClick={()=>setTab('polls')}>投票</button></div>
+  {tab==='stats'&&stats&&<div className="admin-stats-wrap">
+    <div className="admin-stats">
+      <div className="glass-card stat-card"><span className="stat-number">{stats.total_users}</span><span className="stat-desc">注册用户</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.total_posts}</span><span className="stat-desc">帖子总数</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.total_comments}</span><span className="stat-desc">评论总数</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.pending_reports}</span><span className="stat-desc">待处理举报</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.new_users_30d}</span><span className="stat-desc">近30天新增用户</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.posts_30d}</span><span className="stat-desc">近30天发帖</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.total_draws||0}</span><span className="stat-desc">塔罗总抽牌</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">AI 解读次数</span></div>
+    </div>
+    <div className="stat-charts">
+      <div className="glass-card stat-chart-card"><h4>近 30 天塔罗抽牌</h4><StatLine data={stats.tarot?.daily||[]} /></div>
+      <div className="glass-card stat-chart-card"><h4>近 30 天发帖 / 评论</h4><div className="stat-legend"><span className="lg gold">发帖</span><span className="lg blue">评论</span></div><StatDualLine data={stats.activity_daily||[]} /></div>
+      <div className="glass-card stat-chart-card"><h4>板块帖子分布</h4><StatBars data={stats.board_dist||[]} /></div>
+      <div className="glass-card stat-chart-card"><h4>牌阵占比</h4><StatBars data={(stats.tarot?.spread_dist||[]).map(d=>({name:d.spread,count:d.count}))} color="#b98cff" /></div>
+    </div>
+    <div className="stat-lists">
+      <div className="glass-card stat-list-card"><h4>🔮 最常出现的牌 Top 10</h4>{(stats.tarot?.top_cards||[]).length===0?<p className="stat-empty">暂无抽牌记录</p>:<ol className="stat-top-list">{stats.tarot.top_cards.map(c=><li key={c.name}><span>{c.name}</span><span className="stat-top-count">{c.count}</span></li>)}</ol>}</div>
+      <div className="glass-card stat-list-card"><h4>🤖 解读来源</h4><div className="stat-src"><div><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">AI 解读</span></div><div><span className="stat-number">{stats.tarot?.builtin_count||0}</span><span className="stat-desc">内置解读</span></div></div></div>
+    </div>
+  </div>}
   {tab==='users'&&<div className="admin-list">
     <div className="mute-bar">禁言时长：
       <select className="glass-input" value={muteMins} onChange={e=>setMuteMins(Number(e.target.value))}>
@@ -574,6 +772,41 @@ const AdminPage = ({user}) => {
       <div className="admin-post-content">{p.content?.slice(0,120)}{p.content&&p.content.length>120?'…':''}</div>
       <div className="admin-post-meta"><span>💬 {p.comment_count}</span><span>⭐ {p.star_count}</span></div>
       <div className="report-actions"><button className="danger-btn" onClick={()=>delPost(p.id)}>删除帖子</button></div>
+    </div>)}
+  </div>}
+  {tab==='boards'&&<div className="admin-list">
+    <div className="board-edit-bar">
+      <input className="glass-input" placeholder="key(英文)" value={bkKey} onChange={e=>setBkKey(e.target.value)} />
+      <input className="glass-input" placeholder="名称" value={bkName} onChange={e=>setBkName(e.target.value)} />
+      <input className="glass-input board-icon-input" placeholder="图标" value={bkIcon} onChange={e=>setBkIcon(e.target.value)} />
+      <input className="glass-input board-order-input" type="number" placeholder="排序" value={bkOrder} onChange={e=>setBkOrder(Number(e.target.value))} />
+      <button className="save-btn" onClick={saveBk}>{bkEditId?'保存修改':'添加板块'}</button>
+      {bkEditId&&<button className="glass-button btn-secondary" onClick={resetBk}>取消</button>}
+    </div>
+    {blist.length===0?<Empty icon="📋" title="暂无板块" desc="在上方添加第一个板块"/>:blist.map(b=><div key={b.id} className="glass-card admin-board-card">
+      <span className="board-icon">{b.icon}</span>
+      <span className="board-name">{b.name}</span>
+      <span className="board-key">{b.key}</span>
+      {!b.active&&<span className="board-hidden">已隐藏</span>}
+      <div className="admin-board-actions">
+        <button className="save-btn" onClick={()=>toggleBk(b)}>{b.active?'隐藏':'显示'}</button>
+        <button className="glass-button btn-secondary" onClick={()=>editBk(b)}>编辑</button>
+        <button className="danger-btn" onClick={()=>delBk(b)}>删除</button>
+      </div>
+    </div>)}
+  </div>}
+  {tab==='polls'&&<div className="admin-list">
+    <div className="poll-edit-bar">
+      <input className="glass-input" placeholder="投票问题" value={pq} onChange={e=>setPq(e.target.value)} />
+      <textarea className="glass-input poll-opts-input" rows={3} placeholder="选项，每行一个" value={popts} onChange={e=>setPopts(e.target.value)} />
+      <label className="checkbox-label"><input type="checkbox" checked={pmulti} onChange={e=>setPmulti(e.target.checked)} /><span>允许多选</span></label>
+      <button className="save-btn" onClick={savePoll}>发起投票</button>
+    </div>
+    {pollList.length===0?<Empty icon="📊" title="暂无投票" desc="在上方发起第一个投票"/>:pollList.map(p=><div key={p.id} className="glass-card admin-poll-card">
+      <div className="admin-poll-q">{p.question}</div>
+      <div className="admin-poll-meta">{p.options.length} 个选项 · {p.total_votes} 票 · {p.multi?'多选':'单选'}{p.closed&&' · 已截止'}</div>
+      <div className="admin-poll-opts">{p.options.map((o,i)=>{ const c=(p.results||[])[i]||0; const pct=p.total_votes?Math.round(c/p.total_votes*100):0; return <div key={i} className="admin-poll-opt"><span>{o}</span><span className="admin-poll-opt-pct">{c} 票 · {pct}%</span></div> })}</div>
+      <div className="report-actions"><button className="save-btn" onClick={()=>closePoll(p)}>{p.closed?'重新开启':'截止'}</button><button className="danger-btn" onClick={()=>delPoll(p)}>删除</button></div>
     </div>)}
   </div>}
   </div>
@@ -675,6 +908,8 @@ function App() {
   const [loading,setLoading] = useState(false)
   const [error,setError] = useState(null)
   const [activeCat,setActiveCat] = useState('all')
+  const [boards,setBoards] = useState(CATEGORIES)
+  useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch('/boards'); if(r.ok)setBoards(await r.json()) }catch{} }; f() },[])
   const [activeForum,setActiveForum] = useState('main')
   const [searchQ,setSearchQ] = useState('')
   const [debouncedQ,setDebouncedQ] = useState('')
@@ -887,11 +1122,12 @@ function App() {
           {user&&<div className="glass-card create-post-card"><h3>发布新帖子</h3><PostForm user={user} visibleForums={getVisibleForums()} onPostCreated={fetchPosts}/></div>}
           <div className="forum-tabs"><button className={`forum-tab ${activeForum==='all'?'active':''}`} onClick={()=>setActiveForum('all')}>全部</button>{getVisibleForums().map(f=><button key={f.code} className={`forum-tab ${activeForum===f.code?'active':''}`} onClick={()=>setActiveForum(f.code)}>{f.code==='main'?'🏠':'🏫'} {f.name}</button>)}</div>
           <div className="search-bar"><input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="搜索帖子..." className="glass-input search-input" onKeyDown={e=>{if(e.key==='Enter'){setGsSeed(searchQ);setGsOpen(true)}}}/><button className="search-go" onClick={()=>{setGsSeed(searchQ);setGsOpen(true)}} title="全局搜索">🔍</button>{searchQ&&<button className="search-clear" onClick={()=>setSearchQ('')}>✕</button>}</div>
-          <div className="category-tabs"><button className={`category-tab ${activeCat==='all'?'active':''}`} onClick={()=>setActiveCat('all')}>全部</button>{CATEGORIES.map(c=><button key={c.id} className={`category-tab ${activeCat===c.id?'active':''}`} onClick={()=>setActiveCat(c.id)}><span className="category-icon">{c.icon}</span><span className="category-name">{c.name}</span></button>)}</div>
+          <div className="category-tabs"><button className={`category-tab ${activeCat==='all'?'active':''}`} onClick={()=>setActiveCat('all')}>全部</button>{boards.map(c=><button key={c.key} className={`category-tab ${activeCat===c.key?'active':''}`} onClick={()=>setActiveCat(c.key)}><span className="category-icon">{c.icon}</span><span className="category-name">{c.name}</span></button>)}</div>
           <div className="category-tabs"><button className={`category-tab ${activeSort==='latest'?'active':''}`} onClick={()=>setActiveSort('latest')}>🕒 最新</button><button className={`category-tab ${activeSort==='hot'?'active':''}`} onClick={()=>setActiveSort('hot')}>🔥 热门</button><button className={`category-tab ${followingFeed?'active':''}`} onClick={()=>setFollowingFeed(f=>!f)}>👥 关注</button></div>
           {trendingTags.length>0&&<div className="tag-filter-row"><span className="tag-filter-label">🔥 热门标签</span><div className="tag-filter-chips">{trendingTags.slice(0,12).map(t=><button key={t.tag} className={`tag-filter-chip ${activeTag===t.tag?'active':''}`} onClick={()=>setActiveTag(prev=>prev===t.tag?'':t.tag)}>#{t.tag}<span className="tag-count">{t.count}</span></button>)}</div></div>}
           {activeTag&&<div className="active-tag-bar">正在筛选标签：#{activeTag}<button className="active-tag-clear" onClick={()=>setActiveTag('')}>✕ 清除</button></div>}
-          {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>: <><div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><Avatar src={p.author_avatar} seed={p.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}/><span className="post-author-name-small" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}>{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>CATEGORIES.find(x=>x.id===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<><button onClick={e=>{e.stopPropagation();setEditPost(p)}} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;apiFetch(`/posts/${p.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button></>}<LikeButton post={p} liked={!!myLikes[p.id]} count={p.like_count} onToggle={toggleLike}/><StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div>{p.tags&&<div className="post-tags">{p.tags.split(',').map(t=>t.trim()).filter(Boolean).map(t=><button key={t} className={`post-tag ${activeTag===t?'active':''}`} onClick={e=>{e.stopPropagation();setActiveTag(t)}}>#{t}</button>)}</div>}</div>)}</div>{hasMore&&!loading&&<div className="load-more-wrap"><button className="load-more-btn" onClick={()=>fetchPosts('more')} disabled={loadingMore}>{loadingMore?'加载中…':'加载更多'}</button></div>}</>}
+          <PollsSection/>
+          {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>: <><div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><Avatar src={p.author_avatar} seed={p.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}/><span className="post-author-name-small" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}>{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>boards.find(x=>x.key===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<><button onClick={e=>{e.stopPropagation();setEditPost(p)}} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;apiFetch(`/posts/${p.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button></>}<LikeButton post={p} liked={!!myLikes[p.id]} count={p.like_count} onToggle={toggleLike}/><StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div>{p.tags&&<div className="post-tags">{p.tags.split(',').map(t=>t.trim()).filter(Boolean).map(t=><button key={t} className={`post-tag ${activeTag===t?'active':''}`} onClick={e=>{e.stopPropagation();setActiveTag(t)}}>#{t}</button>)}</div>}</div>)}</div>{hasMore&&!loading&&<div className="load-more-wrap"><button className="load-more-btn" onClick={()=>fetchPosts('more')} disabled={loadingMore}>{loadingMore?'加载中…':'加载更多'}</button></div>}</>}
         </div>}
         {curPage==='chat'&&<div className="chat-page"><div className="chat-tabs"><button className={`chat-tab ${chatTab==='global'?'active':''}`} onClick={()=>setChatTab('global')}>💬 聊天室</button><button className={`chat-tab ${chatTab==='dm'?'active':''}`} onClick={()=>setChatTab('dm')}>✉️ 私信{dmUnread>0&&<span className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button></div>{chatTab==='global'?<div className="glass-card chat-container"><ChatRoom/></div>:<DirectMessages user={user} openConvId={openConvId} onOpenConvChange={setOpenConvId} onOpenUser={setProfileUserId}/>}</div>}
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}

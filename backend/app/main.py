@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm
+from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm, boards, polls
 
 app = FastAPI(
     title="校园树洞社区 API",
@@ -59,6 +59,8 @@ app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(tarot.router, tags=["tarot"])
 app.include_router(social.router, prefix="/api/social", tags=["social"])
 app.include_router(dm.router, prefix="/api/dm", tags=["dm"])
+app.include_router(boards.router, tags=["boards"])
+app.include_router(polls.router, tags=["polls"])
 
 @app.get("/")
 async def root():

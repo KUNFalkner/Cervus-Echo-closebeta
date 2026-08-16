@@ -6,7 +6,7 @@ echo.
 
 echo 正在启动后端服务...
 cd /d "E:\mimo code 树洞设计\backend"
-start cmd /k "python init_db.py && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
+start cmd /k ".venv\Scripts\python.exe init_db.py && .venv\Scripts\uvicorn app.main:app --reload --host 0.0.0.0 --port 8000"
 
 echo 等待后端服务启动...
 timeout /t 3 /nobreak > nul

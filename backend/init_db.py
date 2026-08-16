@@ -10,6 +10,8 @@ from app.models.notification import Notification
 from app.models.follow import Follow
 from app.models.conversation import Conversation, DirectMessage
 from app.models.tarot_history import TarotHistory
+from app.models.board import Board
+from app.models.poll import Poll, Vote
 from app.services.password import hash_password
 
 Base.metadata.create_all(bind=engine)
@@ -106,6 +108,24 @@ try:
             amb.school_id = school.code
             print(f"大使已存在，仅校正角色字段: {amb_username}")
     db.commit()
+
+    # 种子板块（话题目录）：复用原 Post.category 的 key，故存量帖子无需迁移
+    # 注意：板块名均为中性校园词，绝不含「表白」类词汇
+    if db.query(Board).count() == 0:
+        seeds = [
+            ("general", "综合", "📝", "什么都可以聊", 0),
+            ("study", "学习", "📚", "课业、备考、资料", 1),
+            ("chat", "闲聊", "💬", "日常碎碎念", 2),
+            ("game", "游戏", "🎮", "开黑、安利、攻略", 3),
+            ("feedback", "意见箱", "📮", "给树洞的建议", 4),
+            ("secondhand", "二手", "💰", "闲置转让", 5),
+            ("help", "求助", "🆘", "找人帮忙", 6),
+            ("emotion", "情感", "💗", "心情与关系", 7),
+        ]
+        for key, name, icon, desc, order in seeds:
+            db.add(Board(key=key, name=name, icon=icon, description=desc, sort_order=order, active=True))
+        db.commit()
+        print(f"已插入 {len(seeds)} 个默认板块")
 
 finally:
     db.close()
