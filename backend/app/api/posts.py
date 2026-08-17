@@ -14,7 +14,7 @@ from app.schemas.social import PostUpdate
 from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
-from app.services.notif import notify_from_comment, notify_like
+from app.services.notif import notify_from_comment, notify_like, notify_star
 from app.core.ratelimit import rate_limit
 
 router = APIRouter()
@@ -240,6 +240,29 @@ def trending_tags(
     ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
     return [{"tag": t, "count": c} for t, c in ranked]
 
+@router.get("/starred", response_model=List[PostSchema])
+def list_my_stars(
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+    limit: int = Query(50, le=200),
+):
+    """当前用户收藏（星标）的帖子列表，按收藏时间倒序。"""
+    starred = (
+        db.query(PostModel)
+        .join(UserStar, UserStar.post_id == PostModel.id)
+        .filter(UserStar.user_id == user.id)
+        .order_by(UserStar.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    author_ids = [p.user_id for p in starred]
+    authors = {u.id: u for u in db.query(UserModel).filter(UserModel.id.in_(author_ids)).all()} if author_ids else {}
+    return [
+        _mask_post(p, user, authors.get(p.user_id).avatar if authors.get(p.user_id) else None)
+        for p in starred
+    ]
+
+
 @router.get("/{post_id}", response_model=PostSchema)
 def read_post(
     post_id: int,
@@ -314,6 +337,11 @@ def star_post(
         author.karma += 1
         author.star_count += 1
     db.commit()
+    # 通知帖子作者被收藏（自己收藏自己的帖子已在上面拦截）
+    try:
+        notify_star(db, post=post, actor=user)
+    except Exception:
+        pass
     return {"message": "加星成功", "star_count": post.star_count, "starred": True}
 
 @router.delete("/{post_id}/star")

@@ -70,3 +70,12 @@ def notify_like(db: Session, *, post, actor: UserModel) -> None:
         actor_name=actor.nickname or actor.username,
         ntype="like", post_id=post.id, post_title=post.title,
     )
+
+
+def notify_star(db: Session, *, post, actor: UserModel) -> None:
+    """收藏（星标）通知帖子作者。"""
+    create_notification(
+        db, recipient_id=post.user_id, actor_id=actor.id,
+        actor_name=actor.nickname or actor.username,
+        ntype="star", post_id=post.id, post_title=post.title,
+    )
