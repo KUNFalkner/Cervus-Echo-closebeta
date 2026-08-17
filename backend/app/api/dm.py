@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime, timezone
+import json
 import logging
 
 from app.auth import require_user
@@ -15,6 +16,7 @@ from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
 from app.services.notif import create_notification
 from app.core.ratelimit import rate_limit
+from app.api.chat import manager as ws_manager  # 复用聊天 WS 的连接管理器，向 dm/{conv_id} 房间广播信令
 
 router = APIRouter(tags=["dm"])
 
@@ -100,7 +102,7 @@ def create_conversation(
 
 
 @router.get("/conversations/{conv_id}/messages")
-def list_messages(
+async def list_messages(
     conv_id: int,
     limit: int = Query(50, ge=1, le=100),
     before: int = None,
@@ -117,10 +119,23 @@ def list_messages(
         q = q.filter(DirectMessage.id < before)
     msgs = q.order_by(DirectMessage.id.desc()).limit(limit).all()[::-1]
     # 收信方打开会话即标记已读
+    read_ids = []
     for m in msgs:
         if m.sender_id != user.id and not m.read:
             m.read = True
+            read_ids.append(m.id)
     db.commit()
+    # 已读回执：实时通知发信方（发信方正停留在该会话即可收到）
+    if read_ids:
+        try:
+            await ws_manager.broadcast(f"dm/{conv_id}", json.dumps({
+                "type": "read",
+                "conversation_id": conv_id,
+                "message_ids": read_ids,
+                "reader_id": user.id,
+            }, ensure_ascii=False))
+        except Exception:
+            logging.getLogger(__name__).exception("DM read-receipt broadcast failed")
     return [{
         "id": m.id,
         "conversation_id": m.conversation_id,
@@ -132,7 +147,7 @@ def list_messages(
 
 
 @router.post("/conversations/{conv_id}/messages")
-def send_message(
+async def send_message(
     conv_id: int,
     body: SendMessage,
     user: UserModel = Depends(require_user),
@@ -168,6 +183,19 @@ def send_message(
     except Exception:
         # 通知写入失败不应阻断私信主流程，但需记录以便排查
         logging.getLogger(__name__).exception("create DM notification failed")
+    # 实时推送新消息给同房间对方（对方正停留在该会话即可秒收；否则依赖轮询/重新打开）
+    try:
+        await ws_manager.broadcast(f"dm/{conv_id}", json.dumps({
+            "type": "message",
+            "id": msg.id,
+            "conversation_id": conv_id,
+            "sender_id": user.id,
+            "content": content,
+            "read": False,
+            "created_at": _iso(msg.created_at),
+        }, ensure_ascii=False))
+    except Exception:
+        logging.getLogger(__name__).exception("DM live-message broadcast failed")
     return {
         "id": msg.id,
         "conversation_id": conv_id,

@@ -1748,6 +1748,15 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   border: none; border-radius: 14px; border-top-right-radius: 4px;
 }
 .dm-msg-time { color: var(--faint); font-size: .68rem; padding: 0 .3rem; }
+.dm-msg-meta { display: flex; align-items: center; gap: .25rem; padding: 0 .3rem; }
+.dm-msg-receipt { color: var(--faint); font-size: .66rem; }
+.dm-message.own .dm-msg-receipt { color: var(--chip-active-fg); }
+.dm-search-row { padding: .4rem .6rem 0; }
+.dm-search-input { width: 100%; font-size: .85rem; }
+.dm-typing { display: flex; align-items: center; gap: .4rem; padding: .2rem .6rem .1rem; color: var(--muted); font-size: .78rem; }
+.dm-typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--chip-active-fg); animation: dm-typing-pulse 1s infinite ease-in-out; }
+.dm-typing-text { opacity: .85; }
+@keyframes dm-typing-pulse { 0%,100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
 /* 私信输入框复用 .chat-input-form / .chat-input / .chat-send-btn（已定义） */
 
 /* 私信列表项内的未读徽标：相对会话项定位到右上角 */

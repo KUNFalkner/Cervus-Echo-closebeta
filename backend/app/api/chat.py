@@ -164,6 +164,15 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
                 # 畸形帧直接丢弃，不能让整条连接陪葬
                 continue
 
+            # 输入中状态等信令：仅转发给同房间其他人，不落库
+            msg_type = message.get("type")
+            if msg_type in ("typing", "stop"):
+                await manager.broadcast(room_id, json.dumps({
+                    "type": msg_type,
+                    "sender_id": user_id,
+                }, ensure_ascii=False))
+                continue
+
             content = (message.get("content") or "").strip()
             if not content:
                 continue

@@ -572,15 +572,37 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const [input,setInput]=useState('');
   const [loadingConv,setLoadingConv]=useState(false);
   const [sending,setSending]=useState(false);
+  const [peerTyping,setPeerTyping]=useState(false);
+  const [dmSearch,setDmSearch]=useState('');
   const listRef=useRef(null);
+  const wsRef=useRef(null);
+  const typingTimer=useRef(null);
   const meId=user?.id;
   const loadConvs=useCallback(async()=>{ try{ const r=await apiFetch('/dm/conversations'); if(r.ok)setConvs(await r.json()) }catch{} },[]);
   useEffect(()=>{ loadConvs() },[loadConvs]);
-  const openConv=useCallback(async(id)=>{ setActiveConv(id); setLoadingConv(true); onOpenConvChange&&onOpenConvChange(id);
+  const openConv=useCallback(async(id)=>{ setActiveConv(id); setLoadingConv(true); setPeerTyping(false); setDmSearch(''); onOpenConvChange&&onOpenConvChange(id);
     try{ const r=await apiFetch(`/dm/conversations/${id}/messages`); if(r.ok)setMessages(await r.json()) }catch{} finally{ setLoadingConv(false) } },[onOpenConvChange]);
   useEffect(()=>{ if(openConvId){ openConv(openConvId) } },[openConvId,openConv]);
-  const send=async(e)=>{ e.preventDefault(); if(!input.trim()||!activeConv)return; setSending(true);
-    const tmpId='tmp-'+Date.now(); const opt={id:tmpId,conversation_id:activeConv,sender_id:meId,content:input,read:true,created_at:new Date().toISOString(),_pending:true};
+  // 会话级 WebSocket：接收「输入中 / 已读 / 新消息」信令（房间 dm/{conv_id}，与聊天共用连接管理器）
+  useEffect(()=>{
+    if(activeConv==null) return
+    let ws
+    try{ ws=new WebSocket(`${WS_BASE}/dm/${activeConv}?token=${encodeURIComponent(getToken())}`) }catch(e){ return }
+    wsRef.current=ws
+    ws.onmessage=(ev)=>{ try{
+      const d=JSON.parse(ev.data)
+      if(d.type==='typing'){ if(d.sender_id!==meId) setPeerTyping(true) }
+      else if(d.type==='stop'){ setPeerTyping(false) }
+      else if(d.type==='read'){ const ids=new Set(d.message_ids||[]); setMessages(prev=>prev.map(m=>ids.has(m.id)?{...m,read:true}:m)) }
+      else if(d.type==='message'){ if(d.sender_id!==meId) setMessages(prev=>prev.some(x=>x.id===d.id)?prev:[...prev,d]) }
+    }catch(e){} }
+    return ()=>{ try{ ws.close() }catch(e){}; wsRef.current=null }
+  },[activeConv,meId]);
+  const sendTyping=()=>{ const ws=wsRef.current; if(!ws||ws.readyState!==WebSocket.OPEN)return; try{ ws.send(JSON.stringify({type:'typing'})) }catch(e){}; if(typingTimer.current)clearTimeout(typingTimer.current); typingTimer.current=setTimeout(()=>{ try{ wsRef.current&&wsRef.current.send(JSON.stringify({type:'stop'})) }catch(e){} },1500) };
+  const stopTyping=()=>{ if(typingTimer.current)clearTimeout(typingTimer.current); const ws=wsRef.current; if(ws&&ws.readyState===WebSocket.OPEN){ try{ ws.send(JSON.stringify({type:'stop'})) }catch(e){} } };
+  const onDmInput=(e)=>{ setInput(e.target.value); sendTyping() };
+  const send=async(e)=>{ e.preventDefault(); if(!input.trim()||!activeConv)return; setSending(true); stopTyping();
+    const tmpId='tmp-'+Date.now(); const opt={id:tmpId,conversation_id:activeConv,sender_id:meId,content:input,read:false,created_at:new Date().toISOString(),_pending:true};
     setMessages(prev=>[...prev,opt]); setInput('');
     try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages`,{method:'POST',body:JSON.stringify({content:input})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)) }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') }finally{ setSending(false) } };
   useEffect(()=>{ const el=listRef.current; if(!el)return; const m=el.querySelector('.dm-message:last-child'); if(m&&!prefersReduced())gsap.fromTo(m,{opacity:0,y:8},{opacity:1,y:0,duration:.25,ease:'power2.out',clearProps:'opacity,transform'}) },[messages.length]);
@@ -594,16 +616,20 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     </div>
   }
   const peer=convs.find(c=>c.id===activeConv)?.peer;
+  const q=dmSearch.trim().toLowerCase();
+  const shown=q?messages.filter(m=>(m.content||'').toLowerCase().includes(q)):messages;
   return <div className="dm-page dm-thread">
-    <div className="dm-thread-head"><button className="dm-back" onClick={()=>{setActiveConv(null);onOpenConvChange&&onOpenConvChange(null);loadConvs()}}>←</button>
+    <div className="dm-thread-head"><button className="dm-back" onClick={()=>{stopTyping();setActiveConv(null);onOpenConvChange&&onOpenConvChange(null);loadConvs()}}>←</button>
       <Avatar src={peer?.avatar} seed={peer?.nickname} className="dm-conv-avatar"/>
       <span className="dm-conv-name" onClick={()=>peer?.id&&onOpenUser&&onOpenUser(peer.id)}>{peer?.nickname||'用户'}</span>
     </div>
+    <div className="dm-search-row"><input value={dmSearch} onChange={e=>setDmSearch(e.target.value)} placeholder="搜索对话内容…" className="glass-input dm-search-input"/></div>
     <div className="dm-messages" ref={listRef}>
-      {loadingConv?<Spinner/>:messages.length===0?<Empty icon="💬" title="还没有消息" desc="发送第一条消息吧"/>:
-        messages.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`}><span className="dm-msg-content">{m.content}</span><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span></div>)}
+      {loadingConv?<Spinner/>:shown.length===0?<Empty icon="💬" title={q?'没有匹配的消息':'还没有消息'} desc={q?'换个关键词试试':'发送第一条消息吧'}/>:
+        shown.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`}><span className="dm-msg-content">{m.content}</span><span className="dm-msg-meta"><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span>{m.sender_id===meId&&<span className="dm-msg-receipt">{m.read?'已读':'✓'}</span>}</span></div>)}
+      {peerTyping&&<div className="dm-typing"><span className="dm-typing-dot"/><span className="dm-typing-text">对方正在输入…</span></div>}
     </div>
-    <form onSubmit={send} className="chat-input-form"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="输入私信..." className="glass-input chat-input" disabled={sending}/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||sending}>发送</button></form>
+    <form onSubmit={send} className="chat-input-form"><input value={input} onChange={onDmInput} placeholder="输入私信..." className="glass-input chat-input" disabled={sending}/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||sending}>发送</button></form>
   </div>
 }
 
