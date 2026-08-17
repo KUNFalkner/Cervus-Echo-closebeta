@@ -1761,6 +1761,12 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .gs-post-title { font-weight: 600; font-size: .95rem; }
 .gs-post-meta { display: flex; gap: .6rem; font-size: .8rem; color: var(--chip-fg); opacity: .85; min-width: 0; }
 .gs-post-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.gs-hl { background: rgba(212,175,55,.28); color: inherit; border-radius: 3px; padding: 0 1px; font-weight: 600; }
+.gs-comment-list { display: flex; flex-direction: column; gap: .2rem; }
+.gs-comment-item { display: flex; flex-direction: column; gap: .2rem; padding: .55rem .6rem; border-radius: 10px; border: none; background: transparent; color: inherit; cursor: pointer; text-align: left; font-family: inherit; }
+.gs-comment-item:hover { background: var(--chip-bg); }
+.gs-comment-text { font-size: .92rem; line-height: 1.4; }
+.gs-comment-meta { font-size: .78rem; color: var(--chip-fg); opacity: .8; }
 
 /* 搜索栏 🔍 触发按钮 */
 .search-go { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 8px; padding: 0 .7rem; cursor: pointer; font-size: .9rem; flex: none; }

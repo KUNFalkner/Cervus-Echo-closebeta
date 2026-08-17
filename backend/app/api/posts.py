@@ -211,6 +211,44 @@ def read_posts(
     avatar_map = _avatar_map(db, [p.user_id for p in posts])
     return [_mask_post(p, current_user, avatar_map.get(p.user_id)) for p in posts]
 
+@router.get("/comments/search")
+def search_comments(
+    q: str = Query(..., min_length=1, max_length=40, description="搜索评论内容"),
+    limit: int = Query(20, le=100),
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """全局搜索评论内容，返回匹配评论及其所属帖子信息（带论坛可见性过滤）。"""
+    if current_user and current_user.role in ["founder", "ambassador"]:
+        visible_forums = None
+    else:
+        visible_forums = ["main"]
+        if current_user and current_user.school_id:
+            visible_forums.append(current_user.school_id)
+    query = (
+        db.query(CommentModel, PostModel)
+        .join(PostModel, PostModel.id == CommentModel.post_id)
+    )
+    if visible_forums is not None:
+        query = query.filter(PostModel.forum.in_(visible_forums))
+    query = query.filter(CommentModel.content.contains(q))
+    query = query.order_by(CommentModel.created_at.desc()).limit(limit)
+    out = []
+    for c, post in query.all():
+        out.append({
+            "id": c.id,
+            "post_id": c.post_id,
+            "user_id": c.user_id,
+            "content": c.content,
+            "display_name": c.display_name,
+            "parent_id": c.parent_id,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+            "post_title": post.title,
+            "post_forum": post.forum,
+        })
+    return out
+
+
 @router.get("/tags/trending")
 def trending_tags(
     limit: int = 20,

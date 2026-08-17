@@ -10,13 +10,28 @@ async function apiFetch(path, opts = {}) {
   return fetch(API_BASE + path, { ...opts, headers })
 }
 
-// 全局搜索遮罩：输入防抖后并行拉「用户」与「帖子」，分区展示。
-// 点击用户 → onOpenUser(id)；点击帖子 → onOpenPost(post)。ESC / 点遮罩关闭。
+// 安全高亮：按关键词切分，匹配片段用 <mark> 包裹；全程走 React 文本节点，
+// 不使用 dangerouslySetInnerHTML（避免 XSS）。
+function escapeReg(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+function Highlight({ text, q }) {
+  const t = text == null ? '' : String(text)
+  if (!t || !q) return <>{t}</>
+  const parts = t.split(new RegExp(`(${escapeReg(q)})`, 'ig'))
+  return <>{parts.map((part, i) =>
+    part.toLowerCase() === q.toLowerCase()
+      ? <mark key={i} className="gs-hl">{part}</mark>
+      : <span key={i}>{part}</span>
+  )}</>
+}
+
+// 全局搜索遮罩：输入防抖后并行拉「用户 / 帖子 / 评论」，分区展示。
+// 点击用户 → onOpenUser(id)；点击帖子/评论 → onOpenPost(post)。ESC / 点遮罩关闭。
 export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpenPost, Avatar }) {
   const [q, setQ] = useState(initial)
   const [debounced, setDebounced] = useState(initial.trim())
   const [users, setUsers] = useState([])
   const [posts, setPosts] = useState([])
+  const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const inputRef = useRef(null)
@@ -49,10 +64,12 @@ export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpen
     Promise.all([
       apiFetch(`/users/search?q=${enc}`).then(r => r.ok ? r.json() : []),
       apiFetch(`/posts/?search=${enc}&limit=20`).then(r => r.ok ? r.json() : []),
-    ]).then(([u, p]) => {
+      apiFetch(`/posts/comments/search?q=${enc}&limit=20`).then(r => r.ok ? r.json() : []),
+    ]).then(([u, p, c]) => {
       if (!alive) return
       setUsers(Array.isArray(u) ? u : [])
       setPosts(Array.isArray(p) ? p : [])
+      setComments(Array.isArray(c) ? c : [])
       setLoading(false)
     }).catch(() => {
       if (!alive) return
@@ -64,6 +81,13 @@ export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpen
 
   const openUser = (id) => { onOpenUser(id); onClose() }
   const openPost = (p) => { onOpenPost(p); onClose() }
+  const openComment = async (c) => {
+    try {
+      const r = await apiFetch(`/posts/${c.post_id}`)
+      if (r.ok) { onOpenPost(await r.json()); onClose(); return }
+    } catch {}
+    onClose()
+  }
 
   return (
     <div className="global-search-overlay" onClick={onClose}>
@@ -85,7 +109,7 @@ export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpen
           <div className="gs-loading">搜索中…</div>
         ) : error ? (
           <div className="gs-hint gs-error">{error}</div>
-        ) : (users.length === 0 && posts.length === 0) ? (
+        ) : (users.length === 0 && posts.length === 0 && comments.length === 0) ? (
           <div className="gs-hint">没有找到与「{debounced}」相关的内容</div>
         ) : (
           <div className="gs-results">
@@ -96,7 +120,7 @@ export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpen
                   {users.map(u => (
                     <button key={u.id} className="gs-user-item" onClick={() => openUser(u.id)}>
                       <Avatar src={u.avatar} seed={u.nickname} className="gs-avatar" />
-                      <span className="gs-user-name">{u.nickname}</span>
+                      <span className="gs-user-name"><Highlight text={u.nickname} q={debounced} /></span>
                       {u.role === 'founder' && <span className="gs-role role-founder">创始人</span>}
                       {u.role === 'ambassador' && <span className="gs-role role-ambassador">大使</span>}
                     </button>
@@ -110,11 +134,24 @@ export default function GlobalSearch({ initial = '', onClose, onOpenUser, onOpen
                 <div className="gs-post-list">
                   {posts.map(p => (
                     <button key={p.id} className="gs-post-item" onClick={() => openPost(p)}>
-                      <span className="gs-post-title">{p.title || '(无标题)'}</span>
+                      <span className="gs-post-title"><Highlight text={p.title || '(无标题)'} q={debounced} /></span>
                       <span className="gs-post-meta">
                         {p.display_name && <span className="gs-post-author">{p.display_name}</span>}
-                        {p.content && <span className="gs-post-preview">{p.content.slice(0, 50)}</span>}
+                        {p.content && <span className="gs-post-preview"><Highlight text={p.content.slice(0, 50)} q={debounced} /></span>}
                       </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+            {comments.length > 0 && (
+              <section className="gs-section">
+                <h4 className="gs-section-title">评论 · {comments.length}</h4>
+                <div className="gs-comment-list">
+                  {comments.map(c => (
+                    <button key={c.id} className="gs-comment-item" onClick={() => openComment(c)}>
+                      <span className="gs-comment-text"><Highlight text={c.content} q={debounced} /></span>
+                      <span className="gs-comment-meta">「{c.post_title}」{c.display_name ? ` · ${c.display_name}` : ''}</span>
                     </button>
                   ))}
                 </div>
