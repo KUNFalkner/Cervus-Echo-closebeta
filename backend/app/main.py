@@ -46,7 +46,31 @@ def _migrate_comment_parent():
         print(f"[MIGRATE] 跳过 comments.parent_id 迁移: {_e}")
 
 
+def _migrate_comment_fields():
+    """评论插图 + 编辑标记所需的列（幂等）。"""
+    try:
+        from sqlalchemy import inspect as _sa_inspect, text as _text
+        from app.models.database import engine
+        _insp = _sa_inspect(engine)
+        _cols = [c["name"] for c in _insp.get_columns("comments")]
+        _added = []
+        for _col, _sql in [
+            ("images", "ALTER TABLE comments ADD COLUMN images STRING"),
+            ("edited", "ALTER TABLE comments ADD COLUMN edited BOOLEAN"),
+            ("edited_at", "ALTER TABLE comments ADD COLUMN edited_at TIMESTAMP"),
+        ]:
+            if _col not in _cols:
+                with engine.begin() as _conn:
+                    _conn.execute(_text(_sql))
+                _added.append(_col)
+        if _added:
+            print(f"[MIGRATE] comments 已添加列: {', '.join(_added)}")
+    except Exception as _e:
+        print(f"[MIGRATE] 跳过 comments 字段迁移: {_e}")
+
+
 _migrate_comment_parent()
+_migrate_comment_fields()
 
 # ── 增量迁移：全文搜索 FTS5 虚拟表 ───────────────────────────────────────
 # 启动时幂等建表并回填存量数据，新帖/新评论在写库时实时同步索引。

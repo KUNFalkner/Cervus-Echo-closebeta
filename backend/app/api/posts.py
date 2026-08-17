@@ -538,6 +538,7 @@ def create_comment(
     data["post_id"] = post_id
     data["user_id"] = user.id
     data["user_uid"] = user.uid
+    data["images"] = ",".join(comment.images) if comment.images else None
     db_comment = CommentModel(**data)
     db.add(db_comment)
     post.comment_count += 1
@@ -641,6 +642,11 @@ def update_comment(
     if not body.content.strip():
         raise HTTPException(status_code=400, detail="评论内容不能为空")
     comment.content = body.content
+    if body.images is not None:
+        comment.images = ",".join(body.images) if body.images else None
+    comment.edited = True
+    from datetime import datetime, timezone
+    comment.edited_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(comment)
     # 重新索引

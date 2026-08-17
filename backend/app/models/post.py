@@ -36,4 +36,7 @@ class Comment(Base):
     hide_uid = Column(Boolean, default=False)
     # 楼中楼：父评论 id；NULL 表示顶层评论。自引用，不强制外键以保证迁移简单。
     parent_id = Column(Integer, default=None, index=True)
+    images = Column(String, default=None)  # 逗号分隔的图片 URL 列表（与帖子图一致，存 /uploads/xxx.webp）
+    edited = Column(Boolean, default=False)  # 是否被编辑过（前端展示「已编辑」标记）
+    edited_at = Column(DateTime(timezone=True), default=None)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

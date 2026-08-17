@@ -70,6 +70,7 @@ class Post(PostBase):
 
 class CommentBase(BaseModel):
     content: str
+    images: Optional[List[str]] = None  # 图片 URL 列表
 
 class CommentCreate(CommentBase):
     # post_id 取自路径，user_id / user_uid 取自 JWT 认证结果
@@ -78,7 +79,7 @@ class CommentCreate(CommentBase):
     parent_id: Optional[int] = None  # 楼中楼：回复的父评论 id；NULL=顶层
 
 class CommentUpdate(CommentBase):
-    # 编辑评论只改内容
+    # 编辑评论：可改内容与图片
     pass
 
 class Comment(CommentBase):
@@ -90,7 +91,23 @@ class Comment(CommentBase):
     hide_uid: bool = False
     parent_id: Optional[int] = None  # 楼中楼：父评论 id；NULL=顶层
     author_avatar: Optional[str] = None
+    edited: bool = False
+    edited_at: Optional[datetime] = None
     created_at: datetime
+
+    @field_validator("images", mode="before")
+    @classmethod
+    def _split_images(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            return [u for u in v.split(",") if u.strip()]
+        return v or []
+
+    @field_validator("edited", mode="before")
+    @classmethod
+    def _default_false(cls, v):
+        return False if v is None else v
 
     class Config:
         from_attributes = True
