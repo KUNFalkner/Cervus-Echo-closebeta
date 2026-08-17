@@ -1183,7 +1183,15 @@ function App() {
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost} onOpenUser={setProfileUserId}/>}
       </main>
-      <nav className="mobile-nav"><button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}>管理</button>}<button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}>我的</button><button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button><button className="mobile-nav-item mobile-nav-icon" onClick={()=>{setGsSeed('');setGsOpen(true)}}><span className="nav-icon">🔍</span><span className="nav-label">搜索</span></button><button className="mobile-nav-item mobile-nav-icon" onClick={toggleTheme}><span className="nav-icon">{theme==='auto'?'🌗':isLight?'☀️':'🌙'}</span><span className="nav-label">{theme==='auto'?'自动':isLight?'白天':'夜间'}</span></button></nav>
+      <nav className="mobile-nav">
+        <button className={`mobile-nav-item ${curPage==='home'?'active':''}`} onClick={()=>setCurPage('home')}><span className="nav-icon">🏠</span><span className="nav-label">首页</span></button>
+        {isAdmin&&<button className={`mobile-nav-item ${curPage==='admin'?'active':''}`} onClick={()=>setCurPage('admin')}><span className="nav-icon">🛡️</span><span className="nav-label">管理</span></button>}
+        <button className={`mobile-nav-item ${curPage==='chat'?'active':''}`} onClick={()=>setCurPage('chat')}><span className="nav-icon">💬</span><span className="nav-label">消息</span>{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button>
+        <button className={`mobile-nav-item ${curPage==='profile'?'active':''}`} onClick={()=>setCurPage('profile')}><span className="nav-icon">👤</span><span className="nav-label">我的</span></button>
+        <button className={`mobile-nav-item ${notifOpen?'active':''}`} onClick={toggleNotif}><span className="nav-icon">🔔</span><span className="nav-label">通知</span>{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
+        <button className="mobile-nav-item" onClick={()=>{setGsSeed('');setGsOpen(true)}}><span className="nav-icon">🔍</span><span className="nav-label">搜索</span></button>
+        <button className="mobile-nav-item" onClick={toggleTheme}><span className="nav-icon">{theme==='auto'?'🌗':isLight?'☀️':'🌙'}</span><span className="nav-label">{theme==='auto'?'自动':isLight?'白天':'夜间'}</span></button>
+      </nav>
     </div>}
     {user && <><TarotOrb onOpen={() => setTarotOpen(true)} />
     <TarotOverlay open={tarotOpen} onClose={() => setTarotOpen(false)} /></>}

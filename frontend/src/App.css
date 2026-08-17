@@ -167,25 +167,33 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--nav-bd);
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.5rem calc(0.4rem + env(safe-area-inset-bottom, 0px));
   justify-content: space-around;
 }
 .mobile-nav button {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  background: none; border: none; color: var(--nav-fg); font-size: 0.7rem;
-  cursor: pointer; padding: 0.25rem; font-family: inherit;
+  background: none; border: none; color: var(--nav-fg); font-size: 0.66rem;
+  cursor: pointer; padding: 0.25rem 0.1rem; font-family: inherit;
+  min-width: 48px; min-height: 48px; position: relative;
 }
 .mobile-nav button.active { color: var(--nav-fg-strong); }
-.mobile-nav .nav-icon { font-size: 1.3rem; }
+.mobile-nav .nav-icon { font-size: 1.35rem; line-height: 1; }
+.mobile-nav .nav-label { white-space: nowrap; }
+.mobile-nav .notif-badge {
+  position: absolute; top: 2px; right: 4px;
+  font-size: 0.55rem; min-width: 14px; height: 14px;
+  padding: 0 0.22rem; border-radius: 99px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 
 @media (max-width: 640px) {
   .nav-links { display: none; }
-  .mobile-nav { display: flex; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px)); }
+  .mobile-nav { display: flex; }
   .main-content { padding-bottom: 5.5rem; }
   .notif-panel { top: 56px; right: 0.5rem; left: 0.5rem; width: auto; }
 }
 @media (max-width: 420px) {
-  .nav-title { display: none; }
+  .nav-title { font-size: 1rem; }
   .user-info .user-nickname { display: none; }
   .user-info { gap: 0; }
 }
@@ -1778,11 +1786,11 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   .global-search-panel { max-height: 84vh; }
 }
 
-/* 超窄屏：搜索和主题切换只显示图标，释放横向空间 */
+/* 超窄屏：底部导航只显示图标，释放横向空间 */
 @media (max-width: 360px) {
-  .mobile-nav button { font-size: .55rem; padding: .2rem .12rem; min-height: 44px; }
-  .mobile-nav-item.mobile-nav-icon .nav-label { display: none; }
-  .mobile-nav-item .nav-icon { font-size: 1.25rem; }
+  .mobile-nav button { padding: .2rem .05rem; min-height: 44px; }
+  .mobile-nav-item .nav-label { display: none; }
+  .mobile-nav-item .nav-icon { font-size: 1.35rem; }
 }
 
 /* ═══════════════ 全站移动端精修（方向4 收尾）══════════════ */
