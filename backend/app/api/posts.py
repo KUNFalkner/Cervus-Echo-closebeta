@@ -308,6 +308,90 @@ def trending_tags(
     ranked = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:limit]
     return [{"tag": t, "count": c} for t, c in ranked]
 
+@router.get("/tags/{tag}")
+def tag_detail(
+    tag: str,
+    sort: Optional[str] = Query("latest", description="排序：latest(默认) / hot(按点赞+评论+收藏加权降序)"),
+    limit: int = Query(50, le=200),
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """话题标签聚合页：返回该标签下的帖子（最新/热度）、参与人数、参与人头像等（带论坛可见性过滤）。"""
+    tag = (tag or "").strip()
+    if not tag:
+        raise HTTPException(status_code=400, detail="标签不能为空")
+    # 论坛可见性（与 read_posts 一致）
+    if current_user:
+        visible_forums = ["main"]
+        if current_user.school_id:
+            visible_forums.append(current_user.school_id)
+        if current_user.role in ["founder", "ambassador"]:
+            visible_forums = None
+    else:
+        visible_forums = ["main"]
+    query = db.query(PostModel)
+    if visible_forums is not None:
+        query = query.filter(PostModel.forum.in_(visible_forums))
+    # 意见箱隐私：只有本人、本校大使、创始人能看到
+    if current_user:
+        if current_user.role == "founder":
+            pass
+        elif current_user.role == "ambassador":
+            query = query.filter(
+                (~PostModel.category.contains("feedback")) |
+                (PostModel.user_school == current_user.school_id) |
+                (PostModel.user_id == current_user.id)
+            )
+        else:
+            query = query.filter(
+                (~PostModel.category.contains("feedback")) |
+                (PostModel.user_id == current_user.id)
+            )
+    # 标签以逗号分隔存储，需按分隔符匹配
+    query = query.filter(
+        (PostModel.tags == tag) |
+        PostModel.tags.like(f"%,{tag},%") |
+        PostModel.tags.like(f"{tag},%") |
+        PostModel.tags.like(f"%,{tag}")
+    )
+    _hot = (PostModel.like_count * 2 + PostModel.comment_count * 3 + PostModel.star_count * 2)
+    if sort == "hot":
+        query = query.order_by(PostModel.is_announcement.desc(), _hot.desc(), PostModel.created_at.desc())
+    else:
+        query = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc())
+    posts = query.limit(limit).all()
+    post_count = len(posts)
+    # 参与人（去重）+ 头像
+    seen = set()
+    participant_ids = []
+    for p in posts:
+        if p.user_id not in seen:
+            seen.add(p.user_id)
+            participant_ids.append(p.user_id)
+    participant_count = len(participant_ids)
+    participants = []
+    if participant_ids:
+        users = db.query(UserModel).filter(UserModel.id.in_(participant_ids)).all()
+        umap = {u.id: u for u in users}
+        # 保持与帖子出现顺序一致
+        for uid in participant_ids:
+            u = umap.get(uid)
+            if u:
+                participants.append({
+                    "id": u.id,
+                    "display_name": u.nickname,
+                    "avatar": u.avatar,
+                    "school_id": u.school_id,
+                })
+    avatar_map = _avatar_map(db, [p.user_id for p in posts])
+    return {
+        "tag": tag,
+        "post_count": post_count,
+        "participant_count": participant_count,
+        "participants": participants,
+        "posts": [_mask_post(p, current_user, avatar_map.get(p.user_id)) for p in posts],
+    }
+
 @router.get("/starred", response_model=List[PostSchema])
 def list_my_stars(
     user: UserModel = Depends(require_user),

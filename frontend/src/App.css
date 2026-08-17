@@ -322,6 +322,24 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 .active-tag-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; color: var(--ink); margin-bottom: 0.5rem; }
 .active-tag-clear { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-fg); border-radius: 99px; padding: 0.1rem 0.5rem; font-size: 0.75rem; cursor: pointer; font-family: inherit; }
 
+/* 帖子卡片 / 详情里的 #标签（可点击进入话题聚合页） */
+.post-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.5rem 0 0.1rem; }
+.post-tags-detail { margin: 0.4rem 0 0; }
+.post-tag-chip { background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--chip-active-fg); border-radius: 99px; padding: 0.12rem 0.55rem; font-size: 0.74rem; cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap; }
+.post-tag-chip:hover { border-color: var(--chip-active-bd); background: var(--chip-active-bg); color: var(--chip-active-fg); }
+
+/* 话题标签聚合页 TagDetail */
+.nav-back { background: none; border: none; color: var(--muted); font-family: inherit; font-size: 0.9rem; cursor: pointer; padding: 0.2rem 0.3rem; display: inline-flex; align-items: center; gap: 0.25rem; }
+.nav-back:hover { color: var(--ink); }
+.tag-detail-page { display: flex; flex-direction: column; gap: 0.75rem; }
+.tag-detail-head { padding: 0.9rem 1rem; }
+.tag-detail-title { font-size: 1.4rem; font-weight: 800; background: linear-gradient(135deg, var(--gold, #d4af37), #f3d27a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.tag-detail-stats { display: flex; gap: 1rem; margin-top: 0.4rem; font-size: 0.85rem; color: var(--muted); }
+.tag-participants { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.6rem; }
+.tag-participant { background: none; border: none; padding: 0; cursor: pointer; border-radius: 50%; line-height: 0; }
+.tag-participant-avatar { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--chip-bd); transition: transform 0.15s; }
+.tag-participant:hover .tag-participant-avatar { transform: scale(1.12); border-color: var(--chip-active-bd); }
+
 /* Post detail */
 .post-detail { position: relative; z-index: 1; padding: 1rem; max-width: 640px; margin: 0 auto; }
 .back-btn { display: inline-flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem; color: var(--muted); }
