@@ -48,6 +48,15 @@ def _migrate_comment_parent():
 
 _migrate_comment_parent()
 
+# ── 增量迁移：全文搜索 FTS5 虚拟表 ───────────────────────────────────────
+# 启动时幂等建表并回填存量数据，新帖/新评论在写库时实时同步索引。
+try:
+    from app.search_index import ensure_fts_tables, backfill_fts
+    ensure_fts_tables()
+    backfill_fts()
+except Exception as _e:
+    print(f"[FTS] 初始化失败（搜索将回退 LIKE）: {_e}")
+
 # 构建后的前端目录（production preview 同源托管用）
 _DIST = pathlib.Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 

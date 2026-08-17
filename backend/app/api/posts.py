@@ -16,6 +16,10 @@ from app.services.sensitive_words import sensitive_filter
 from app.services.mute import is_muted, mute_message
 from app.services.notif import notify_from_comment, notify_like, notify_star
 from app.core.ratelimit import rate_limit
+from app.search_index import (
+    index_post, remove_post, index_comment, remove_comment,
+    search_post_ids, search_comment_ids,
+)
 
 router = APIRouter()
 
@@ -120,6 +124,12 @@ def create_post(
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
+    # 同步全文索引
+    try:
+        index_post(db, db_post)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 索引帖子失败: {_e}")
     return _mask_post(db_post, user, author_avatar=user.avatar)
 
 @router.get("/", response_model=List[PostSchema])
@@ -188,9 +198,20 @@ def read_posts(
             # 没关注任何人，直接返回空结果（避免全量泄露）
             query = query.filter(PostModel.id == -1)
     if search:
-        query = query.filter(
-            (PostModel.title.contains(search)) | (PostModel.content.contains(search))
-        )
+        # ≥3 字走 FTS5 全文索引（trigram 子串匹配），更准更快；<3 字回退 LIKE
+        if len(search) >= 3:
+            try:
+                ids = search_post_ids(db, search)
+                query = query.filter(PostModel.id.in_(ids)) if ids else query.filter(PostModel.id == -1)
+            except Exception as _e:
+                print(f"[FTS] 帖子搜索回退 LIKE: {_e}")
+                query = query.filter(
+                    (PostModel.title.contains(search)) | (PostModel.content.contains(search))
+                )
+        else:
+            query = query.filter(
+                (PostModel.title.contains(search)) | (PostModel.content.contains(search))
+            )
     if tag:
         # 标签以逗号分隔存储，需按分隔符匹配，避免多标签帖子在筛选时漏掉
         query = query.filter(
@@ -231,7 +252,16 @@ def search_comments(
     )
     if visible_forums is not None:
         query = query.filter(PostModel.forum.in_(visible_forums))
-    query = query.filter(CommentModel.content.contains(q))
+    # ≥3 字走 FTS5 全文索引，<3 字回退 LIKE
+    if len(q) >= 3:
+        try:
+            ids = search_comment_ids(db, q)
+            query = query.filter(CommentModel.id.in_(ids)) if ids else query.filter(CommentModel.id == -1)
+        except Exception as _e:
+            print(f"[FTS] 评论搜索回退 LIKE: {_e}")
+            query = query.filter(CommentModel.content.contains(q))
+    else:
+        query = query.filter(CommentModel.content.contains(q))
     query = query.order_by(CommentModel.created_at.desc()).limit(limit)
     out = []
     for c, post in query.all():
@@ -342,6 +372,12 @@ def update_post(
         post.hide_uid = body.hide_uid
     db.commit()
     db.refresh(post)
+    # 重新索引（标题/正文可能被改）
+    try:
+        index_post(db, post)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 重索引帖子失败: {_e}")
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     return _mask_post(post, user, author.avatar if author else None)
 
@@ -507,6 +543,12 @@ def create_comment(
     post.comment_count += 1
     db.commit()
     db.refresh(db_comment)
+    # 同步全文索引
+    try:
+        index_comment(db, db_comment)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 索引评论失败: {_e}")
     # 生成通知：帖子作者的新回复 + 评论中的 @ 提及 + 被回复评论的作者
     try:
         notify_from_comment(db, post=post, comment=db_comment, actor=user, parent_comment=parent_comment)
@@ -542,6 +584,12 @@ def delete_post(
         assert_can_moderate(user, post.user_school)
     db.delete(post)
     db.commit()
+    # 同步删除全文索引
+    try:
+        remove_post(db, post_id)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 删除帖子索引失败: {_e}")
     return {"message": "删除成功"}
 
 @router.delete("/{post_id}/comments/{comment_id}")
@@ -567,6 +615,12 @@ def delete_comment(
         post.comment_count -= 1
     db.delete(comment)
     db.commit()
+    # 同步删除全文索引
+    try:
+        remove_comment(db, comment_id)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 删除评论索引失败: {_e}")
     return {"message": "删除成功"}
 
 @router.put("/{post_id}/comments/{comment_id}", response_model=CommentSchema)
@@ -589,4 +643,10 @@ def update_comment(
     comment.content = body.content
     db.commit()
     db.refresh(comment)
+    # 重新索引
+    try:
+        index_comment(db, comment)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 重索引评论失败: {_e}")
     return _mask_comment(comment, user, comment.user_id and user.avatar)
