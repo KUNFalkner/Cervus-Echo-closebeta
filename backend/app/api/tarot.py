@@ -292,7 +292,10 @@ async def interpret(req: InterpretRequest):
             {"role": "assistant", "content": FEWSHOT_ASSISTANT},
             {"role": "user", "content": user_msg},
         ]
-        async with httpx.AsyncClient(timeout=30) as client:
+        # 十张凯尔特十字解读很长，800 token 会在牌5前后被截断；本地模型更慢，
+        # 本地端点(自定义基址)放宽到 2000 token + 150s 超时，云端保持 800/30s 即可。
+        local = has_custom_base
+        async with httpx.AsyncClient(timeout=150 if local else 30) as client:
             resp = await client.post(
                 f"{base}/chat/completions",
                 headers=headers,
@@ -300,7 +303,7 @@ async def interpret(req: InterpretRequest):
                     "model": model,
                     "messages": messages,
                     "temperature": 0.6,
-                    "max_tokens": 800,
+                    "max_tokens": 2000 if local else 800,
                     **extra,
                 },
             )
