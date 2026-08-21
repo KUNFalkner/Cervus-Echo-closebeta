@@ -527,19 +527,12 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 }
 .login-header { text-align: center; margin-bottom: 1.5rem; }
 .login-icon { display: block; margin-bottom: 0.5rem; line-height: 0; }
-.brand-deer { width: 3.4rem; height: 3.4rem; display: inline-block; filter: drop-shadow(0 2px 6px rgba(184,134,11,0.35)); animation: deer-float 5.5s ease-in-out infinite; }
-@keyframes deer-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-@media (prefers-reduced-motion: reduce) { .brand-deer { animation: none; } }
 /* ── 品牌字体：艺术中文 + 意大利斜体英文 ── */
 .brand-title {
   margin: 0;
-  font-family: 'Long Cang', 'KaiTi', 'STKaiti', 'Kaiti SC', cursive;
+  font-family: 'STXingkai', '华文行楷', 'STKaiti', 'KaiTi', 'Kaiti SC', cursive;
   letter-spacing: 0.02em;
-  background: linear-gradient(135deg, #f0d79a 0%, #e3bf75 40%, #d4af37 70%, #b8860b 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: #d4af37; /* 兜底 */
+  color: var(--nav-fg-strong);
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }
 .brand-subtitle-en {
@@ -548,11 +541,11 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   font-style: italic;
   font-weight: 600;
   letter-spacing: 0.16em;
-  color: #d4af37;
-  opacity: 0.88;
+  color: var(--muted);
+  opacity: 0.9;
 }
-.login-header .brand-title { font-size: 3.4rem; line-height: 1.1; margin-top: 0.15rem; }
-.login-header .brand-subtitle-en { font-size: 1.05rem; margin-top: 0.2rem; }
+.login-header .brand-title { font-size: 3.4rem; line-height: 1.1; margin-top: 0.15rem; color: #f3ece0; }
+.login-header .brand-subtitle-en { font-size: 1.05rem; margin-top: 0.2rem; color: #c8bda0; }
 .nav-brand .brand-title { font-size: 1.9rem; }
 .nav-brand .brand-subtitle-en { font-size: 0.7rem; letter-spacing: 0.18em; margin-top: 0.1rem; }
 .login-card-glass h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.25rem; }
