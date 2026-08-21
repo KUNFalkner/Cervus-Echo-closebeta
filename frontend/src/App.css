@@ -334,7 +334,7 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 .nav-back:hover { color: var(--ink); }
 .tag-detail-page { display: flex; flex-direction: column; gap: 0.75rem; }
 .tag-detail-head { padding: 0.9rem 1rem; }
-.tag-detail-title { font-size: 1.4rem; font-weight: 800; background: linear-gradient(135deg, var(--gold, #d4af37), #f3d27a); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.tag-detail-title { font-size: 1.4rem; font-weight: 800; color: var(--ink); }
 .tag-detail-stats { display: flex; gap: 1rem; margin-top: 0.4rem; font-size: 0.85rem; color: var(--muted); }
 .tag-participants { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.6rem; }
 .tag-participant { background: none; border: none; padding: 0; cursor: pointer; border-radius: 50%; line-height: 0; }
@@ -1993,20 +1993,20 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .markdown-body .md-quote { margin: .6rem 0; padding: .4rem .85rem; border-left: 3px solid rgba(212,175,55,.5); color: var(--muted); background: rgba(212,175,55,.05); border-radius: 0 8px 8px 0; }
 .markdown-body .md-ul, .markdown-body .md-ol { margin: .5rem 0; padding-left: 1.4rem; }
 .markdown-body .md-ul li, .markdown-body .md-ol li { margin: .25rem 0; }
-.markdown-body .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; background: rgba(255,255,255,.08); border: 1px solid var(--divider); border-radius: 5px; padding: .04rem .35rem; color: #f0d79a; }
+.markdown-body .md-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; background: rgba(255,255,255,.08); border: 1px solid var(--divider); border-radius: 5px; padding: .04rem .35rem; color: var(--body); }
 .markdown-body a { color: #9cc4ff; text-decoration: underline; }
 .markdown-body strong { color: var(--ink); font-weight: 700; }
 .markdown-body em { color: #f3e6b8; }
-.markdown-body .md-mention { color: #d4af37; font-weight: 600; cursor: pointer; }
+.markdown-body .md-mention { color: var(--accent); font-weight: 600; cursor: pointer; }
 .markdown-body .md-mention:hover { text-decoration: underline; }
 
 /* 评论楼中楼 */
 .comment-thread-child { border-left: 2px solid rgba(212,175,55,.22); border-radius: 0 0 0 10px; margin-top: .5rem; }
 .comment-reply-to { font-size: .8rem; color: var(--muted); margin: .15rem 0 .1rem; }
 .comment-footer { margin-top: .35rem; }
-.comment-reply-btn { background: none; border: none; color: #d4af37; cursor: pointer; font-size: .82rem; padding: 0; }
+.comment-reply-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: .82rem; padding: 0; }
 .comment-reply-btn:hover { text-decoration: underline; }
 .reply-indicator { font-size: .85rem; color: var(--muted); margin-bottom: .4rem; display: flex; align-items: center; gap: .4rem; }
-.reply-indicator b { color: #d4af37; }
+.reply-indicator b { color: var(--accent); }
 .reply-cancel { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .9rem; line-height: 1; padding: 0 .2rem; }
 .reply-cancel:hover { color: #fff; }
