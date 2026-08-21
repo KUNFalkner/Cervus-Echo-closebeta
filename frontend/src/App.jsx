@@ -66,7 +66,7 @@ const CATEGORIES = [
   { id: 'feedback', name: '意见箱', icon: '📮' },
 ]
 
-const SCHOOLS = [
+let SCHOOLS = [
   { code: 'JSKS', name: '江苏省昆山中学', short: '昆中' }, { code: 'KSZC', name: '昆山震川高级中学', short: '震川' },
   { code: 'KSSY', name: '昆山市第一中学', short: '市一中' }, { code: 'KSKF', name: '开发区高级中学', short: '开高' },
   { code: 'KSLJ', name: '陆家高级中学', short: '陆高' }, { code: 'KSBL', name: '柏庐高级中学', short: '柏高' },
@@ -1046,6 +1046,9 @@ function App() {
   const [activeCat,setActiveCat] = useState('all')
   const [boards,setBoards] = useState(CATEGORIES)
   useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch('/boards'); if(r.ok)setBoards(await r.json()) }catch{} }; f() },[])
+  // 学校列表以后端 schools 表为准：启动后拉取一次，新增学校只需后端操作，前端零改动
+  const [schoolsVer,setSchoolsVer] = useState(0)
+  useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch('/schools/'); if(r.ok){ const list=await r.json(); if(Array.isArray(list)&&list.length){ SCHOOLS = list.map(s=>({code:s.code, name:s.name, short:s.short_name||s.short||s.name})); setSchoolsVer(v=>v+1) } } }catch{} }; f() },[])
   const [activeForum,setActiveForum] = useState('main')
   const [searchQ,setSearchQ] = useState('')
   const [debouncedQ,setDebouncedQ] = useState('')
