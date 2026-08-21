@@ -150,6 +150,7 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   padding: 0.75rem 1rem;
 }
 .nav-title { font-size: 1.25rem; font-weight: 700; }
+.nav-brand { display: flex; flex-direction: column; line-height: 1.04; }
 .nav-links { display: flex; gap: 0.25rem; }
 .nav-links button {
   background: transparent; border: none; border-radius: 8px;
@@ -526,6 +527,31 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 }
 .login-header { text-align: center; margin-bottom: 1.5rem; }
 .login-icon { font-size: 2.5rem; display: block; margin-bottom: 0.5rem; }
+/* ── 品牌字体：艺术中文 + 意大利斜体英文 ── */
+.brand-title {
+  margin: 0;
+  font-family: 'Ma Shan Zheng', 'KaiTi', 'STKaiti', 'Kaiti SC', cursive;
+  letter-spacing: 0.04em;
+  background: linear-gradient(135deg, #f0d79a 0%, #e3bf75 40%, #d4af37 70%, #b8860b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #d4af37; /* 兜底 */
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+}
+.brand-subtitle-en {
+  display: block;
+  font-family: 'Cormorant Garamond', Georgia, 'Songti SC', 'Noto Serif SC', serif;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: #d4af37;
+  opacity: 0.88;
+}
+.login-header .brand-title { font-size: 2.9rem; line-height: 1.1; margin-top: 0.15rem; }
+.login-header .brand-subtitle-en { font-size: 1.05rem; margin-top: 0.2rem; }
+.nav-brand .brand-title { font-size: 1.45rem; }
+.nav-brand .brand-subtitle-en { font-size: 0.68rem; letter-spacing: 0.18em; margin-top: 0.1rem; }
 .login-card-glass h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.25rem; }
 .login-card-glass p { color: var(--muted); font-size: 0.9rem; }
 .login-form { display: flex; flex-direction: column; gap: 0; }
