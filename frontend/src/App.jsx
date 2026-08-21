@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from 'react'
 import gsap from 'gsap'
+import { useGSAP } from '@gsap/react'
 import { animate } from 'animejs'
+gsap.registerPlugin(useGSAP)
 import './App.css'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
@@ -244,20 +246,57 @@ const Starfield = () => {
 
 // ── LoginPage ──
 const LoginPage = ({onLogin,onSwitchRegister}) => {
-  const nameRef=useRef(null); const passRef=useRef(null); const [loading,setLoading]=useState(false);
-  useEffect(()=>{const card=document.querySelector('.login-card-glass');const items=document.querySelectorAll('.login-card-glass>*');if(!card)return;if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;gsap.set(card,{opacity:0,scale:.85,y:20});gsap.set(items,{opacity:0,y:15});const tl=gsap.timeline({defaults:{ease:'power2.out'}});tl.to(card,{opacity:1,scale:1,y:0,duration:.8,ease:'back.out(1.7)'}).to(items,{opacity:1,y:0,duration:.4,stagger:.12},.35);return()=>tl.kill()},[])
+  const nameRef=useRef(null); const passRef=useRef(null); const pageRef=useRef(null); const [loading,setLoading]=useState(false);
+  useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      const card = pageRef.current?.querySelector('.login-card-glass')
+      const items = pageRef.current?.querySelectorAll('.login-card-glass > *')
+      if (!card) return
+      gsap.set(card, { opacity:0, scale:.85, y:20 })
+      gsap.set(items, { opacity:0, y:15 })
+      const tl = gsap.timeline({ defaults:{ ease:'power2.out' } })
+      tl.to(card, { opacity:1, scale:1, y:0, duration:.8, ease:'back.out(1.7)' })
+        .to(items, { opacity:1, y:0, duration:.4, stagger:.12 }, .35)
+      return () => tl.kill()
+    })
+  }, { scope: pageRef })
   const submit=async(e)=>{e.preventDefault();const u=nameRef.current?.value?.trim(),p=passRef.current?.value||'';if(!u)return;setLoading(true);
     try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){alert(e.message)}finally{setLoading(false)}}
-  return <div className="login-page"><div className="login-card-glass"><div className="login-header"><h1 className="brand-title">鹿鸣回音</h1><span className="brand-subtitle-en">Cervus Echo</span><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码（可选）" className="login-input"/><button type="submit" className="login-btn" disabled={loading}>{loading?'进入中...':'进入社区'}</button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
+  return <div className="login-page" ref={pageRef}><div className="login-card-glass"><div className="login-header"><h1 className="brand-title">鹿鸣回音</h1><span className="brand-subtitle-en">Cervus Echo</span><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码（可选）" className="login-input"/><button type="submit" className="login-btn" disabled={loading}>{loading?'进入中...':'进入社区'}</button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
 }
 
 // ── RegisterForm ──
 const RegisterForm = ({onSwitch}) => {
-  const toast=useToast(); const [f,setF]=useState({username:'',password:'',nickname:'',school_id:'JSKS',enrollment_year:2024,class_number:1,student_number:1}); const [loading,setLoading]=useState(false); const [showPick,setShowPick]=useState(false);
+  const toast=useToast(); const formRef=useRef(null); const [f,setF]=useState({username:'',password:'',nickname:'',school_id:'JSKS',enrollment_year:2024,class_number:1,student_number:1}); const [loading,setLoading]=useState(false); const [showPick,setShowPick]=useState(false);
+  // 入场动效：卡片缩放淡入 + 内部字段依次上浮；尊重「减少动态效果」系统偏好
+  const { contextSafe } = useGSAP(() => {
+    const mm = gsap.matchMedia()
+    mm.add('(prefers-reduced-motion: no-preference)', () => {
+      const card = formRef.current?.querySelector('.register-card')
+      const items = formRef.current?.querySelectorAll('.register-card > *')
+      if (!card) return
+      gsap.set(card, { opacity:0, scale:.88, y:24 })
+      gsap.set(items, { opacity:0, y:14 })
+      const tl = gsap.timeline({ defaults:{ ease:'power3.out' } })
+      tl.to(card, { opacity:1, scale:1, y:0, duration:.7, ease:'back.out(1.6)' })
+        .to(items, { opacity:1, y:0, duration:.45, stagger:.07 }, .28)
+      return () => tl.kill()
+    })
+  }, { scope: formRef })
+  // 学校下拉展开时，选项依次淡入
+  const openPick = contextSafe(() => {
+    setShowPick(p => !p)
+    requestAnimationFrame(() => {
+      if (showPick) return
+      const opts = formRef.current?.querySelectorAll('.custom-select-dropdown .custom-select-option')
+      if (opts?.length && !prefersReduced()) gsap.fromTo(opts, { opacity:0, y:8 }, { opacity:1, y:0, duration:.28, stagger:.04, ease:'power2.out', clearProps:'opacity,transform' })
+    })
+  })
   const submit=async(e)=>{e.preventDefault();if(!f.username.trim())return;setLoading(true);
     try{const r=await apiFetch(`/users/`,{method:'POST',body:JSON.stringify({username:f.username,nickname:f.nickname||genNick(),password:f.password||undefined,school_id:f.school_id,enrollment_year:f.enrollment_year,class_number:f.class_number,student_number:f.student_number})});if(!r.ok)throw new Error(await errMsg(r,'注册失败'));const data=await r.json();localStorage.setItem('token',data.access_token);localStorage.setItem('user',JSON.stringify(data.user));toast.success('注册成功');window.location.reload()}catch(e){toast.error(e.message)}finally{setLoading(false)}}
   const preview=`${f.school_id}${f.enrollment_year}${String(f.class_number).padStart(2,'0')}${String(f.student_number).padStart(2,'0')}`; const sel=SCHOOLS.find(s=>s.code===f.school_id);
-  return <div className="register-page"><div className="login-card-glass register-card"><div className="login-header"><span className="login-icon">🪵</span><h1>注册账号</h1><p>填写入学信息，系统将自动生成你的 UID</p></div><form onSubmit={submit} className="login-form"><input value={f.username} onChange={e=>setF({...f,username:e.target.value})} placeholder="用户名（登录用）" className="login-input" required/><input value={f.password} onChange={e=>setF({...f,password:e.target.value})} placeholder="密码（可选）" className="login-input"/><input value={f.nickname} onChange={e=>setF({...f,nickname:e.target.value})} placeholder="账户名（可随时修改）" className="login-input"/><div className="uid-section-glass"><h4>入学信息</h4><div className="custom-select" onClick={()=>setShowPick(!showPick)}><span className="custom-select-label">学校</span><span className="custom-select-value">{sel?.name||'选择学校'}</span><span className="custom-select-arrow">▾</span>{showPick&&<div className="custom-select-dropdown">{SCHOOLS.map(s=><div key={s.code} className={`custom-select-option ${f.school_id===s.code?'active':''}`} onClick={e=>{e.stopPropagation();setF({...f,school_id:s.code});setShowPick(false)}}><span>{s.name}</span><span className="custom-select-code">{s.code}</span></div>)}</div>}</div><div className="uid-inputs" style={{gridTemplateColumns:'1fr 1fr 1fr',marginTop:'.75rem'}}><div className="uid-input-group"><label>入学年份</label><input type="number" value={f.enrollment_year} onChange={e=>setF({...f,enrollment_year:parseInt(e.target.value)||2024})} className="login-input" min="2020" max="2030"/></div><div className="uid-input-group"><label>班级</label><input type="number" value={f.class_number} onChange={e=>setF({...f,class_number:parseInt(e.target.value)||1})} className="login-input" min="1" max="99"/></div><div className="uid-input-group"><label>学号</label><input type="number" value={f.student_number} onChange={e=>setF({...f,student_number:parseInt(e.target.value)||1})} className="login-input" min="1" max="99"/></div></div><div className="uid-preview"><span>你的 UID 将是：</span><span className="uid-badge-glass">{preview}</span></div></div><button type="submit" className="login-btn" disabled={loading}>{loading?'注册中...':'注册'}</button></form><p className="switch-link">已有账号？<button onClick={onSwitch}>去登录</button></p></div></div>
+  return <div className="register-page" ref={formRef}><div className="login-card-glass register-card"><div className="login-header"><span className="login-icon">🪵</span><h1>注册账号</h1><p>填写入学信息，系统将自动生成你的 UID</p></div><form onSubmit={submit} className="login-form"><input value={f.username} onChange={e=>setF({...f,username:e.target.value})} placeholder="用户名（登录用）" className="login-input" required/><input value={f.password} onChange={e=>setF({...f,password:e.target.value})} placeholder="密码（可选）" className="login-input"/><input value={f.nickname} onChange={e=>setF({...f,nickname:e.target.value})} placeholder="账户名（可随时修改）" className="login-input"/><div className="uid-section-glass"><h4>入学信息</h4><div className="custom-select" onClick={openPick}><span className="custom-select-label">学校</span><span className="custom-select-value">{sel?.name||'选择学校'}</span><span className="custom-select-arrow">▾</span>{showPick&&<div className="custom-select-dropdown">{SCHOOLS.map(s=><div key={s.code} className={`custom-select-option ${f.school_id===s.code?'active':''}`} onClick={e=>{e.stopPropagation();setF({...f,school_id:s.code});setShowPick(false)}}><span>{s.name}</span><span className="custom-select-code">{s.code}</span></div>)}</div>}</div><div className="uid-inputs" style={{gridTemplateColumns:'1fr 1fr 1fr',marginTop:'.75rem'}}><div className="uid-input-group"><label>入学年份</label><input type="number" value={f.enrollment_year} onChange={e=>setF({...f,enrollment_year:parseInt(e.target.value)||2024})} className="login-input" min="2020" max="2030"/></div><div className="uid-input-group"><label>班级</label><input type="number" value={f.class_number} onChange={e=>setF({...f,class_number:parseInt(e.target.value)||1})} className="login-input" min="1" max="99"/></div><div className="uid-input-group"><label>学号</label><input type="number" value={f.student_number} onChange={e=>setF({...f,student_number:parseInt(e.target.value)||1})} className="login-input" min="1" max="99"/></div></div><div className="uid-preview"><span>你的 UID 将是：</span><span className="uid-badge-glass">{preview}</span></div></div><button type="submit" className="login-btn" disabled={loading}>{loading?'注册中...':'注册'}</button></form><p className="switch-link">已有账号？<button onClick={onSwitch}>去登录</button></p></div></div>
 }
 
 // ── PostForm ──
