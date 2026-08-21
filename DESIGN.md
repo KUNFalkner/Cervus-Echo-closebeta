@@ -1,5 +1,5 @@
 ---
-name: 校园树洞社区
+name: 鹿鸣回音社区
 description: 匿名、安全、自由的校园社区平台
 colors:
   primary: "#667eea"
@@ -60,11 +60,11 @@ components:
     padding: "0.5rem 1rem"
 ---
 
-# Design System: 校园树洞社区
+# Design System: 鹿鸣回音社区
 
 ## 1. Overview
 
-**Creative North Star: "液态玻璃树洞"**
+**Creative North Star: "液态玻璃"**
 
 这是一个为高中生设计的匿名社区平台，核心气质是安全、匿名、自由。视觉上采用 Apple 液态玻璃（Liquid Glass）风格，通过半透明毛玻璃卡片、柔和光影和渐变背景营造温暖而有安全感的氛围。
 

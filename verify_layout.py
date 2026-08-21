@@ -103,7 +103,7 @@ else:
     print("LAYOUT:", res.get("value"))
 
 ws.close(); proc.terminate()
-c = sqlite3.connect("backend/treehole.db"); c.execute("PRAGMA foreign_keys=OFF")
+c = sqlite3.connect("backend/cervus.db"); c.execute("PRAGMA foreign_keys=OFF")
 for tbl, col in [("posts","user_id"),("comments","user_id"),("notifications","recipient_id"),("notifications","actor_id"),("user_likes","user_id"),("user_stars","user_id"),("messages","user_id")]:
     c.execute("DELETE FROM %s WHERE %s=?" % (tbl, col), (uid,))
 c.execute("DELETE FROM users WHERE id=?", (uid,)); c.commit(); c.close()

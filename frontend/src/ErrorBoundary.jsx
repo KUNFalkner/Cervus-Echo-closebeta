@@ -8,7 +8,7 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('[树洞] 页面渲染出错:', error, info.componentStack)
+    console.error('[鹿鸣回音] 页面渲染出错:', error, info.componentStack)
   }
 
   render() {
@@ -16,8 +16,8 @@ export default class ErrorBoundary extends Component {
     return (
       <div className="error-boundary">
         <div className="glass-card error-boundary-card">
-          <div className="error-boundary-icon">🌲</div>
-          <h2>树洞好像出了点问题</h2>
+          <div className="error-boundary-icon">🦌</div>
+          <h2>鹿鸣回音好像出了点问题</h2>
           <p className="error-boundary-desc">页面加载失败了，刷新一下通常就好。如果一直这样，麻烦把下面的信息发给管理员。</p>
           <div className="error-boundary-actions">
             <button className="glass-button btn-primary" onClick={() => window.location.reload()}>刷新页面</button>

@@ -21,7 +21,7 @@ const avatarUrl = (a) => {
   if (a.startsWith('http') || a.startsWith('data:')) return a
   return AVATAR_ORIGIN + a
 }
-const fallbackAvatar = (seed) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'treehole')}`
+const fallbackAvatar = (seed) => `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'cervus')}`
 const Avatar = ({ src, seed, className = '' }) => (
   <img className={`avatar-img ${className}`} src={avatarUrl(src) || fallbackAvatar(seed)} alt="" />
 )
@@ -212,7 +212,7 @@ function useStarfield(canvasRef) {
     const grains=Array.from({length:900},()=>({x:Math.random()*w,y:Math.random()*h,s:Math.random()*1+.5,a:Math.random()*.08+.03}));
     const meteors=[]; let time=0,anim=null,prevNight=null;
     const forced=typeof location!=='undefined'?new URLSearchParams(location.search).get('theme'):null;
-    const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; try{ const s=localStorage.getItem('treehole_theme'); if(s==='light')return false; if(s==='dark')return true; }catch(e){} const hr=new Date().getHours();return hr>=19||hr<6; };
+    const isNight=()=>{ if(forced==='day')return false; if(forced==='night')return true; try{ const s=localStorage.getItem('cervus_theme'); if(s==='light')return false; if(s==='dark')return true; }catch(e){} const hr=new Date().getHours();return hr>=19||hr<6; };
     const draw=(staticFrame=false)=>{const night=isNight();
       if(prevNight!==night){ document.body.dataset.time=night?'night':'day'; prevNight=night; }
       if(night){
@@ -248,7 +248,7 @@ const LoginPage = ({onLogin,onSwitchRegister}) => {
   useEffect(()=>{const card=document.querySelector('.login-card-glass');const items=document.querySelectorAll('.login-card-glass>*');if(!card)return;if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;gsap.set(card,{opacity:0,scale:.85,y:20});gsap.set(items,{opacity:0,y:15});const tl=gsap.timeline({defaults:{ease:'power2.out'}});tl.to(card,{opacity:1,scale:1,y:0,duration:.8,ease:'back.out(1.7)'}).to(items,{opacity:1,y:0,duration:.4,stagger:.12},.35);return()=>tl.kill()},[])
   const submit=async(e)=>{e.preventDefault();const u=nameRef.current?.value?.trim(),p=passRef.current?.value||'';if(!u)return;setLoading(true);
     try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){alert(e.message)}finally{setLoading(false)}}
-  return <div className="login-page"><div className="login-card-glass"><div className="login-header"><span className="login-icon">🪵</span><h1>校园树洞</h1><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码（可选）" className="login-input"/><button type="submit" className="login-btn" disabled={loading}>{loading?'进入中...':'进入社区'}</button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
+  return <div className="login-page"><div className="login-card-glass"><div className="login-header"><span className="login-icon">🪵</span><h1>鹿鸣回音</h1><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码（可选）" className="login-input"/><button type="submit" className="login-btn" disabled={loading}>{loading?'进入中...':'进入社区'}</button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
 }
 
 // ── RegisterForm ──
@@ -278,7 +278,7 @@ const PostForm = ({user,visibleForums,onPostCreated}) => {
   const isAdmin=user?.role==='founder'||user?.role==='ambassador';
   const [isAnon,setIsAnon]=useState(isAdmin?false:true); const [hideUid,setHideUid]=useState(false);
   // 发帖草稿自动保存：标题/正文为 uncontrolled(ref)，其余为 state；刷新或误触返回可恢复，发布成功即清
-  const DRAFT_KEY='treehole_post_draft';
+  const DRAFT_KEY='cervus_post_draft';
   const saveDraft=()=>{ try{
     const title=tRef.current?.value||''; const content=cRef.current?.value||'';
     if(!title.trim()&&!content.trim()){ localStorage.removeItem(DRAFT_KEY); return }
@@ -370,7 +370,7 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar,myLikes,onT
   const isAdmin=user?.role==='founder'||user?.role==='ambassador';
   const commentInputRef=useRef(null);
   // 评论草稿自动保存：按帖子 id 存，刷新/误触返回可恢复，评论成功即清
-  const CDRAFT='treehole_comment_draft_'+post.id;
+  const CDRAFT='cervus_comment_draft_'+post.id;
   useEffect(()=>{ try{ const d=localStorage.getItem(CDRAFT); if(d)setNc(d) }catch{} },[]);
   const onCommentChange=e=>{ const v=e.target.value; setNc(v); try{ if(v.trim())localStorage.setItem(CDRAFT,v); else localStorage.removeItem(CDRAFT) }catch{} };
   const rootRef=useRef(null); const closingRef=useRef(false);
@@ -436,7 +436,7 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar,myLikes,onT
 const RulesModal = ({onClose}) => <AnimatedModal onClose={onClose} className="rules-modal login-rules-modal">
   {({ requestClose }) => (<>
     <h2>📜 社区规则</h2>
-    <p className="rules-subtitle">欢迎来到校园树洞！请仔细阅读以下规则：</p>
+    <p className="rules-subtitle">欢迎来到鹿鸣回音！请仔细阅读以下规则：</p>
     <div className="rules-content"><p><strong>1. 友善交流</strong> — 尊重他人，禁止辱骂、人身攻击。</p><p><strong>2. 保护隐私</strong> — 请勿公开他人真实姓名、联系方式等隐私信息。</p><p><strong>3. 合理发言</strong> — 禁止发布违法、色情、暴力等不良信息。</p><p><strong>4. 举报机制</strong> — 发现违规内容请及时举报，管理员会尽快处理。</p><p><strong>5. 共同维护</strong> — 让我们一起营造温暖、安全的校园社区。</p></div>
     <button className="glass-button btn-primary" onClick={requestClose}>我已阅读，开始使用</button>
   </>)}
@@ -538,7 +538,7 @@ const FollowListModal = ({type, userId, onClose, onOpenUser}) => {
 }
 
 // ── PostEditModal ──
-const PostEditModal = ({post, onClose, onSaved}) => {
+const PostEditModal = ({post, boards = CATEGORIES, onClose, onSaved}) => {
   const toast=useToast();
   const [title,setTitle]=useState(post.title||'');
   const [content,setContent]=useState(post.content||'');
@@ -986,7 +986,7 @@ const ProfilePage = ({user,setUser,onOpenPost,onOpenUser}) => {
   const applyBg=(css)=>{ setProfileBg(css); save({profile_bg:css}) }
   const bgColorValue = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(profileBg) ? profileBg : '#7c3aed'
   const isImgBg = profileBg && !profileBg.startsWith('linear-gradient') && !profileBg.startsWith('#')
-  return <div className="profile-page"><div className={`glass-card profile-card ${isImgBg?'profile-card-img-bg':''}`} style={profileBg?(/^#/.test(profileBg)?{backgroundColor:profileBg}:{backgroundImage:profileBg}):undefined}><label className="avatar-upload"><img src={avatarUrl(user.avatar) || fallbackAvatar(user.username)} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/avatar`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'头像更新失败'));const u=await r.json();u.avatar=(u.avatar||'')+'?t='+Date.now();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}catch(err){toast.error(err.message||'头像更新失败')}}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="profile-follow-row"><button className="follow-count-btn" onClick={()=>setShowMyFollow('followers')}>粉丝 {myStats.followers}</button><button className="follow-count-btn" onClick={()=>setShowMyFollow('following')}>关注 {myStats.following}</button></div>{showMyFollow&&<FollowListModal type={showMyFollow} userId={user.id} onClose={()=>setShowMyFollow(null)} onOpenUser={onOpenUser}/>}<div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 树洞之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div>
+  return <div className="profile-page"><div className={`glass-card profile-card ${isImgBg?'profile-card-img-bg':''}`} style={profileBg?(/^#/.test(profileBg)?{backgroundColor:profileBg}:{backgroundImage:profileBg}):undefined}><label className="avatar-upload"><img src={avatarUrl(user.avatar) || fallbackAvatar(user.username)} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/avatar`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'头像更新失败'));const u=await r.json();u.avatar=(u.avatar||'')+'?t='+Date.now();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}catch(err){toast.error(err.message||'头像更新失败')}}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="profile-follow-row"><button className="follow-count-btn" onClick={()=>setShowMyFollow('followers')}>粉丝 {myStats.followers}</button><button className="follow-count-btn" onClick={()=>setShowMyFollow('following')}>关注 {myStats.following}</button></div>{showMyFollow&&<FollowListModal type={showMyFollow} userId={user.id} onClose={()=>setShowMyFollow(null)} onOpenUser={onOpenUser}/>}<div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 鹿鸣之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div>
   <div className="profile-bg-row"><button className="bg-toggle-btn" onClick={()=>setBgOpen(!bgOpen)}>{profileBg?'更换背景':'设置背景'} {bgOpen?'▲':'▼'}</button>{bgOpen&&<div className="bg-panel glass-card"><div className="bg-panel-head"><span>卡片背景</span><button className="bg-clear" onClick={()=>{applyBg('');setBgOpen(false)}}>清除</button></div><div className="bg-swatches">{PROFILE_BGS.map(b=><button key={b.key} className={`bg-swatch ${profileBg===b.css?'active':''}`} style={{background:b.css||'rgba(255,255,255,0.18)'}} title={b.label} onClick={()=>applyBg(b.css)}/>)}<label className="bg-swatch bg-custom" title="自定义颜色"><input type="color" value={bgColorValue} onChange={e=>applyBg(e.target.value)}/></label><label className="bg-swatch bg-upload" title="上传图片"><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/background`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'背景上传失败'));const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));setProfileBg(u.profile_bg);toast.success('背景已更新')}catch(err){toast.error(err.message||'背景上传失败')}}}/>}</label></div></div>}</div>
 </div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={()=>save()}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div><div className="settings-item danger-item" onClick={()=>setShowDelete(true)}><span>注销账号</span><span className="settings-arrow">→</span></div></div></div>{showDelete&&<AnimatedModal onClose={()=>setShowDelete(false)} className="delete-account-modal">{({requestClose})=>(<><h3>注销账号</h3><p className="delete-warn">此操作不可恢复，将永久删除你的账号、帖子与评论。</p><input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="请输入密码确认" className="glass-input"/><div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-danger" onClick={deleteAccount} disabled={delBusy}>{delBusy?'注销中...':'确认注销'}</button></div></>)}</AnimatedModal>}</div>
 <div className="glass-card my-stuff-card">
@@ -1060,7 +1060,7 @@ function App() {
   const [trendingTags,setTrendingTags] = useState([])
   const [notifOpen,setNotifOpen] = useState(false)
   const [notifs,setNotifs] = useState([])
-  const [unread,setUnread] = useState(()=>{ try{ return parseInt(localStorage.getItem('treehole_unread')||'0',10)||0 }catch{ return 0 } })
+  const [unread,setUnread] = useState(()=>{ try{ return parseInt(localStorage.getItem('cervus_unread')||'0',10)||0 }catch{ return 0 } })
   const [tarotOpen,setTarotOpen] = useState(false)
   const [sessionExpired,setSessionExpired] = useState(false)
   const [listKey,setListKey] = useState(0)   // 仅在一次真实的帖子列表加载后 +1，避免点赞/取消星标触发整列表重播动画
@@ -1070,7 +1070,7 @@ function App() {
   const [hasMore,setHasMore] = useState(false)
   // 主题切换（浅/深）：手动覆盖星空自动昼夜间，localStorage 持久化
   // 三态主题：auto(跟随时间) / light(白天) / dark(夜晚)
-  const [theme,setTheme] = useState(() => { try { return localStorage.getItem('treehole_theme') || 'auto' } catch { return 'auto' } })
+  const [theme,setTheme] = useState(() => { try { return localStorage.getItem('cervus_theme') || 'auto' } catch { return 'auto' } })
   const isNightByTime = () => { const h = new Date().getHours(); return h >= 19 || h < 6 }
   const isLight = theme === 'light' || (theme === 'auto' && !isNightByTime())
   const applyTheme = (t) => {
@@ -1080,7 +1080,7 @@ function App() {
   const toggleTheme = () => {
     const next = theme === 'auto' ? 'light' : theme === 'light' ? 'dark' : 'auto'
     setTheme(next)
-    try { localStorage.setItem('treehole_theme', next) } catch {}
+    try { localStorage.setItem('cervus_theme', next) } catch {}
     applyTheme(next)
   }
   useEffect(() => { applyTheme(theme) }, [theme])
@@ -1095,7 +1095,7 @@ function App() {
   const [chatTab,setChatTab] = useState('global')
   const [editPost,setEditPost] = useState(null)
   const [openConvId,setOpenConvId] = useState(null)
-  const [dmUnread,setDmUnread] = useState(()=>{ try{ return parseInt(localStorage.getItem('treehole_dmunread')||'0',10)||0 }catch{ return 0 } })
+  const [dmUnread,setDmUnread] = useState(()=>{ try{ return parseInt(localStorage.getItem('cervus_dmunread')||'0',10)||0 }catch{ return 0 } })
 
   // mode='replace' 重新拉首页（切换分类/搜索/发帖后）；mode='more' 在末尾追加下一页
   const fetchPosts = useCallback(async(mode='replace')=>{ const replace=mode!=='more'
@@ -1139,26 +1139,26 @@ function App() {
   useEffect(()=>{ if(user) fetchPosts() },[user,fetchPosts])
 
   // 载入当前用户的星标记录（localStorage 持久化，避免刷新后丢失高亮）
-  useEffect(()=>{ if(!user){ setMyStars({}); return } const k='treehole_stars_'+user.id; try{ setMyStars(JSON.parse(localStorage.getItem(k)||'{}')) }catch{ setMyStars({}) } },[user])
+  useEffect(()=>{ if(!user){ setMyStars({}); return } const k='cervus_stars_'+user.id; try{ setMyStars(JSON.parse(localStorage.getItem(k)||'{}')) }catch{ setMyStars({}) } },[user])
 
   // 载入当前用户的点赞记录（本地持久化，用于按钮高亮）
-  useEffect(()=>{ if(!user){ setMyLikes({}); return } const k='treehole_likes_'+user.id; try{ setMyLikes(JSON.parse(localStorage.getItem(k)||'{}')) }catch{ setMyLikes({}) } },[user])
+  useEffect(()=>{ if(!user){ setMyLikes({}); return } const k='cervus_likes_'+user.id; try{ setMyLikes(JSON.parse(localStorage.getItem(k)||'{}')) }catch{ setMyLikes({}) } },[user])
 
   // 热门标签（点标签即可筛选帖子）
   useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch('/posts/tags/trending'); if(r.ok)setTrendingTags(await r.json()) }catch{} }; f() },[])
 
   // 通知：加载未读数 + 每 20s 轮询（轻量）；面板打开时拉取完整列表
-  const fetchUnread = useCallback(async()=>{ if(!user) return; try{ const r=await apiFetch('/notifications/unread-count'); if(r.ok){ const n=(await r.json()).unread||0; setUnread(n); try{localStorage.setItem('treehole_unread',String(n))}catch{} } }catch{} },[user])
+  const fetchUnread = useCallback(async()=>{ if(!user) return; try{ const r=await apiFetch('/notifications/unread-count'); if(r.ok){ const n=(await r.json()).unread||0; setUnread(n); try{localStorage.setItem('cervus_unread',String(n))}catch{} } }catch{} },[user])
   const fetchNotifs = useCallback(async()=>{ try{ const r=await apiFetch('/notifications'); if(r.ok)setNotifs(await r.json()) }catch{} },[])
-  useEffect(()=>{ if(!user){ setUnread(0); setNotifs([]); try{localStorage.removeItem('treehole_unread');localStorage.removeItem('treehole_dmunread')}catch{}; return } fetchUnread(); const t=setInterval(fetchUnread,20000); return ()=>clearInterval(t) },[user,fetchUnread])
-  const fetchDmUnread=useCallback(async()=>{ if(!user)return; try{ const r=await apiFetch('/dm/conversations'); if(r.ok){ const cs=await r.json(); const n=cs.reduce((a,c)=>a+(c.unread||0),0); setDmUnread(n); try{localStorage.setItem('treehole_dmunread',String(n))}catch{} } }catch{} },[user])
+  useEffect(()=>{ if(!user){ setUnread(0); setNotifs([]); try{localStorage.removeItem('cervus_unread');localStorage.removeItem('cervus_dmunread')}catch{}; return } fetchUnread(); const t=setInterval(fetchUnread,20000); return ()=>clearInterval(t) },[user,fetchUnread])
+  const fetchDmUnread=useCallback(async()=>{ if(!user)return; try{ const r=await apiFetch('/dm/conversations'); if(r.ok){ const cs=await r.json(); const n=cs.reduce((a,c)=>a+(c.unread||0),0); setDmUnread(n); try{localStorage.setItem('cervus_dmunread',String(n))}catch{} } }catch{} },[user])
   useEffect(()=>{ if(!user){setDmUnread(0);return} fetchDmUnread(); const t=setInterval(fetchDmUnread,20000); return ()=>clearInterval(t) },[user,fetchDmUnread])
   // 切回标签页时即时刷新未读，避免红点滞后（依赖已声明的 fetchUnread/fetchDmUnread）
   useEffect(()=>{ const onVis=()=>{ if(document.visibilityState==='visible'){ fetchUnread(); fetchDmUnread() } }; document.addEventListener('visibilitychange',onVis); return ()=>document.removeEventListener('visibilitychange',onVis) },[fetchUnread,fetchDmUnread])
   // 未读持久化「做到不用改动为止」：任意来源（乐观标记/轮询/切端同步）导致 unread/dmUnread 变化时即时写回 localStorage，
   // 保证刷新或切端后红点与显示完全一致，不会因轮询间隔出现旧值回弹。
-  useEffect(()=>{ try{ localStorage.setItem('treehole_unread', String(unread)) }catch{} },[unread])
-  useEffect(()=>{ try{ localStorage.setItem('treehole_dmunread', String(dmUnread)) }catch{} },[dmUnread])
+  useEffect(()=>{ try{ localStorage.setItem('cervus_unread', String(unread)) }catch{} },[unread])
+  useEffect(()=>{ try{ localStorage.setItem('cervus_dmunread', String(dmUnread)) }catch{} },[dmUnread])
   const closeNotif = ()=>{ const el=notifPanelRef.current; if(!el||prefersReduced()){ setNotifOpen(false); return } gsap.to(el,{opacity:0,y:-8,scale:.98,duration:.18,ease:'power2.in',onComplete:()=>setNotifOpen(false)}) }
   const toggleNotif = async()=>{ if(notifOpen){ closeNotif(); return } await fetchNotifs(); setNotifOpen(o=>!o) }
   const markRead = async(id)=>{ setNotifs(ns=>ns.map(n=>n.id===id?{...n,read:true}:n)); setUnread(u=>Math.max(0,u-1)); try{ await apiFetch(`/notifications/${id}/read`,{method:'POST'}) }catch{} }
@@ -1209,7 +1209,7 @@ function App() {
       if(!r.ok){ if(d.detail) alert(d.detail); return }
       const nowStarred = !starred
       setMyStars(s => ({...s, [post.id]: nowStarred}))
-      const key = 'treehole_stars_'+uid
+      const key = 'cervus_stars_'+uid
       try{ const saved = JSON.parse(localStorage.getItem(key)||'{}'); saved[post.id]=nowStarred; localStorage.setItem(key, JSON.stringify(saved)) }catch{}
       const sc = (typeof d.star_count==='number') ? d.star_count : (post.star_count + (nowStarred?1:-1))
       setPosts(prev => prev.map(x=>x.id===post.id?{...x, star_count:sc}:x))
@@ -1229,7 +1229,7 @@ function App() {
       const d = await r.json().catch(()=>({}))
       const nowLiked = !liked
       setMyLikes(s => ({...s, [post.id]: nowLiked}))
-      const key = 'treehole_likes_'+uid
+      const key = 'cervus_likes_'+uid
       try{ const saved = JSON.parse(localStorage.getItem(key)||'{}'); saved[post.id]=nowLiked; localStorage.setItem(key, JSON.stringify(saved)) }catch{}
       const lc = (typeof d.like_count==='number') ? d.like_count : (post.like_count + (nowLiked?1:-1))
       setPosts(prev => prev.map(x=>x.id===post.id?{...x, like_count:lc}:x))
@@ -1242,7 +1242,7 @@ function App() {
   return <ToastProvider>
     <Starfield/>
     {showRules&&<RulesModal onClose={()=>{localStorage.setItem('rules_accepted','true');setShowRules(false)}}/>}
-    {editPost&&<PostEditModal post={editPost} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
+    {editPost&&<PostEditModal post={editPost} boards={boards} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
     {sessionExpired&&<div className="session-expired-banner">登录已过期，请重新登录</div>}
     {!user ? <LoginPage onLogin={handleLogin} onSwitchRegister={()=>setIsRegister(true)}/>
     : tagDetail ? <TagDetail tag={tagDetail} user={user} onBack={()=>setTagDetail('')} onOpenPost={(p)=>{setSelectedPost(p);setTagDetail('')}} onOpenTag={(t)=>setTagDetail(t)} setProfileUserId={setProfileUserId} myStars={myStars} myLikes={myLikes} toggleStar={toggleStar} toggleLike={toggleLike}/>
@@ -1250,7 +1250,7 @@ function App() {
     : profileUserId ? <UserProfile userId={profileUserId} user={user} onBack={()=>setProfileUserId(null)} onOpenPost={(p)=>{setSelectedPost(p);setProfileUserId(null)}} onOpenUser={setProfileUserId} onStartDM={startDMFromProfile}/>
 
     : <div className="app">
-      <nav className="glass-nav"><h2 className="nav-title">校园树洞</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
+      <nav className="glass-nav"><h2 className="nav-title">鹿鸣回音</h2><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
         <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span>通知</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''}`} onClick={()=>clickNotif(n)}><span className="notif-icon">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@️⃣':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}

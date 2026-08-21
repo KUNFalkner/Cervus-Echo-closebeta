@@ -4,7 +4,7 @@ import json
 BASE_URL = "http://localhost:8000"
 
 def test_api():
-    print("测试校园树洞社区 API...")
+    print("测试鹿鸣回音社区 API...")
     
     # 测试根路径
     response = requests.get(f"{BASE_URL}/")

@@ -103,7 +103,7 @@ else:
 # 清理：删除测试用户及其数据
 uids=[uid]+created_uids
 try:
-    c=sqlite3.connect("backend/treehole.db"); c.execute("PRAGMA foreign_keys=OFF")
+    c=sqlite3.connect("backend/cervus.db"); c.execute("PRAGMA foreign_keys=OFF")
     for u in uids:
         for tbl,col in [("posts","user_id"),("comments","user_id"),("notifications","recipient_id"),("notifications","actor_id"),("user_likes","user_id"),("user_stars","user_id"),("messages","user_id"),("reports","reporter_id")]:
             c.execute(f"DELETE FROM {tbl} WHERE {col}=?",(u,))

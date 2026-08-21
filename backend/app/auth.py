@@ -16,7 +16,7 @@ _secret = os.getenv("TREEHOLE_SECRET")
 if not _secret:
     if IS_PROD:
         raise RuntimeError("生产环境必须设置 TREEHOLE_SECRET 环境变量")
-    _secret = "treehole-dev-secret-change-in-prod"
+    _secret = "cervus-dev-secret-change-in-prod"
     print("[WARN] 未设置 TREEHOLE_SECRET，正在使用开发默认密钥，切勿用于生产环境")
 
 SECRET_KEY = _secret

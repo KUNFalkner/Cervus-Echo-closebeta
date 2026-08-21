@@ -17,9 +17,9 @@ const API_BASE = import.meta.env.DEV ? 'http://localhost:8000/api' : '/api'
 const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // ── 抽牌历史（localStorage 持久化，每次抽牌独立留一条，最多 30 条）──
-const HISTORY_KEY = 'treehole_tarot_history_v1'
+const HISTORY_KEY = 'cervus_tarot_history_v1'
 // 最近一次抽牌结果（刷新后可恢复当前牌面，便于翻看/解读/分享）；不绑定日期。
-const LAST_KEY = 'treehole_tarot_last_v1'
+const LAST_KEY = 'cervus_tarot_last_v1'
 const pad2 = (n) => String(n).padStart(2, '0')
 // 本地时间字符串：日期 YYYY-MM-DD（与用户时区一致）
 const todayStrOf = (ts) => { const d = ts ? new Date(ts) : new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
@@ -491,14 +491,14 @@ const TarotExperience = () => {
     const date = todayStrOf(drawnTs)
     const time = timeStrOf(drawnTs)
     const text = [
-      `【树洞塔罗 · ${date} ${time} · ${spread === 'celtic' ? '凯尔特十字' : '过去现在未来'}】`,
+      `【鹿鸣回音塔罗 · ${date} ${time} · ${spread === 'celtic' ? '凯尔特十字' : '过去现在未来'}】`,
       question ? `疑问：${question}` : '疑问：（未填写，由牌面自语）',
       '',
       drawn.map((c, i) => `${POS[i] ? POS[i].name : (i + 1)}·${c.name}${c.reversed ? '（逆位）' : '（正位）'}`).join('　'),
       '',
       counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）',
       '',
-      '—— 来自 树洞',
+      '—— 来自 鹿鸣回音',
     ].join('\n')
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text)
@@ -580,11 +580,11 @@ const TarotExperience = () => {
     wrapText(ctx, counselText, P, counselTop + 24, W - P * 2, 24)
     // 页脚
     ctx.fillStyle = 'rgba(227,196,120,.6)'; ctx.font = '14px serif'; ctx.textAlign = 'center'
-    ctx.fillText('✦  来自 树洞 · 星语自照  ✦', W / 2, footerY + 6)
+    ctx.fillText('✦  来自 鹿鸣回音 · 星语自照  ✦', W / 2, footerY + 6)
     canvas.toBlob((blob) => {
       if (!blob) { toast.error('生成图片失败'); return }
       const url = URL.createObjectURL(blob)
-      const a = document.createElement('a'); a.href = url; a.download = `树洞塔罗_${date}.png`; a.click()
+      const a = document.createElement('a'); a.href = url; a.download = `鹿鸣回音塔罗_${date}.png`; a.click()
       URL.revokeObjectURL(url); toast.success('已保存分享图 ✦')
     }, 'image/png')
   }

@@ -23,8 +23,8 @@ from fastapi.staticfiles import StaticFiles
 from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm, boards, polls
 
 app = FastAPI(
-    title="校园树洞社区 API",
-    description="校园树洞社区后端API - Beta v0.1.8",
+    title="鹿鸣回音社区 API",
+    description="鹿鸣回音社区后端API - Beta v0.1.8",
     version="0.1.8"
 )
 
@@ -119,7 +119,7 @@ app.include_router(polls.router, tags=["polls"])
 async def root():
     if _DIST.exists():
         return FileResponse(str(_DIST / "index.html"))
-    return {"message": "欢迎来到校园树洞社区 API - Beta v0.1.8"}
+    return {"message": "欢迎来到鹿鸣回音社区 API - Beta v0.1.8"}
 
 @app.get("/health")
 async def health_check():
