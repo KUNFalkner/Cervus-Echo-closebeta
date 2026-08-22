@@ -4,18 +4,18 @@
    The canvas (useStarfield) sets body[data-time] each frame. */
 :root {
   --ink:#e9ecf7; --body:#a8b0cc; --muted:#8f98b8; --faint:#77809f;
-  --accent:#8fa6ff; --on-accent:#0b0f1f;
+  --accent:#c9ccd4; --on-accent:#10131c;
   --card-bg:rgba(20,24,46,0.5); --card-bd:rgba(255,255,255,0.12);
   --card-hover-bg:rgba(255,255,255,0.12); --card-shadow:0 8px 32px rgba(0,0,0,0.4);
-  --card-hover-shadow:0 10px 30px rgba(74,95,196,0.28);
+  --card-hover-shadow:0 10px 30px rgba(201,204,212,0.22);
   --nav-bg:rgba(11,16,36,0.62); --nav-bd:rgba(255,255,255,0.12);
   --nav-fg:rgba(233,236,247,0.8); --nav-fg-strong:#fff;
   --input-bg:rgba(255,255,255,0.06); --input-bd:rgba(255,255,255,0.16); --input-fg:#fff;
   --input-ph:rgba(255,255,255,0.5); --input-fc:rgba(255,255,255,0.5);
   --chip-bg:rgba(255,255,255,0.1); --chip-bd:rgba(255,255,255,0.18); --chip-fg:rgba(255,255,255,0.75);
   --chip-active-bg:rgba(255,255,255,0.22); --chip-active-fg:#fff; --chip-active-bd:rgba(255,255,255,0.5);
-  --cat-active-bg:rgba(143,166,255,0.22); --cat-active-bd:rgba(143,166,255,0.55);
-  --accent-soft:rgba(143,166,255,0.3);
+  --cat-active-bg:rgba(201,204,212,0.22); --cat-active-bd:rgba(201,204,212,0.55);
+  --accent-soft:rgba(201,204,212,0.3);
   --divider:rgba(255,255,255,0.1);
   --scroll-thumb:rgba(255,255,255,0.15);
   --toast-bg:rgba(0,0,0,0.8);
@@ -26,18 +26,18 @@
 }
 body[data-time="day"] {
   --ink:#2a2018; --body:#4a3a2c; --muted:#6a5644; --faint:#6f5a46;
-  --accent:#a3461a; --on-accent:#fff5ec;
+  --accent:#8f93a0; --on-accent:#1b1d24;
   --card-bg:rgba(255,255,255,0.6); --card-bd:rgba(90,64,40,0.14);
   --card-hover-bg:rgba(255,255,255,0.78); --card-shadow:0 8px 30px rgba(140,95,45,0.14);
   --card-hover-shadow:0 10px 30px rgba(140,95,45,0.22);
   --nav-bg:rgba(251,238,222,0.82); --nav-bd:rgba(90,64,40,0.16);
   --nav-fg:rgba(42,32,24,0.7); --nav-fg-strong:#2a2018;
   --input-bg:rgba(255,255,255,0.58); --input-bd:rgba(90,64,40,0.24); --input-fg:#2a2018;
-  --input-ph:rgba(74,58,44,0.52); --input-fc:rgba(163,70,26,0.7);
+  --input-ph:rgba(74,58,44,0.52); --input-fc:rgba(143,147,160,0.85);
   --chip-bg:rgba(255,255,255,0.45); --chip-bd:rgba(90,64,40,0.16); --chip-fg:rgba(74,58,44,0.8);
-  --chip-active-bg:rgba(163,70,26,0.14); --chip-active-fg:#2a2018; --chip-active-bd:rgba(163,70,26,0.5);
-  --cat-active-bg:rgba(163,70,26,0.16); --cat-active-bd:rgba(163,70,26,0.55);
-  --accent-soft:rgba(163,70,26,0.22);
+  --chip-active-bg:rgba(143,147,160,0.16); --chip-active-fg:#2a2018; --chip-active-bd:rgba(143,147,160,0.55);
+  --cat-active-bg:rgba(143,147,160,0.16); --cat-active-bd:rgba(143,147,160,0.55);
+  --accent-soft:rgba(143,147,160,0.3);
   --divider:rgba(90,64,40,0.12);
   --scroll-thumb:rgba(90,64,40,0.22);
   --toast-bg:rgba(42,32,24,0.85);
@@ -617,12 +617,12 @@ body[data-time="day"] .glass-textarea:focus,
 body[data-time="day"] .comment-input:focus,
 body[data-time="day"] .login-input:focus {
   border-color: var(--input-fc);
-  box-shadow: inset 0 1px 3px rgba(90,64,40,0.08), 0 0 0 3px rgba(163,70,26,0.14);
+  box-shadow: inset 0 1px 3px rgba(90,64,40,0.08), 0 0 0 3px rgba(143,147,160,0.18);
 }
 
 /* ── Micro-interactions (liquid-glass feel) ── */
 .post-card {  transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s ease, border-color .28s ease; }
-.post-card:hover { transform: translateY(-6px) scale(1.012); box-shadow: var(--card-hover-shadow), 0 0 0 1px rgba(143,166,255,.35), 0 14px 34px rgba(80,110,220,.22); border-color: rgba(143,166,255,.45); }
+.post-card:hover { transform: translateY(-6px) scale(1.012); box-shadow: var(--card-hover-shadow), 0 0 0 1px rgba(201,204,212,.35), 0 14px 34px rgba(160,165,180,.2); border-color: rgba(201,204,212,.45); }
 .glass-button:active { transform: scale(.96); }
 .login-btn { transition: transform .12s ease, opacity .15s ease; }
 .login-btn:active { transform: scale(.97); }
