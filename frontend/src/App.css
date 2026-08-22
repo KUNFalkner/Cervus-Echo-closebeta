@@ -25,13 +25,13 @@
   --dropdown-bg:rgba(30,30,60,0.95);
 }
 body[data-time="day"] {
-  --ink:#2a2018; --body:#4a3a2c; --muted:#6a5644; --faint:#6f5a46;
+  --ink:#000; --body:#2e2a24; --muted:#5c544c; --faint:#6f6a62;
   --accent:#8f93a0; --on-accent:#1b1d24;
   --card-bg:rgba(255,255,255,0.6); --card-bd:rgba(90,64,40,0.14);
   --card-hover-bg:rgba(255,255,255,0.78); --card-shadow:0 8px 30px rgba(140,95,45,0.14);
   --card-hover-shadow:0 10px 30px rgba(140,95,45,0.22);
   --nav-bg:rgba(251,238,222,0.82); --nav-bd:rgba(90,64,40,0.16);
-  --nav-fg:rgba(42,32,24,0.7); --nav-fg-strong:#2a2018;
+  --nav-fg:rgba(0,0,0,0.72); --nav-fg-strong:#000;
   --input-bg:rgba(255,255,255,0.58); --input-bd:rgba(90,64,40,0.24); --input-fg:#2a2018;
   --input-ph:rgba(74,58,44,0.52); --input-fc:rgba(143,147,160,0.85);
   --chip-bg:rgba(255,255,255,0.45); --chip-bd:rgba(90,64,40,0.16); --chip-fg:rgba(74,58,44,0.8);
