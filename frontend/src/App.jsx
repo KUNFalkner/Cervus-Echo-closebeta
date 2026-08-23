@@ -260,6 +260,7 @@ const LoginPage = ({onLogin,onSwitchRegister}) => {
         .to(items, { opacity:1, y:0, duration:.4, stagger:.12 }, .35)
       return () => tl.kill()
     })
+    return () => mm.revert()
   }, { scope: pageRef })
   const submit=async(e)=>{e.preventDefault();const u=nameRef.current?.value?.trim(),p=passRef.current?.value||'';if(!u)return;setLoading(true);
     try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){alert(e.message)}finally{setLoading(false)}}
@@ -283,6 +284,7 @@ const RegisterForm = ({onSwitch}) => {
         .to(items, { opacity:1, y:0, duration:.45, stagger:.07 }, .28)
       return () => tl.kill()
     })
+    return () => mm.revert()
   }, { scope: formRef })
   // 学校下拉展开时，选项依次淡入
   const openPick = contextSafe(() => {
