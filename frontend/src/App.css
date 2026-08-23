@@ -545,12 +545,14 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   color: var(--muted);
   opacity: 0.9;
 }
-.login-header .brand-title { font-size: 3.4rem; line-height: 1.1; margin-top: 0.15rem; color: #c8bda0; }
-.login-header .brand-subtitle-en { font-size: 1.05rem; margin-top: 0.2rem; color: #c8bda0; }
+.login-header .brand-title { font-size: 3.4rem; line-height: 1.1; margin-top: 0.15rem; }
+.login-header .brand-subtitle-en { font-size: 1.05rem; margin-top: 0.2rem; }
 .nav-brand .brand-title { font-size: 1.9rem; }
 .nav-brand .brand-subtitle-en { font-size: 0.7rem; letter-spacing: 0.18em; margin-top: 0.1rem; }
-/* 中文品牌字在暗色下压暗，向英文副标的暖哑灰靠拢（浅色本来不亮，保持深棕） */
-body:not([data-time="day"]) .nav-brand .brand-title { color: #c8bda0; }
+/* 中文品牌字在暗色下压暗，向英文副标的暖哑灰靠拢（浅色白天跟随 --nav-fg-strong / --muted） */
+body:not([data-time="day"]) .nav-brand .brand-title,
+body:not([data-time="day"]) .login-header .brand-title { color: #c8bda0; }
+body:not([data-time="day"]) .login-header .brand-subtitle-en { color: #c8bda0; }
 .login-card-glass h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.25rem; }
 .login-card-glass p { color: var(--muted); font-size: 0.9rem; }
 .login-form { display: flex; flex-direction: column; gap: 0; }
