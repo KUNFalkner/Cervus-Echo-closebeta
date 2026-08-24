@@ -1446,8 +1446,8 @@ body[data-time="day"] .login-input:focus {
 .notif-dot { position: absolute; top: 0.8rem; right: 0.5rem; width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#ff6b6b,#ee5a24); animation: notif-dot-pulse 1.8s ease-in-out infinite; transform-origin: center; }
 /* 红点：数字变化(key 改变触发重挂载)时弹入一次，平时呼吸脉冲 */
 .notif-badge { animation: notif-badge-pop .42s cubic-bezier(.34,1.56,.64,1), notif-badge-pulse 1.8s ease-in-out .42s infinite; transform-origin: center; }
-/* 面板初始隐藏，由 GSAP 接管入场，避免首帧闪烁；reduced-motion 下 JS 会直接置为可见 */
-.notif-panel { opacity: 0; }
+/* 面板默认可见：GSAP 仅作入场增强，绝不作为「可见性」的前置条件（避免动效失败导致面板永久透明） */
+.notif-panel { opacity: 1; }
 @keyframes notif-badge-pop {
   0%   { transform: scale(0); }
   60%  { transform: scale(1.35); }

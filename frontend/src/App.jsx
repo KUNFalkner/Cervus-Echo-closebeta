@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, createContext, useContext, useRef, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, createContext, useContext, useRef, useMemo } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
 import { animate } from 'animejs'
@@ -1209,12 +1209,17 @@ function App() {
   const markAll = async()=>{ setNotifs(ns=>ns.map(n=>({...n,read:true}))); setUnread(0); try{ await apiFetch('/notifications/read-all',{method:'POST'}) }catch{} }
   const clickNotif = async(n)=>{ await markRead(n.id); if(n.type==='dm'){ if(n.post_id){ setOpenConvId(n.post_id); setChatTab('dm'); setCurPage('chat'); setNotifOpen(false) } return } if(n.type==='follow'){ if(n.actor_id){ setProfileUserId(n.actor_id); setNotifOpen(false) } return } if(n.post_id){ try{ const r=await apiFetch(`/posts/${n.post_id}`); if(r.ok){ setSelectedPost(await r.json()); setNotifOpen(false) } }catch{} } }
   const notifText = (n)=> n.type==='like' ? `${n.actor_name||'有人'} 赞了你的帖子` : n.type==='star' ? `${n.actor_name||'有人'} 收藏了你的帖子` : n.type==='mention' ? `${n.actor_name||'有人'} 在评论中提到了你` : n.type==='follow' ? `${n.actor_name||'有人'} 关注了你` : n.type==='dm' ? `${n.actor_name||'有人'} 给你发了私信` : `${n.actor_name||'有人'} 回复了你的帖子`
-  // 通知面板入场：遮罩缩放回弹 + 列表项错落淡入；尊重 prefers-reduced-motion
-  useEffect(()=>{ if(!notifOpen) return; const el=notifPanelRef.current; if(!el) return
-    if(prefersReduced()){ gsap.set(el,{opacity:1,y:0,scale:1}); return }
-    const ctx=gsap.context(()=>{ gsap.fromTo(el,{opacity:0,y:-10,scale:.96},{opacity:1,y:0,scale:1,duration:.26,ease:'back.out(1.7)'})
-      gsap.from(el.querySelectorAll('.notif-item'),{opacity:0,x:14,duration:.28,ease:'power2.out',stagger:.05,clearProps:'opacity,transform'}) },el)
-    return ()=>ctx.revert() },[notifOpen])
+  // 通知面板入场：缩放回弹 + 列表项错落淡入；尊重 prefers-reduced-motion
+  // 面板默认可见(opacity:1)，GSAP 仅作「增强」：即便动效子系统因任何原因(异常/被拦)未跑，
+  // 点击铃铛也一定能看到面板，杜绝「点击没反应」的单点失效。
+  useLayoutEffect(()=>{ if(!notifOpen) return; const el=notifPanelRef.current; if(!el) return
+    try {
+      if(prefersReduced()){ gsap.set(el,{opacity:1,y:0,scale:1}); return }
+      const ctx=gsap.context(()=>{ gsap.fromTo(el,{opacity:0,y:-10,scale:.96},{opacity:1,y:0,scale:1,duration:.26,ease:'back.out(1.7)'})
+        gsap.from(el.querySelectorAll('.notif-item'),{opacity:0,x:14,duration:.28,ease:'power2.out',stagger:.05,clearProps:'opacity,transform'}) },el)
+      return ()=>ctx.revert()
+    } catch { /* 动效失败绝不影响面板可见性 */ }
+  },[notifOpen])
 
   // 帖子卡片错落入场（GSAP stagger）；尊重 prefers-reduced-motion
   // 依赖 listKey 而非 posts：点赞只改 posts 数组引用，不应让整列重新闪一下
