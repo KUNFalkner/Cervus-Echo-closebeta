@@ -146,7 +146,7 @@ function canSeeAllForums(u) { return u && (u.role==='founder'||u.role==='ambassa
 function canSeeUid(viewer, post) { if(!viewer||!post) return false; if(viewer.role==='founder') return true; if(viewer.role==='ambassador') return post.user_school===viewer.school_id || !post.hide_uid; return !post.hide_uid }
 
 // ── Toast（上下文在 ToastContext.jsx）──
-import { ToastProvider, useToast } from './ToastContext'
+import { ToastProvider, useToast, toast } from './ToastContext'
 
 // ── Shared components ──
 const Spinner = () => <div className="spinner-container"><div className="loading-dots"><span/><span/><span/></div></div>
@@ -246,7 +246,7 @@ const Starfield = () => {
 
 // ── LoginPage ──
 const LoginPage = ({onLogin,onSwitchRegister}) => {
-  const nameRef=useRef(null); const passRef=useRef(null); const pageRef=useRef(null); const [loading,setLoading]=useState(false);
+  const toast=useToast(); const nameRef=useRef(null); const passRef=useRef(null); const pageRef=useRef(null); const [loading,setLoading]=useState(false);
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add('(prefers-reduced-motion: no-preference)', () => {
@@ -263,7 +263,7 @@ const LoginPage = ({onLogin,onSwitchRegister}) => {
     return () => mm.revert()
   }, { scope: pageRef })
   const submit=async(e)=>{e.preventDefault();const u=nameRef.current?.value?.trim(),p=passRef.current?.value||'';if(!u)return;setLoading(true);
-    try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){alert(e.message)}finally{setLoading(false)}}
+    try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){toast.error(e.message)}finally{setLoading(false)}}
   return <div className="login-page" ref={pageRef}><div className="login-card-glass"><div className="login-header"><h1 className="brand-title">鹿鸣回音</h1><span className="brand-subtitle-en">Cervus Echo</span><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码（可选）" className="login-input"/><button type="submit" className="login-btn" disabled={loading}>{loading?'进入中...':'进入社区'}</button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
 }
 
@@ -953,11 +953,11 @@ const AdminPage = ({user}) => {
 
 // ── UserProfile（他人/自己主页：公开信息 + TA 的帖子）──
 const UserProfile = ({userId, user, onBack, onOpenPost, onOpenUser, onStartDM}) => {
-  const [info,setInfo]=useState(null); const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true); const [err,setErr]=useState(null); const [tick,setTick]=useState(0)
+  const toast=useToast(); const [info,setInfo]=useState(null); const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true); const [err,setErr]=useState(null); const [tick,setTick]=useState(0)
   const [followState,setFollowState]=useState(false); const [followBusy,setFollowBusy]=useState(false)
   const [socialStats,setSocialStats]=useState({followers:0,following:0}); const [showFollow,setShowFollow]=useState(null)
   useEffect(()=>{ const f=async()=>{ try{ const [st,stt]=await Promise.all([apiFetch(`/social/stats/${userId}`), user?.id?apiFetch(`/social/follow-state?ids=${userId}`):Promise.resolve({ok:false})]); if(st.ok)setSocialStats(await st.json()); if(stt.ok){ const j=await stt.json(); setFollowState((j.following_ids||[]).includes(userId)) } }catch{} }; f() },[userId,user])
-  const toggleFollow=async()=>{ if(!user)return; setFollowBusy(true); try{ const r=await apiFetch(`/social/follow/${userId}`,{method:followState?'DELETE':'POST'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); setFollowState(s=>!s); setSocialStats(s=>({...s, followers: s.followers + (followState?-1:1)})) }catch(e){ alert(e.message) }finally{ setFollowBusy(false) } }
+  const toggleFollow=async()=>{ if(!user)return; setFollowBusy(true); try{ const r=await apiFetch(`/social/follow/${userId}`,{method:followState?'DELETE':'POST'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); setFollowState(s=>!s); setSocialStats(s=>({...s, followers: s.followers + (followState?-1:1)})) }catch(e){ toast.error(e.message) }finally{ setFollowBusy(false) } }
   const openFollow=(t)=>setShowFollow(t)
   const load = useCallback(async()=>{ setLoading(true); setErr(null);
     try{ const [u,p]=await Promise.all([apiFetch(`/users/${userId}`),apiFetch(`/posts/?user_id=${userId}&limit=60`)]);
@@ -1237,49 +1237,33 @@ function App() {
     return forums
   }
 
-  const startDMFromProfile = async (peerId) => { try{ const r=await apiFetch('/dm/conversations',{method:'POST',body:JSON.stringify({peer_id:peerId})}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); const d=await r.json(); setOpenConvId(d.id); setChatTab('dm'); setCurPage('chat'); setProfileUserId(null) }catch(e){ alert(e.message) } }
+  const startDMFromProfile = async (peerId) => { try{ const r=await apiFetch('/dm/conversations',{method:'POST',body:JSON.stringify({peer_id:peerId})}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); const d=await r.json(); setOpenConvId(d.id); setChatTab('dm'); setCurPage('chat'); setProfileUserId(null) }catch(e){ toast.error(e.message) } }
 
   const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setShowRules(true) }
 
-  // 星标切换：加星/取消星标 + 同步计数与本地高亮（Star/Karma 治理）
-  const toggleStar = async (post) => {
+  // 星标/点赞统一切换：乐观更新 + 本地高亮 + 计数回退；star/like 共用一份逻辑，避免重复实现
+  const toggleReaction = async (kind, post) => {
     const uid = user?.id
     if(!uid) return
-    const starred = !!myStars[post.id]
-    const method = starred ? 'DELETE' : 'POST'
+    const active = kind === 'star' ? !!myStars[post.id] : !!myLikes[post.id]
+    const method = active ? 'DELETE' : 'POST'
     try {
-      const r = await apiFetch(`/posts/${post.id}/star`, {method})
+      const r = await apiFetch(`/posts/${post.id}/${kind}`, {method})
       const d = await r.json().catch(()=>({}))
-      if(!r.ok){ if(d.detail) alert(d.detail); return }
-      const nowStarred = !starred
-      setMyStars(s => ({...s, [post.id]: nowStarred}))
-      const key = 'cervus_stars_'+uid
-      try{ const saved = JSON.parse(localStorage.getItem(key)||'{}'); saved[post.id]=nowStarred; localStorage.setItem(key, JSON.stringify(saved)) }catch{}
-      const sc = (typeof d.star_count==='number') ? d.star_count : (post.star_count + (nowStarred?1:-1))
-      setPosts(prev => prev.map(x=>x.id===post.id?{...x, star_count:sc}:x))
-      if(selectedPost && selectedPost.id===post.id) setSelectedPost(sp=>({...sp, star_count:sc}))
-    } catch(e){ alert('操作失败，请重试') }
+      if(!r.ok){ if(d.detail) toast.error(d.detail); return }
+      const nowActive = !active
+      const setMap = kind === 'star' ? setMyStars : setMyLikes
+      setMap(s => ({...s, [post.id]: nowActive}))
+      const key = 'cervus_' + kind + 's_' + uid
+      try{ const saved = JSON.parse(localStorage.getItem(key)||'{}'); saved[post.id]=nowActive; localStorage.setItem(key, JSON.stringify(saved)) }catch{}
+      const countKey = kind === 'star' ? 'star_count' : 'like_count'
+      const count = (typeof d[countKey]==='number') ? d[countKey] : (post[countKey] + (nowActive?1:-1))
+      setPosts(prev => prev.map(x=>x.id===post.id?{...x, [countKey]:count}:x))
+      if(selectedPost && selectedPost.id===post.id) setSelectedPost(sp=>({...sp, [countKey]:count}))
+    } catch(e){ toast.error('操作失败，请重试') }
   }
-
-  // 点赞切换：点赞/取消点赞 + 同步计数与本地高亮
-  const toggleLike = async (post) => {
-    const uid = user?.id
-    if(!uid) return
-    const liked = !!myLikes[post.id]
-    const method = liked ? 'DELETE' : 'POST'
-    try {
-      const r = await apiFetch(`/posts/${post.id}/like`, {method})
-      if(!r.ok){ const d=await r.json().catch(()=>({})); if(d.detail) alert(d.detail); return }
-      const d = await r.json().catch(()=>({}))
-      const nowLiked = !liked
-      setMyLikes(s => ({...s, [post.id]: nowLiked}))
-      const key = 'cervus_likes_'+uid
-      try{ const saved = JSON.parse(localStorage.getItem(key)||'{}'); saved[post.id]=nowLiked; localStorage.setItem(key, JSON.stringify(saved)) }catch{}
-      const lc = (typeof d.like_count==='number') ? d.like_count : (post.like_count + (nowLiked?1:-1))
-      setPosts(prev => prev.map(x=>x.id===post.id?{...x, like_count:lc}:x))
-      if(selectedPost && selectedPost.id===post.id) setSelectedPost(sp=>({...sp, like_count:lc}))
-    } catch(e){ alert('操作失败，请重试') }
-  }
+  const toggleStar = (post) => toggleReaction('star', post)
+  const toggleLike = (post) => toggleReaction('like', post)
 
   if(isRegister&&!user) return <ToastProvider><Starfield/><RegisterForm onSwitch={()=>setIsRegister(false)}/></ToastProvider>
 

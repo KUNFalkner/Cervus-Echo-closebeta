@@ -5,6 +5,15 @@ export const ToastCtx = createContext()
 
 export const useToast = () => useContext(ToastCtx)
 
+// 命令式 toast 单例：供未被 ToastProvider 包裹的最外层代码（如 App 自身）直接调用，
+// 无需在组件树内。Provider 挂载时把 push 接上，因此仅在应用已渲染后才可用（本项目调用时机均满足）。
+let externalPush = null
+export const toast = {
+  success: (m) => externalPush && externalPush('success', m),
+  error: (m) => externalPush && externalPush('error', m),
+  info: (m) => externalPush && externalPush('info', m),
+}
+
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([])
   const tidRef = useRef(0)
@@ -16,6 +25,7 @@ export const ToastProvider = ({ children }) => {
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 3000)
   }
   const toast = { success: m => push('success', m), error: m => push('error', m), info: m => push('info', m) }
+  externalPush = push
   return (
     <ToastCtx.Provider value={toast}>
       {children}
