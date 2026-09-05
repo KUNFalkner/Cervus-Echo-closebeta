@@ -8,6 +8,7 @@ import WelcomeHello from './WelcomeHello'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
 import GlobalSearch from './GlobalSearch'
+import CommunityStory from './CommunityStory'
 import { renderMarkdown } from './markdown'
 
 // 生产走同源相对路径：后端/nginx 都在同一 origin 下托管前端，
@@ -1276,6 +1277,7 @@ function App() {
   const [myStars,setMyStars] = useState({})
   const [myLikes,setMyLikes] = useState({})
   const [tagDetail,setTagDetail] = useState('')   // 话题标签聚合页：非空时进入独立 TagDetail 视图
+  const [storyOpen,setStoryOpen] = useState(false) // 社区故事页（B 版：手记画册）
   const [trendingTags,setTrendingTags] = useState([])
   const [notifOpen,setNotifOpen] = useState(false)
   const [notifs,setNotifs] = useState([])
@@ -1454,12 +1456,13 @@ function App() {
     {editPost&&<PostEditModal post={editPost} boards={boards} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
     {sessionExpired&&<div className="session-expired-banner">登录已过期，请重新登录</div>}
     {!user ? <LoginPage onLogin={handleLogin} onSwitchRegister={()=>setIsRegister(true)}/>
+    : storyOpen ? <CommunityStory onBack={()=>setStoryOpen(false)}/>
     : tagDetail ? <TagDetail tag={tagDetail} user={user} onBack={()=>setTagDetail('')} onOpenPost={(p)=>{setSelectedPost(p);setTagDetail('')}} onOpenTag={(t)=>setTagDetail(t)} setProfileUserId={setProfileUserId} myStars={myStars} myLikes={myLikes} toggleStar={toggleStar} toggleLike={toggleLike}/>
     : selectedPost ? <div className="app"><PostDetail post={selectedPost} user={user} onBack={()=>setSelectedPost(null)} onRefresh={fetchPosts} myStars={myStars} onToggleStar={toggleStar} myLikes={myLikes} onToggleLike={toggleLike} onEditPost={setEditPost} setProfileUserId={setProfileUserId} setSelectedPost={setSelectedPost} onOpenTag={(t)=>setTagDetail(t)}/></div>
     : profileUserId ? <UserProfile userId={profileUserId} user={user} onBack={()=>setProfileUserId(null)} onOpenPost={(p)=>{setSelectedPost(p);setProfileUserId(null)}} onOpenUser={setProfileUserId} onStartDM={startDMFromProfile}/>
 
     : <div className="app">
-      <nav className="glass-nav"><div className="nav-brand"><h2 className="nav-title brand-title">鹿鸣回音</h2><span className="brand-subtitle-en nav-subtitle-en">Cervus Echo</span></div><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
+      <nav className="glass-nav"><div className="nav-brand"><h2 className="nav-title brand-title">鹿鸣回音</h2><span className="brand-subtitle-en nav-subtitle-en">Cervus Echo</span></div><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={storyOpen?'active':''} onClick={()=>setStoryOpen(true)}>故事</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
         <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span className="notif-panel-title"><span className="notif-panel-glyph">🔔</span>通知{notifs.some(n=>!n.read)&&<span className="notif-head-badge">{notifs.filter(n=>!n.read).length}</span>}</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''} notif-${n.type}`} onClick={()=>clickNotif(n)}><span className="notif-icon-badge">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
