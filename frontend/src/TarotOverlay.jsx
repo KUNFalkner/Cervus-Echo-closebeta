@@ -32,6 +32,9 @@ function buildMeteors() {
       delay: Math.round(rnd(0, 7000)),
       loop: Math.round(rnd(6000, 13000)),       // 更稀疏
       peak: +rnd(0.5, 0.82).toFixed(2),
+      // 自然化 v3：轨迹微弧（风偏）——终点横向偏移 ±6vw，配 rotate 补间让头微摆
+      curve: +rnd(-6, 6).toFixed(1),
+      // 亮度节奏：入窗慢 → 巡行亮 → 熄尾快（非线性补间，见 keyframes）
     })
   }
   // 偶尔成双：挑一颗做近孪生的第二颗（同角度、近同时、略短），像真实夜空「时不时划过两颗」
@@ -45,6 +48,7 @@ function buildMeteors() {
       dur: s.dur, peak: +(s.peak * rnd(0.8, 1)).toFixed(2),
       delay: s.delay + Math.round(rnd(160, 520)),
       loop: s.loop,
+      curve: +(s.curve + rnd(-2, 2)).toFixed(1),
     })
   }
   return out
@@ -62,15 +66,27 @@ const MeteorField = ({ perfTier }) => {
     const anims = []
     root.querySelectorAll('.tarot-meteor').forEach((m, i) => {
       const c = meteors[i % meteors.length]
+      // 自然化 v3（animejs skill · keyframes）：
+      //  - 位移不再一条直线匀速：主补间走 inOutSine，但把 rotate 加一个 ±1.2° 的
+      //    微摆（pivot 在尾端，视觉是「头微摆、尾拖住」），破坏机械感
+      //  - 亮度四段 keyframes：暗入场(慢) → 亮起(快) → 巡行(稳) → 熄灭(快)，
+      //    与真实流星「掠入视野才显形、离开前先熄」的观感一致
+      //  - scaleX 尾迹：起步拖出(0.3→1) + 熄灭前回缩(1→0.25)，模拟尾巴收光
       anims.push(animate(m, {
         translateX: [c.x0, c.x1],
         translateY: [c.y0, c.y1],
-        scaleX: [0.5, 1],
+        scaleX: [
+          { to: 0.3, duration: 1 },
+          { to: 1, duration: c.dur * 0.22, ease: 'outQuad' },
+          { to: 1, duration: c.dur * 0.5 },
+          { to: 0.25, duration: c.dur * 0.28, ease: 'inQuad' },
+        ],
         opacity: [
           { to: 0, duration: 1 },
-          { to: c.peak, duration: 360 },
-          { to: c.peak, duration: Math.max(900, c.dur - 1100) },
-          { to: 0, duration: 700 },
+          { to: c.peak * 0.55, duration: c.dur * 0.18, ease: 'outSine' },
+          { to: c.peak, duration: c.dur * 0.24, ease: 'inOutSine' },
+          { to: c.peak * 0.9, duration: c.dur * 0.38 },
+          { to: 0, duration: c.dur * 0.2, ease: 'inQuad' },
         ],
         duration: c.dur,
         delay: c.delay,
@@ -78,6 +94,19 @@ const MeteorField = ({ perfTier }) => {
         loopDelay: c.loop,
         ease: 'inOutSine',
       }))
+      // 头部微摆：独立小补间挂在 pivot 上（rotate 固定角上叠加摆动，互不覆盖）
+      const pivot = m.parentNode
+      if (pivot && !pivot.dataset.sway) {
+        pivot.dataset.sway = '1'
+        anims.push(animate(pivot, {
+          rotate: [`${c.angle}deg`, `${c.angle + (c.curve > 0 ? 1.4 : -1.4)}deg`, `${c.angle}deg`],
+          duration: c.dur,
+          delay: c.delay,
+          loop: true,
+          loopDelay: c.loop,
+          ease: 'inOutQuad',
+        }))
+      }
     })
     const mo = new MutationObserver(() => {
       const dealing = document.body.classList.contains('tarot-dealing')
