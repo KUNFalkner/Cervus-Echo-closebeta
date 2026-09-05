@@ -2230,3 +2230,15 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   .cs-page-inner { transition: none; }
   .cs-book { transition: none; }
 }
+
+/* ── AI 解读等待：星轨进度环 + 阶段文案（把 40s 变仪式）── */
+.tarot-counsel-wait { display: flex; align-items: center; gap: 1rem; padding: 1rem .4rem .4rem; }
+.tcw-ring { width: 58px; height: 58px; flex: none; transform: rotate(-90deg); }
+.tcw-ring-bg { fill: none; stroke: rgba(227,196,120,.14); stroke-width: 3; }
+.tcw-ring-fg { fill: none; stroke: #e3c478; stroke-width: 3; stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 6px rgba(227,196,120,.5)); }
+.tcw-body { flex: 1; }
+.tcw-stage { margin: 0 0 .3rem; font-size: .95rem; color: #e3c478; letter-spacing: .06em; animation: tcw-fade .8s ease; }
+.tcw-sec { margin: 0; font-size: .74rem; color: rgba(242,232,216,.4); letter-spacing: .08em; }
+@keyframes tcw-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tcw-stage { animation: none; } .tcw-ring-fg { transition: none; } }

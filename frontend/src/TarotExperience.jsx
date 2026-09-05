@@ -172,6 +172,38 @@ const HeroAstrolabe = () => {
   )
 }
 
+// AI 解读等待组件：星轨进度环 + 阶段文案轮换 + 计时（把 40s 黑盒变成仪式感）
+// 阶段推进基于真实耗时（本地 qwen3:8b 实测 ~40s）：0-10s 唤醒星盘 / 10-26s 聆听牌语 / 26s+ 编织星语
+const COUNSEL_STAGES = [
+  { at: 0, text: '唤醒星盘，链接星语…' },
+  { at: 10, text: '洗牌落定，正在聆听牌语…' },
+  { at: 26, text: '牌语已成，编织你的解读…' },
+]
+const CounselWait = () => {
+  const [sec, setSec] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setSec(s => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const stage = [...COUNSEL_STAGES].reverse().find(s => sec >= s.at) || COUNSEL_STAGES[0]
+  // 进度环：40s 估时填满（视觉参考，不承诺精确）
+  const pct = Math.min(1, sec / 40)
+  const R = 26, C = 2 * Math.PI * R
+  return (
+    <div className="tarot-counsel-wait" role="status" aria-live="polite">
+      <svg className="tcw-ring" viewBox="0 0 64 64" aria-hidden>
+        <circle cx="32" cy="32" r={R} className="tcw-ring-bg" />
+        <circle cx="32" cy="32" r={R} className="tcw-ring-fg"
+          strokeDasharray={C} strokeDashoffset={C * (1 - pct)} />
+      </svg>
+      <div className="tcw-body">
+        <p className="tcw-stage">{stage.text}</p>
+        <p className="tcw-sec">已聆听 {sec}s · 星语值得等待</p>
+      </div>
+    </div>
+  )
+}
+
 // 塔罗占卜核心体验：可独立挂载，也可被 TarotOverlay 包裹为全屏模式。
 // 「过去 · 现在 · 未来」三张时间牌阵，每日一抽（localStorage 持久化）。
 const TarotExperience = () => {
@@ -729,13 +761,7 @@ const TarotExperience = () => {
                   {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ AI 解读'}
                 </button>
               </div>
-              {interpreting && (
-                <div className="tarot-counsel-skeleton" aria-hidden>
-                  <span className="tarot-counsel-sk-line w1" />
-                  <span className="tarot-counsel-sk-line w2" />
-                  <span className="tarot-counsel-sk-line w3" />
-                </div>
-              )}
+              {interpreting && <CounselWait />}
               {counsel && (() => {
                 const isLlm = counsel.source === 'llm'
                 const title = isLlm ? '星语 · AI 解读'
