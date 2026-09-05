@@ -4,6 +4,7 @@ import { useGSAP } from '@gsap/react'
 import { animate } from 'animejs'
 gsap.registerPlugin(useGSAP)
 import './App.css'
+import WelcomeHello from './WelcomeHello'
 import TarotOrb from './TarotOrb'
 import TarotOverlay from './TarotOverlay'
 import GlobalSearch from './GlobalSearch'
@@ -473,13 +474,21 @@ const PostDetail = ({post,user,onBack,onRefresh,myStars,onToggleStar,myLikes,onT
 <button type="submit" className="glass-button submit-btn btn-primary" disabled={submitting||cUploading||(!nc.trim()&&!cImgs.length)}>{cUploading?'上传中...':submitting?'发送中...':(replyTo?'回复':'发表评论')}</button></form>{loading?<Spinner/>:err?<ErrorBox msg={err} onRetry={fc}/>:comments.length===0?<Empty icon="💬" title="暂无评论" desc="成为第一个评论的人"/>:<div className="comments-list">{tree.map(n=>renderNode(n,0))}</div>}{showR&&<ReportModal type={rt.type} tid={rt.id} onClose={()=>setShowR(false)}/>}</div></div>
 }
 
-// ── RulesModal ──
-const RulesModal = ({onClose}) => <AnimatedModal onClose={onClose} className="rules-modal login-rules-modal">
+// ── 社区公约（单一事实源：首登弹窗与「我的 → 社区公约」共用，避免双份维护）──
+const COMMUNITY_PACT = [
+  { n: '一、友善交流，尊重他人', d: '我们鼓励真诚的表达，但拒绝一切辱骂、人身攻击、地域歧视与网络暴力。讨论可以有不同的声音，请对事不对人。' },
+  { n: '二、保护隐私，严守边界', d: '请勿公开他人真实姓名、电话、住址、证件号、学号等隐私信息；未经同意不得拍摄、传播他人影像。你的匿名，也同样属于他人。' },
+  { n: '三、合法合规，健康表达', d: '禁止发布违法、色情、暴力、赌博、自伤诱导及任何危害身心健康的不良信息。涉及严重心理危机的内容，我们会引导你寻求专业帮助。' },
+  { n: '四、理性发言，拒绝谣言', d: '不造谣、不传谣，不发布未经核实的校园传闻。你写下的每一句话，都可能影响一个真实的人。' },
+  { n: '五、共建共治，彼此守护', d: '发现违规内容请使用举报功能，管理员与大使会按规定处理。社区的安全感，来自每一个人的克制与善意。' },
+  { n: '六、责任与边界', d: '鹿鸣回音是校园互助平台，不替代专业心理咨询、医疗或法律服务。遇到紧急情况，请第一时间联系学校、家人与专业机构。' },
+]
+const RulesModal = ({onClose, title = '📜 鹿鸣回音社区公约'}) => <AnimatedModal onClose={onClose} className="rules-modal login-rules-modal">
   {({ requestClose }) => (<>
-    <h2>📜 社区规则</h2>
-    <p className="rules-subtitle">欢迎来到鹿鸣回音！请仔细阅读以下规则：</p>
-    <div className="rules-content"><p><strong>1. 友善交流</strong> — 尊重他人，禁止辱骂、人身攻击。</p><p><strong>2. 保护隐私</strong> — 请勿公开他人真实姓名、联系方式等隐私信息。</p><p><strong>3. 合理发言</strong> — 禁止发布违法、色情、暴力等不良信息。</p><p><strong>4. 举报机制</strong> — 发现违规内容请及时举报，管理员会尽快处理。</p><p><strong>5. 共同维护</strong> — 让我们一起营造温暖、安全的校园社区。</p></div>
-    <button className="glass-button btn-primary" onClick={requestClose}>我已阅读，开始使用</button>
+    <h2>{title}</h2>
+    <p className="rules-subtitle">本公约旨在守护一个安全、温暖、值得信赖的表达空间。进入社区即视为你已阅读并愿意共同遵守。</p>
+    <div className="rules-content">{COMMUNITY_PACT.map(r => <p key={r.n}><strong>{r.n}</strong> — {r.d}</p>)}</div>
+    <button className="glass-button btn-primary" onClick={requestClose}>我已知晓，开始使用</button>
   </>)}
 </AnimatedModal>
 
@@ -604,6 +613,27 @@ const PostEditModal = ({post, boards = CATEGORIES, onClose, onSaved}) => {
   </AnimatedModal>
 }
 
+// ── 阅后即焚辅助组件 ──
+const BURN_MODES = [
+  { key: 'any', label: '🔥 任一读后即焚' },
+  { key: 'all', label: '👥 全部读完才焚' },
+  { key: 'per_user', label: '🙈 按人各自焚' },
+];
+const BurnPicker = ({ value, onChange }) => (
+  <div className="burn-picker">
+    <span className="burn-picker-label">阅后即焚</span>
+    {BURN_MODES.map(m => <button key={m.key} type="button" className={`burn-opt ${value===m.key?'active':''}`} onClick={()=>onChange(value===m.key?null:m.key)} title={m.key==='per_user'?'默认：你看过只对你消失':''}>{m.label}</button>)}
+    {value&&<button type="button" className="burn-opt burn-opt-clear" onClick={()=>onChange(null)}>✕ 取消</button>}
+  </div>
+);
+// 焚毁消息渲染：burned=已焚 / pending=待点击查看 / own=发送者自己 / permanent=普通
+const BurnMessageContent = ({ m, meId, onView }) => {
+  if(!m.burn_mode) return <span className="dm-msg-content">{m.content}</span>;
+  if(m.burned) return <span className="burn-card gone">🔥 此消息已焚毁</span>;
+  if(m.state==='own') return <span className="burn-card revealed">{m.content}</span>;
+  // pending：点击调 view 拿明文
+  return <button className="burn-card" onClick={()=>onView(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>;
+};
 // ── DirectMessages（1:1 私信）──
 const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const toast=useToast();
@@ -615,6 +645,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const [sending,setSending]=useState(false);
   const [peerTyping,setPeerTyping]=useState(false);
   const [dmSearch,setDmSearch]=useState('');
+  const [burnMode,setBurnMode]=useState(null);  // null=永久；any/all/per_user
   const listRef=useRef(null);
   const wsRef=useRef(null);
   const typingTimer=useRef(null);
@@ -635,6 +666,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
       if(d.type==='typing'){ if(d.sender_id!==meId) setPeerTyping(true) }
       else if(d.type==='stop'){ setPeerTyping(false) }
       else if(d.type==='read'){ const ids=new Set(d.message_ids||[]); setMessages(prev=>prev.map(m=>ids.has(m.id)?{...m,read:true}:m)) }
+      else if(d.type==='burned'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,burned:true,content:null,state:'burned'}:m)) }
       else if(d.type==='message'){ if(d.sender_id!==meId) setMessages(prev=>prev.some(x=>x.id===d.id)?prev:[...prev,d]) }
     }catch(e){} }
     return ()=>{ try{ ws.close() }catch(e){}; wsRef.current=null }
@@ -643,9 +675,14 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const stopTyping=()=>{ if(typingTimer.current)clearTimeout(typingTimer.current); const ws=wsRef.current; if(ws&&ws.readyState===WebSocket.OPEN){ try{ ws.send(JSON.stringify({type:'stop'})) }catch(e){} } };
   const onDmInput=(e)=>{ setInput(e.target.value); sendTyping() };
   const send=async(e)=>{ e.preventDefault(); if(!input.trim()||!activeConv)return; setSending(true); stopTyping();
-    const tmpId='tmp-'+Date.now(); const opt={id:tmpId,conversation_id:activeConv,sender_id:meId,content:input,read:false,created_at:new Date().toISOString(),_pending:true};
+    const tmpId='tmp-'+Date.now(); const bm=burnMode; const opt={id:tmpId,conversation_id:activeConv,sender_id:meId,content:input,read:false,created_at:new Date().toISOString(),burn_mode:bm,burned:false,state:bm?'own':'permanent',_pending:true};
     setMessages(prev=>[...prev,opt]); setInput('');
-    try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages`,{method:'POST',body:JSON.stringify({content:input})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)) }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') }finally{ setSending(false) } };
+    try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)) }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') }finally{ setSending(false) } };
+  // 阅后即焚：点占位卡调 view 拿明文；view 后按模式后端会焚毁/局部焚毁
+  const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/dm/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
+    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
+    else if(v.burned){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)) }
+  }catch(err){ toast.error(err.message) } };
   useEffect(()=>{ const el=listRef.current; if(!el)return; const m=el.querySelector('.dm-message:last-child'); if(m&&!prefersReduced())gsap.fromTo(m,{opacity:0,y:8},{opacity:1,y:0,duration:.25,ease:'power2.out',clearProps:'opacity,transform'}) },[messages.length]);
   if(activeConv==null){
     return <div className="dm-page"><div className="dm-list-head">私信</div>
@@ -667,12 +704,133 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     <div className="dm-search-row"><input value={dmSearch} onChange={e=>setDmSearch(e.target.value)} placeholder="搜索对话内容…" className="glass-input dm-search-input"/></div>
     <div className="dm-messages" ref={listRef}>
       {loadingConv?<Spinner/>:shown.length===0?<Empty icon="💬" title={q?'没有匹配的消息':'还没有消息'} desc={q?'换个关键词试试':'发送第一条消息吧'}/>:
-        shown.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`}><span className="dm-msg-content">{m.content}</span><span className="dm-msg-meta"><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span>{m.sender_id===meId&&<span className="dm-msg-receipt">{m.read?'已读':'✓'}</span>}</span></div>)}
+        shown.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`}><BurnMessageContent m={m} meId={meId} onView={viewBurn}/><span className="dm-msg-meta"><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span>{m.sender_id===meId&&!m.burn_mode&&<span className="dm-msg-receipt">{m.read?'已读':'✓'}</span>}</span></div>)}
       {peerTyping&&<div className="dm-typing"><span className="dm-typing-dot"/><span className="dm-typing-text">对方正在输入…</span></div>}
     </div>
-    <form onSubmit={send} className="chat-input-form"><input value={input} onChange={onDmInput} placeholder="输入私信..." className="glass-input chat-input" disabled={sending}/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||sending}>发送</button></form>
+    <div className="dm-input-area"><BurnPicker value={burnMode} onChange={setBurnMode}/><form onSubmit={send} className="chat-input-form"><input value={input} onChange={onDmInput} placeholder="输入私信..." className="glass-input chat-input" disabled={sending}/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||sending}>发送</button></form></div>
   </div>
 }
+
+// ── GroupChat（自建群聊）──
+const GroupChat = ({ user, onOpenUser }) => {
+  const toast=useToast();
+  const [groups,setGroups]=useState([]);
+  const [activeGid,setActiveGid]=useState(null);
+  const [members,setMembers]=useState([]);
+  const [messages,setMessages]=useState([]);
+  const [input,setInput]=useState('');
+  const [burnMode,setBurnMode]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [showCreate,setShowCreate]=useState(false);
+  const [showManage,setShowManage]=useState(false);
+  const [amCreator,setAmCreator]=useState(false);
+  const [grpName,setGrpName]=useState('');
+  const listRef=useRef(null);
+  const wsRef=useRef(null);
+  const meId=user?.id;
+  const loadGroups=useCallback(async()=>{ try{ const r=await apiFetch('/groups'); if(r.ok)setGroups(await r.json()) }catch{} },[]);
+  useEffect(()=>{ loadGroups() },[loadGroups]);
+  const openGroup=useCallback(async(gid)=>{ setActiveGid(gid); setLoading(true); setMessages([]);
+    try{ const [mr,dr]=await Promise.all([apiFetch(`/groups/${gid}/messages?limit=50`),apiFetch(`/groups/${gid}`)]); if(mr.ok)setMessages(await mr.json()); if(dr.ok){ const d=await dr.json(); setAmCreator(d.am_i_creator); setGrpName(d.name) } }catch{} finally{ setLoading(false) } },[meId]);
+  // 群 WS：只收实时推送（新消息/焚毁）；发送走 REST
+  useEffect(()=>{
+    if(activeGid==null) return
+    let ws
+    try{ ws=new WebSocket(`${WS_BASE}/group/${activeGid}?token=${encodeURIComponent(getToken())}`) }catch(e){ return }
+    wsRef.current=ws
+    ws.onmessage=(ev)=>{ try{
+      const d=JSON.parse(ev.data)
+      if(d.type==='message'){ if(d.sender_id!==meId) setMessages(prev=>prev.some(x=>x.id===d.id)?prev:[...prev,d]) }
+      else if(d.type==='burned'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,burned:true,content:null,state:'burned'}:m)) }
+    }catch(e){} }
+    return ()=>{ try{ ws.close() }catch(e){}; wsRef.current=null }
+  },[activeGid,meId]);
+  const send=async(e)=>{ e.preventDefault(); if(!input.trim()||!activeGid)return;
+    const tmpId='tmp-'+Date.now(); const bm=burnMode;
+    setMessages(prev=>[...prev,{id:tmpId,user_id:meId,nickname:user.nickname,avatar:user.avatar,content:bm?null:input,burn_mode:bm,burned:false,state:bm?'own':'permanent',created_at:new Date().toISOString()}]); setInput('');
+    try{ const r=await apiFetch(`/groups/${activeGid}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)); loadGroups() }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') } };
+  const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/group/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
+    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
+    else if(v.burned){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)) }
+  }catch(err){ toast.error(err.message) } };
+  useEffect(()=>{ if(activeGid==null)return; const f=async()=>{ try{ const r=await apiFetch(`/groups/${activeGid}/members`); if(r.ok)setMembers(await r.json()) }catch{} }; f() },[activeGid,showManage]);
+  useEffect(()=>{ const el=listRef.current; if(!el)return; el.scrollTop=el.scrollHeight },[messages.length]);
+  if(activeGid==null){
+    return <div className="dm-page"><div className="dm-list-head" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span>群聊</span><button className="glass-button btn-primary" style={{padding:'.2rem .6rem',fontSize:'.8rem'}} onClick={()=>setShowCreate(true)}>＋ 建群</button></div>
+      {groups.length===0?<Empty icon="👥" title="还没有群聊" desc="点右上角建群，拉上好友一起聊"/>:<div className="dm-list">{groups.map(g=><div key={g.id} className="dm-conv" onClick={()=>openGroup(g.id)}><div className="group-avatar">👥</div><div className="dm-conv-info"><div className="dm-conv-top"><span className="dm-conv-name">{g.name}</span>{g.unread>0&&<span className="notif-badge">{g.unread>99?'99+':g.unread}</span>}</div><span className="dm-conv-last">{g.last_message||(g.member_count>0?`${g.member_count} 人`:'')}</span></div></div>)}</div>}
+      {showCreate&&<GroupCreateModal user={user} onClose={()=>setShowCreate(false)} onCreated={(gid)=>{setShowCreate(false);openGroup(gid);loadGroups()}}/>}
+    </div>
+  }
+  const shown=messages;
+  return <div className="dm-page dm-thread">
+    <div className="dm-thread-head"><button className="dm-back" onClick={()=>{setActiveGid(null);loadGroups()}}>←</button>
+      <span className="dm-conv-name">{grpName}</span><span className="group-avatar-sm">👥</span>
+      <button className="glass-button" style={{marginLeft:'auto',padding:'.15rem .5rem',fontSize:'0.75rem'}} onClick={()=>setShowManage(true)}>⚙ 管理</button>
+    </div>
+    <div className="dm-messages" ref={listRef}>
+      {loading?<Spinner/>:shown.length===0?<Empty icon="💬" title="还没有消息" desc="发第一条消息吧"/>:
+        shown.map((m,i)=>{ const isOwn=m.user_id===meId; return <div key={m.id??`l-${i}`} className={`dm-message ${isOwn?'own':''}`}>
+          <div style={{display:'flex',alignItems:'center',gap:'.3rem'}}><Avatar src={m.avatar} seed={m.nickname} className="group-msg-avatar"/><span className="group-msg-sender">{m.nickname||'匿名用户'}</span></div>
+          {m.burn_mode?(m.burned?<span className="burn-card gone">🔥 此消息已焚毁</span>:m.state==='own'||m.revealed?<span className="burn-card revealed">{m.content}</span>:<button className="burn-card" onClick={()=>viewBurn(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>):<span className="dm-msg-content">{m.content}</span>}
+        </div> })}
+    </div>
+    <div className="dm-input-area"><BurnPicker value={burnMode} onChange={setBurnMode}/><form onSubmit={send} className="chat-input-form"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="输入群消息..." className="glass-input chat-input"/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()}>发送</button></form></div>
+    {showManage&&<GroupManageModal user={user} gid={activeGid} name={grpName} members={members} amCreator={amCreator} onClose={()=>setShowManage(false)} onChanged={()=>{loadGroups();openGroup(activeGid)}} onOpenUser={onOpenUser}/>}
+  </div>
+};
+
+// 建群弹窗：群名 + 从关注列表选人（简化：搜索用户）
+const GroupCreateModal = ({ user, onClose, onCreated }) => {
+  const toast=useToast();
+  const [name,setName]=useState('');
+  const [q,setQ]=useState('');
+  const [picked,setPicked]=useState([]);
+  const [results,setResults]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const search=async(t)=>{ setQ(t); if(!t.trim()){ setResults([]); return }
+    try{ const r=await apiFetch(`/users/search?q=${encodeURIComponent(t.trim())}&limit=8`); if(r.ok)setResults(await r.json()) }catch{} };
+  const toggle=(u)=>{ setPicked(prev=>prev.some(x=>x.id===u.id)?prev.filter(x=>x.id!==u.id):[...prev,u]) };
+  const create=async()=>{ if(!name.trim()){ toast.error('请输入群名'); return } if(picked.length===0){ toast.error('至少选 1 位成员'); return }
+    setBusy(true); try{ const r=await apiFetch('/groups',{method:'POST',body:JSON.stringify({name:name.trim(),member_ids:picked.map(u=>u.id)})}); if(!r.ok)throw new Error(await errMsg(r,'建群失败')); const g=await r.json(); toast.success('群已创建'); onCreated&&onCreated(g.id) }catch(e){ toast.error(e.message) }finally{ setBusy(false) } };
+  return <AnimatedModal onClose={onClose} className="follow-list-modal">{({requestClose})=>(<>
+    <h3>创建群聊</h3>
+    <input className="glass-input" placeholder="群名称（最多 64 字）" value={name} maxLength={64} onChange={e=>setName(e.target.value)} style={{marginBottom:'.5rem'}}/>
+    <input className="glass-input" placeholder="搜索用户加入…" value={q} onChange={e=>search(e.target.value)}/>
+    <div className="group-pick-hint">{picked.length>0&&<span>已选 {picked.length} 人：{picked.map(u=>u.nickname).join('、')}</span>}</div>
+    <div className="group-member-grid">
+      {picked.map(u=><div key={u.id} className="group-member-item"><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><button className="burn-opt" onClick={()=>toggle(u)}>移除</button></div>)}
+      {results.filter(u=>u.id!==user.id).map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>toggle(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span>{picked.some(x=>x.id===u.id)?<b>✓</b>:<span className="burn-tap">＋</span>}</div>)}
+    </div>
+    <div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-primary" onClick={create} disabled={busy||!name.trim()||picked.length===0}>{busy?'创建中…':'创建'}</button></div>
+  </>)}</AnimatedModal>;
+};
+
+// 群管理弹窗：成员列表 + 拉人 + （群主）踢人/改名/解散
+const GroupManageModal = ({ user, gid, name, members, amCreator, onClose, onChanged, onOpenUser }) => {
+  const toast=useToast();
+  const [q,setQ]=useState('');
+  const [results,setResults]=useState([]);
+  const [newName,setNewName]=useState(name);
+  const search=async(t)=>{ setQ(t); if(!t.trim()){ setResults([]); return }
+    try{ const r=await apiFetch(`/users/search?q=${encodeURIComponent(t.trim())}&limit=6`); if(r.ok)setResults(await r.json()) }catch{} };
+  const addUser=async(u)=>{ try{ const r=await apiFetch(`/groups/${gid}/members`,{method:'POST',body:JSON.stringify({user_ids:[u.id]})}); if(!r.ok)throw new Error(await errMsg(r,'拉人失败')); toast.success(`${u.nickname} 已入群`); setQ(''); setResults([]); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  const kick=async(u)=>{ if(!confirm(`移出 ${u.nickname}？`))return; try{ const r=await apiFetch(`/groups/${gid}/members/${u.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); toast.success('已移出'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  const rename=async()=>{ if(!newName.trim())return; try{ const r=await apiFetch(`/groups/${gid}/name`,{method:'PUT',body:JSON.stringify({name:newName.trim()})}); if(!r.ok)throw new Error(await errMsg(r,'改名失败')); toast.success('已改名'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  const disband=async()=>{ if(!confirm('确定解散此群？所有人将无法再进入。'))return; try{ const r=await apiFetch(`/groups/${gid}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'解散失败')); toast.success('群已解散'); onClose(); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  return <AnimatedModal onClose={onClose} className="follow-list-modal">{({requestClose})=>(<>
+    <h3>群管理 · {name}</h3>
+    {amCreator&&<div style={{display:'flex',gap:'.4rem',marginBottom:'.5rem'}}><input className="glass-input" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="新群名" style={{flex:1}}/><button className="glass-button" onClick={rename}>改名</button></div>}
+    <input className="glass-input" placeholder="搜索用户拉进群…" value={q} onChange={e=>search(e.target.value)}/>
+    <div className="group-member-grid">
+      {results.filter(u=>!members.some(m=>m.id===u.id)).map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>addUser(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><span className="burn-tap">＋ 拉入</span></div>)}
+    </div>
+    <div className="group-member-grid" style={{marginTop:'.5rem'}}>
+      {members.map(m=><div key={m.id} className="group-member-item"><Avatar src={m.avatar} seed={m.nickname} className="group-member-avatar"/><span>{m.nickname}{m.id===user.id?'（我）':''}{m.id===members.find(x=>x.id)?.id&&''}</span>{m.id!==user.id&&amCreator&&<button className="burn-opt" style={{fontSize:'.65rem'}} onClick={()=>kick(m)}>移出</button>}</div>)}
+    </div>
+    {amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button><button className="glass-button btn-danger" onClick={disband}>解散群</button></div>}
+    {!amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button></div>}
+  </>)}</AnimatedModal>;
+};
 
 // ── PollsSection（信息流投票特殊卡片：顶部展示进行中的投票）──
 const PollCard = ({ p, picking, setPicking, onVote, onRetract }) => {
@@ -1009,7 +1167,8 @@ const ProfilePage = ({user,setUser,onOpenPost,onOpenUser}) => {
   const isAdmin=user.role==='founder'||user.role==='ambassador'; const [isAnon,setIsAnon]=useState(isAdmin?false:user.is_anonymous!==false)
   const [ptab,setPtab]=useState('posts'); const [myPosts,setMyPosts]=useState([]); const [myComments,setMyComments]=useState([]); const [myStars,setMyStars]=useState([]); const [loadingTab,setLoadingTab]=useState(false)
   const [myStats,setMyStats]=useState({followers:0,following:0}); const [showMyFollow,setShowMyFollow]=useState(null)
-  const [showDelete,setShowDelete]=useState(false); const [delPw,setDelPw]=useState(''); const [delBusy,setDelBusy]=useState(false)
+  const [showDelete,setShowDelete] = useState(false); const [delPw,setDelPw]=useState(''); const [delBusy,setDelBusy]=useState(false)
+  const [showPact,setShowPact] = useState(false)
   // 多端同步：服务器拉到的新背景即时覆盖本地编辑态，避免手机改完电脑仍显示旧背景
   useEffect(()=>{ setProfileBg(user.profile_bg||'') },[user.profile_bg])
   useEffect(()=>{ const f=async()=>{ try{ const r=await apiFetch(`/social/stats/${user.id}`); if(r.ok)setMyStats(await r.json()) }catch{} }; f() },[user.id])
@@ -1029,10 +1188,10 @@ const ProfilePage = ({user,setUser,onOpenPost,onOpenUser}) => {
   const isImgBg = profileBg && !profileBg.startsWith('linear-gradient') && !profileBg.startsWith('#')
   return <div className="profile-page"><div className={`glass-card profile-card ${isImgBg?'profile-card-img-bg':''}`} style={profileBg?(/^#/.test(profileBg)?{backgroundColor:profileBg}:{backgroundImage:profileBg}):undefined}><label className="avatar-upload"><img src={avatarUrl(user.avatar) || fallbackAvatar(user.username)} alt="头像"/><div className="avatar-upload-overlay">📷</div><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/avatar`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'头像更新失败'));const u=await r.json();u.avatar=(u.avatar||'')+'?t='+Date.now();setUser(u);localStorage.setItem('user',JSON.stringify(u));toast.success('头像已更新')}catch(err){toast.error(err.message||'头像更新失败')}}}/></label><div className="profile-info"><h3>{user.nickname}</h3><p className="profile-username">@{user.username}</p><span className="uid-badge">UID: {user.uid}</span>{user.role==='founder'&&<span className="role-badge founder">创始人</span>}{user.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}<div className="profile-stats"><div className="stat-item"><span className="stat-value">{user.star_count||0}</span><span className="stat-label">Star</span></div><div className="stat-item"><span className="stat-value">{user.karma||0}</span><span className="stat-label">Karma</span></div></div><div className="profile-follow-row"><button className="follow-count-btn" onClick={()=>setShowMyFollow('followers')}>粉丝 {myStats.followers}</button><button className="follow-count-btn" onClick={()=>setShowMyFollow('following')}>关注 {myStats.following}</button></div>{showMyFollow&&<FollowListModal type={showMyFollow} userId={user.id} onClose={()=>setShowMyFollow(null)} onOpenUser={onOpenUser}/>}<div className="karma-level" style={{marginTop:'.5rem',fontSize:'.85rem',opacity:.9}}>{['🌫️ 初来乍到','🌱 成长中的声音','🔥 活跃核心','🌟 鹿鸣之光'][Math.min(3,Math.floor((user.karma||0)/20))]}</div></div>
   <div className="profile-bg-row"><button className="bg-toggle-btn" onClick={()=>setBgOpen(!bgOpen)}>{profileBg?'更换背景':'设置背景'} {bgOpen?'▲':'▼'}</button>{bgOpen&&<div className="bg-panel glass-card"><div className="bg-panel-head"><span>卡片背景</span><button className="bg-clear" onClick={()=>{applyBg('');setBgOpen(false)}}>清除</button></div><div className="bg-swatches">{PROFILE_BGS.map(b=><button key={b.key} className={`bg-swatch ${profileBg===b.css?'active':''}`} style={{background:b.css||'rgba(255,255,255,0.18)'}} title={b.label} onClick={()=>applyBg(b.css)}/>)}<label className="bg-swatch bg-custom" title="自定义颜色"><input type="color" value={bgColorValue} onChange={e=>applyBg(e.target.value)}/></label><label className="bg-swatch bg-upload" title="上传图片"><input type="file" accept="image/*" onChange={async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('file',f);try{const r=await apiFetch(`/users/${user.id}/background`,{method:'POST',body:fd});if(!r.ok)throw new Error(await errMsg(r,'背景上传失败'));const u=await r.json();setUser(u);localStorage.setItem('user',JSON.stringify(u));setProfileBg(u.profile_bg);toast.success('背景已更新')}catch(err){toast.error(err.message||'背景上传失败')}}}/>}</label></div></div>}</div>
-</div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={()=>save()}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div><div className="settings-item danger-item" onClick={()=>setShowDelete(true)}><span>注销账号</span><span className="settings-arrow">→</span></div></div></div>{showDelete&&<AnimatedModal onClose={()=>setShowDelete(false)} className="delete-account-modal">{({requestClose})=>(<><h3>注销账号</h3><p className="delete-warn">此操作不可恢复，将永久删除你的账号、帖子与评论。</p><input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="请输入密码确认" className="glass-input"/><div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-danger" onClick={deleteAccount} disabled={delBusy}>{delBusy?'注销中...':'确认注销'}</button></div></>)}</AnimatedModal>}</div>
+</div><div className="glass-card settings-card"><h3>设置</h3><div className="settings-list">{!isAdmin&&<div className="setting-row"><span>匿名发布</span><div className={`toggle-switch ${isAnon?'active':''}`} onClick={()=>setIsAnon(!isAnon)}/></div>}<div className="setting-row"><span>账户名</span><input value={nick} onChange={e=>setNick(e.target.value)}/></div><div className="setting-row"><span>修改密码</span><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="留空不修改"/></div><button className="save-btn" onClick={()=>save()}>保存设置</button></div><div className="settings-section"><h4>其他</h4><div className="settings-list"><div className="settings-item" onClick={()=>setShowPact(true)}><span>📜 社区公约</span><span className="settings-arrow">→</span></div><div className="settings-item" onClick={()=>{setUser(null);localStorage.removeItem('token');localStorage.removeItem('user');toast.info('已退出登录')}}><span>退出登录</span><span className="settings-arrow">→</span></div><div className="settings-item danger-item" onClick={()=>setShowDelete(true)}><span>注销账号</span><span className="settings-arrow">→</span></div></div></div>{showPact&&<RulesModal onClose={()=>setShowPact(false)} title="📜 鹿鸣回音社区公约"/>}{showDelete&&<AnimatedModal onClose={()=>setShowDelete(false)} className="delete-account-modal">{({requestClose})=>(<><h3>注销账号</h3><p className="delete-warn">此操作不可恢复，将永久删除你的账号、帖子与评论。</p><input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="请输入密码确认" className="glass-input"/><div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-danger" onClick={deleteAccount} disabled={delBusy}>{delBusy?'注销中...':'确认注销'}</button></div></>)}</AnimatedModal>}</div>
 <div className="glass-card my-stuff-card">
   <div className="my-tabs"><button className={`my-tab ${ptab==='posts'?'active':''}`} onClick={()=>setPtab('posts')}>我的帖子（{myPosts.length}）</button><button className={`my-tab ${ptab==='comments'?'active':''}`} onClick={()=>setPtab('comments')}>我的评论（{myComments.length}）</button><button className={`my-tab ${ptab==='stars'?'active':''}`} onClick={()=>setPtab('stars')}>我的收藏（{myStars.length}）</button></div>
-  {loadingTab?<Spinner/>:ptab==='posts'?(myPosts.length===0?<Empty icon="📝" title="还没有发帖" desc="去首页分享点什么吧"/>:<div className="posts-list">{myPosts.map(p=><div key={p.id} className="glass-card post-card" onClick={()=>onOpenPost(p)}><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,80)}{p.content?.length>80?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><span className="action-text">💬 {p.comment_count}</span><span className="action-text">⭐ {p.star_count}</span></div></div>)}</div>):ptab==='comments'?(myComments.length===0?<Empty icon="💬" title="还没有评论" desc="去帖子下聊聊吧"/>:<div className="my-comments-list">{myComments.map(c=><div key={c.id} className="glass-card my-comment-card" onClick={()=>openCommentPost(c.post_id)}><div className="my-comment-post">{c.post_title?`「${c.post_title}」`:'（帖子已删除）'}</div><p className="my-comment-content">{c.content}</p><span className="post-time">{fmtTime(c.created_at)}}</span></div>)}</div>):(myStars.length===0?<Empty icon="⭐" title="还没有收藏" desc="去帖子点 ⭐ 收藏喜欢的内容吧"/>:<div className="posts-list">{myStars.map(p=><div key={p.id} className="glass-card post-card" onClick={()=>onOpenPost(p)}><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,80)}{p.content?.length>80?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><span className="action-text">💬 {p.comment_count}</span><span className="action-text">⭐ {p.star_count}</span></div></div>)}</div>)}
+  {loadingTab?<Spinner/>:ptab==='posts'?(myPosts.length===0?<Empty icon="📝" title="还没有发帖" desc="去首页分享点什么吧"/>:<div className="posts-list">{myPosts.map(p=><div key={p.id} className="glass-card post-card my-post-card" onClick={()=>onOpenPost(p)}><div className="my-item-del-row"><h4 className="post-title">{p.title}</h4>{<button className="action-btn delete-btn my-item-del" onClick={async e=>{e.stopPropagation();if(!confirm('确定删除这篇帖子？此操作不可恢复'))return;try{const r=await apiFetch(`/posts/${p.id}`,{method:'DELETE'});if(!r.ok)throw new Error(await errMsg(r,'删除失败'));setMyPosts(prev=>prev.filter(x=>x.id!==p.id));toast.success('帖子已删除')}catch(err){toast.error(err.message)}}}>🗑️</button>}</div><p className="post-preview">{p.content?.slice(0,80)}{p.content?.length>80?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><span className="action-text">💬 {p.comment_count}</span><span className="action-text">⭐ {p.star_count}</span></div></div>)}</div>):ptab==='comments'?(myComments.length===0?<Empty icon="💬" title="还没有评论" desc="去帖子下聊聊吧"/>:<div className="my-comments-list">{myComments.map(c=><div key={c.id} className="glass-card my-comment-card" onClick={()=>openCommentPost(c.post_id)}><div className="my-comment-post">{c.post_title?`「${c.post_title}」`:'（帖子已删除）'}</div><p className="my-comment-content">{c.content}</p><span className="post-time">{fmtTime(c.created_at)}</span>{<button className="action-btn delete-btn my-item-del" onClick={async e=>{e.stopPropagation();if(!confirm('确定删除这条评论？此操作不可恢复'))return;try{const r=await apiFetch(`/users/me/comments/${c.id}`,{method:'DELETE'});if(!r.ok)throw new Error(await errMsg(r,'删除失败'));setMyComments(prev=>prev.filter(x=>x.id!==c.id));toast.success('评论已删除')}catch(err){toast.error(err.message)}}}>🗑️</button>}</div>)}</div>):(myStars.length===0?<Empty icon="⭐" title="还没有收藏" desc="去帖子点 ⭐ 收藏喜欢的内容吧"/>:<div className="posts-list">{myStars.map(p=><div key={p.id} className="glass-card post-card" onClick={()=>onOpenPost(p)}><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,80)}{p.content?.length>80?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><span className="action-text">💬 {p.comment_count}</span><span className="action-text">⭐ {p.star_count}</span></div></div>)}</div>)}
 </div>
 </div>
 }
@@ -1097,6 +1256,7 @@ function App() {
   const [gsSeed,setGsSeed] = useState('')
   const [isRegister,setIsRegister] = useState(false)
   const [showRules,setShowRules] = useState(false)
+  const [showWelcome,setShowWelcome] = useState(false)
   const [activeSort,setActiveSort] = useState('latest')
   const [myStars,setMyStars] = useState({})
   const [myLikes,setMyLikes] = useState({})
@@ -1244,7 +1404,7 @@ function App() {
 
   const startDMFromProfile = async (peerId) => { try{ const r=await apiFetch('/dm/conversations',{method:'POST',body:JSON.stringify({peer_id:peerId})}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); const d=await r.json(); setOpenConvId(d.id); setChatTab('dm'); setCurPage('chat'); setProfileUserId(null) }catch(e){ toast.error(e.message) } }
 
-  const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setShowRules(true) }
+  const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setShowRules(true); setShowWelcome(true) }
 
   // 星标/点赞统一切换：乐观更新 + 本地高亮 + 计数回退；star/like 共用一份逻辑，避免重复实现
   const toggleReaction = async (kind, post) => {
@@ -1275,6 +1435,7 @@ function App() {
   return <ToastProvider>
     <Starfield/>
     {showRules&&<RulesModal onClose={()=>{localStorage.setItem('rules_accepted','true');setShowRules(false)}}/>}
+    {showWelcome&&user&&<WelcomeHello nickname={user.nickname} onDone={()=>setShowWelcome(false)}/>}
     {editPost&&<PostEditModal post={editPost} boards={boards} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
     {sessionExpired&&<div className="session-expired-banner">登录已过期，请重新登录</div>}
     {!user ? <LoginPage onLogin={handleLogin} onSwitchRegister={()=>setIsRegister(true)}/>
@@ -1298,7 +1459,7 @@ function App() {
           <PollsSection/>
           {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>: <><div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><Avatar src={p.author_avatar} seed={p.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}/><span className="post-author-name-small" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}>{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>boards.find(x=>x.key===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<><button onClick={e=>{e.stopPropagation();setEditPost(p)}} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;apiFetch(`/posts/${p.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button></>}<LikeButton post={p} liked={!!myLikes[p.id]} count={p.like_count} onToggle={toggleLike}/><StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div>{p.tags&&p.tags.split(',').filter(Boolean).length>0&&<div className="post-tags">{p.tags.split(',').filter(Boolean).map(t=><button key={t} className="post-tag-chip" onClick={e=>{e.stopPropagation();setTagDetail(t.trim())}}>#{t.trim()}</button>)}</div>}}</div>)}</div>{hasMore&&!loading&&<div className="load-more-wrap"><button className="load-more-btn" onClick={()=>fetchPosts('more')} disabled={loadingMore}>{loadingMore?'加载中…':'加载更多'}</button></div>}</>}
         </div>}
-        {curPage==='chat'&&<div className="chat-page"><div className="chat-tabs"><button className={`chat-tab ${chatTab==='global'?'active':''}`} onClick={()=>setChatTab('global')}>💬 聊天室</button><button className={`chat-tab ${chatTab==='dm'?'active':''}`} onClick={()=>setChatTab('dm')}>✉️ 私信{dmUnread>0&&<span className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button></div>{chatTab==='global'?<div className="glass-card chat-container"><ChatRoom/></div>:<DirectMessages user={user} openConvId={openConvId} onOpenConvChange={setOpenConvId} onOpenUser={setProfileUserId}/>}</div>}
+        {curPage==='chat'&&<div className="chat-page"><div className="chat-tabs"><button className={`chat-tab ${chatTab==='global'?'active':''}`} onClick={()=>setChatTab('global')}>💬 聊天室</button><button className={`chat-tab ${chatTab==='dm'?'active':''}`} onClick={()=>setChatTab('dm')}>✉️ 私信{dmUnread>0&&<span className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={`chat-tab ${chatTab==='group'?'active':''}`} onClick={()=>setChatTab('group')}>👥 群聊</button></div>{chatTab==='global'?<div className="glass-card chat-container"><ChatRoom/></div>:chatTab==='dm'?<DirectMessages user={user} openConvId={openConvId} onOpenConvChange={setOpenConvId} onOpenUser={setProfileUserId}/>:<GroupChat user={user} onOpenUser={setProfileUserId}/>}</div>}
         {curPage==='admin'&&isAdmin&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost} onOpenUser={setProfileUserId}/>}
       </main>
