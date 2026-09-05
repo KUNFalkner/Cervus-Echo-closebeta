@@ -178,6 +178,10 @@ def view_plain(db: Session, source: str, msg, viewer_id: int) -> Optional[str]:
     if msg.burn_mode is None:
         return msg.content
     if msg.burned_at is not None or is_expired(msg):
+        # 到期未焚（惰性清扫可能被节流跳过）：点开即硬焚，清密文，不留残余
+        if msg.burned_at is None:
+            burn_global(db, msg, source, hard=True)
+            db.commit()
         return None
     plain = _plain(msg)
     if _sender_id(msg) != viewer_id:

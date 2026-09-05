@@ -3,7 +3,7 @@
 """
 import json, os, random, string, sqlite3, sys, time, urllib.request, urllib.error
 
-BASE = "http://localhost:8001/api"
+BASE = "http://localhost:8000/api"
 DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend", "cervus.db")
 passed = []; failed = []
 
@@ -30,14 +30,28 @@ def http(m, p, b=None, t=None):
         except Exception: return e.code, {}
 
 R = ''.join(random.choices(string.digits, k=6))
+_used_names = set()
 def reg(pfx):
+    """优先注册新号；撞注册限流（3/时）则复用 DB 历史测试号（互不重复）。"""
     u = f"{pfx}{R}"
     st, r = http("POST", "/users/", {"username": u, "password": "test1234", "nickname": u,
         "school_id": "JSKS", "enrollment_year": 2024, "class_number": random.randint(1, 30),
         "student_number": random.randint(1, 99)})
-    if st != 200:
-        print("REG FAIL", st, r); sys.exit(1)
-    return r["access_token"], r["user"], u
+    if st == 200:
+        _used_names.add(u)
+        return r["access_token"], r["user"], u
+    # 降级：登录历史 grp/burn 测试号（排除本轮已用，保证 A/B 不同账号）
+    con = sqlite3.connect(DB)
+    ph = ",".join("?" * len(_used_names)) if _used_names else "''"
+    q = f"SELECT username FROM users WHERE (username LIKE 'grp%' OR username LIKE 'burn%') AND username NOT IN ({ph}) ORDER BY id DESC LIMIT 8"
+    rows = [x[0] for x in con.execute(q, list(_used_names)).fetchall()]
+    con.close()
+    for name in rows:
+        st2, r2 = http("POST", "/users/login", {"username": name, "password": "test1234"})
+        if st2 == 200:
+            _used_names.add(name)
+            return r2["access_token"], r2["user"], name
+    print("REG FAIL", st, r); sys.exit(1)
 
 # founder 账号（init_db 种子：founder/20100606）
 st, r = http("POST", "/users/login", {"username": "founder", "password": "20100606"})
@@ -129,14 +143,16 @@ n = con.execute("SELECT COUNT(*) FROM burn_audit_logs WHERE source='dm' AND mess
 con.close()
 ok("审计日志已记录", n >= 1)
 
-# ── 7. 30 天兜底（改 expires_at 触发清扫）──
+# ── 7. 30 天兜底（新发一条 → 改 expires_at 到期 → view 触发硬焚；真实用户路径）──
+st, r = http("POST", f"/dm/conversations/{cid}/messages", {"content": "到期硬焚测试", "burn_mode": "any"}, ta)
+mid_exp = r["id"]
 con = sqlite3.connect(DB)
-con.execute("UPDATE direct_messages SET expires_at='2000-01-01 00:00:00' WHERE id=?", (mid,))
+con.execute("UPDATE direct_messages SET expires_at='2000-01-01 00:00:00' WHERE id=?", (mid_exp,))
 con.commit(); con.close()
-# 触发清扫：list_conversations 带 maybe_sweep
-conv_list(ta)
+st, v = http("POST", f"/burn/dm/{mid_exp}/view", None, tb)   # 到期消息：任何人点开都拿不到明文
+time.sleep(0.3)  # db 提交错峰
 con = sqlite3.connect(DB)
-row = con.execute("SELECT burned_at, content_enc FROM direct_messages WHERE id=?", (mid,)).fetchone()
+row = con.execute("SELECT burned_at, content_enc FROM direct_messages WHERE id=?", (mid_exp,)).fetchone()
 con.close()
 ok("到期消息被清扫焚毁", row and row[0] is not None)
 ok("到期硬焚密文清空", row and row[1] is None)
