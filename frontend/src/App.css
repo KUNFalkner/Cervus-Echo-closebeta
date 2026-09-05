@@ -567,7 +567,8 @@ body:not([data-time="day"]) .login-header .brand-subtitle-en { color: #c8bda0; }
 .ihb-btn .ihb-dot {
   position: absolute; left: 0; top: 50%; z-index: 0;
   width: 3rem; height: 3rem; border-radius: 999px;
-  background: linear-gradient(135deg, #e0a458, #c77b4a);
+  background: radial-gradient(circle at 38% 32%, #f6e7c1 0%, #d9bc84 45%, #b8923f 100%);
+  box-shadow: 0 0 14px rgba(233, 207, 154, .55), 0 0 34px rgba(233, 207, 154, .22);
   transform: translateY(-50%) scale(1);
   transition: transform .55s cubic-bezier(.22,1,.36,1);
   pointer-events: none;
@@ -581,7 +582,8 @@ body:not([data-time="day"]) .login-header .brand-subtitle-en { color: #c8bda0; }
 .ihb-btn:hover:not(:disabled) .ihb-t1 { transform: translateY(-150%); opacity: 0; }
 .ihb-btn .ihb-t2 {
   position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: .4rem;
-  color: #241a08; font-weight: 700; letter-spacing: .02em;
+  color: #2a2010; font-weight: 700; letter-spacing: .02em;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, .4);
   transform: translateY(150%); opacity: 0;
   transition: transform .5s cubic-bezier(.22,1,.36,1) .05s, opacity .45s .05s;
   pointer-events: none;
@@ -919,6 +921,12 @@ body[data-time="day"] .login-input:focus {
 
 /* 悬浮球（神秘星空） */
 .tarot-orb { position: fixed; right: 22px; bottom: 22px; z-index: 5000; width: 58px; height: 58px; padding: 0; border: none; background: transparent; cursor: pointer; outline: none; filter: drop-shadow(0 0 10px rgba(150,170,255,.45)); }
+/* 呼吸光晕：沙金柔光环绕，与主题同源 */
+.tarot-orb::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, transparent 58%, rgba(227,196,120,.16) 72%, transparent 78%);
+  animation: orb-breath 3.6s ease-in-out infinite; }
+@keyframes orb-breath { 0%,100% { opacity: .5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .tarot-orb::after { animation: none; } }
 .tarot-orb-core { width: 100%; height: 100%; display: block; transition: transform .25s ease; }
 .tarot-orb:hover .tarot-orb-core { filter: drop-shadow(0 0 14px rgba(227,196,120,.7)); }
 .tarot-orb:active .tarot-orb-core { animation: none; transform: scale(.94); }
@@ -1473,6 +1481,19 @@ body[data-time="day"] .login-input:focus {
 .notif-item { display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.6rem 0.5rem; border-radius: 8px; cursor: pointer; position: relative; transition: background 0.15s; }
 .notif-item:hover { background: var(--chip-bg); }
 .notif-item.read { opacity: 0.55; }
+/* ── 通知视觉升级：类型色徽章 + 未读金边条 + 头部计数 ── */
+.notif-panel-title { display: inline-flex; align-items: center; gap: .4rem; }
+.notif-panel-glyph { filter: drop-shadow(0 0 6px rgba(227,196,120,.4)); }
+.notif-head-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: linear-gradient(135deg, #e3c478, #b8923f); color: #241a08; font-size: .68rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.notif-icon-badge { width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: .95rem; background: var(--chip-bg); border: 1px solid var(--chip-bd); transition: transform .25s cubic-bezier(.22,1,.36,1); }
+.notif-item:hover .notif-icon-badge { transform: scale(1.1) rotate(-6deg); }
+.notif-like .notif-icon-badge { background: rgba(209,104,95,.14); border-color: rgba(209,104,95,.4); }
+.notif-star .notif-icon-badge { background: rgba(227,196,120,.14); border-color: rgba(227,196,120,.45); }
+.notif-mention .notif-icon-badge { background: rgba(140,160,255,.14); border-color: rgba(140,160,255,.4); }
+.notif-follow .notif-icon-badge { background: rgba(127,176,105,.14); border-color: rgba(127,176,105,.4); }
+.notif-comment .notif-icon-badge { background: rgba(160,170,210,.12); border-color: rgba(160,170,210,.35); }
+.notif-item:not(.read)::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px; border-radius: 3px; background: linear-gradient(180deg, #e3c478, #b8923f); opacity: .85; }
+.notif-item:not(.read) { padding-left: .75rem; }
 .notif-icon { font-size: 1.1rem; line-height: 1.4; }
 .notif-body { flex: 1; min-width: 0; }
 .notif-text { font-size: 0.85rem; color: var(--ink); margin: 0; }
@@ -2073,10 +2094,18 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 /* ── 阅后即焚 UI ── */
 .burn-picker { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; padding: .3rem 0 .4rem; }
 .burn-picker-label { font-size: .74rem; color: var(--muted); margin-right: .15rem; opacity: .8; }
-.burn-opt { font-size: .73rem; padding: .22rem .55rem; border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--muted); cursor: pointer; transition: all .18s; }
-.burn-opt:hover { background: var(--chip-active-bg); }
-.burn-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.burn-opt { appearance: none; position: relative; overflow: hidden; isolation: isolate; font-size: .73rem; padding: .26rem .6rem; border-radius: 999px; background: var(--chip-bg); border: 1px solid var(--chip-bd); color: var(--muted); cursor: pointer; transition: color .25s, border-color .25s; font-family: inherit; }
+.burn-opt::before { content: ""; position: absolute; left: 50%; top: 50%; z-index: 0; width: 1.6rem; height: 1.6rem; border-radius: 999px;
+  background: radial-gradient(circle at 40% 35%, #f6e7c1, #d9bc84 55%, #b8923f);
+  transform: translate(-50%, -50%) scale(0); transition: transform .45s cubic-bezier(.22,1,.36,1); pointer-events: none; }
+.burn-opt:hover { border-color: var(--chip-active-bd, var(--chip-bd)); }
+.burn-opt:hover::before { transform: translate(-50%, -50%) scale(1.4); }
+.burn-opt:active::before { transform: translate(-50%, -50%) scale(1.4); }
+.burn-opt span, .burn-opt b { position: relative; z-index: 1; }
+.burn-opt.active { color: #241a08; border-color: #b8923f; font-weight: 600; }
+.burn-opt.active::before { transform: translate(-50%, -50%) scale(14); }
 .burn-opt-clear { opacity: .6; }
+.burn-opt-clear::before { display: none; }
 .dm-input-area { flex: none; }
 .burn-card { cursor: pointer; border: 1px dashed var(--accent); border-radius: 8px; padding: .4rem .7rem; font-size: .88rem; display: inline-flex; align-items: center; gap: .5rem; background: var(--accent-soft); transition: all .2s; max-width: 100%; color: inherit; font-family: inherit; }
 .burn-card:hover { filter: brightness(1.08); }
@@ -2095,6 +2124,9 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .group-member-item { display: flex; flex-direction: column; align-items: center; gap: .2rem; width: 68px; font-size: .7rem; text-align: center; }
 .group-member-cand { cursor: pointer; padding: .3rem; border-radius: 10px; border: 1px dashed var(--chip-bd); transition: all .18s; }
 .group-member-cand:hover { border-color: var(--accent); background: var(--accent-soft); }
+.group-member-picked { border: 1px solid #b8923f; background: var(--accent-soft); cursor: pointer; }
+.group-pick-mark { color: #d9bc84; font-size: .8rem; }
+.group-empty { width: 100%; text-align: center; color: var(--muted); font-size: .8rem; padding: 1rem 0; }
 .group-member-avatar { width: 38px; height: 38px; border-radius: 50%; }
 .group-pick-hint { font-size: .78rem; color: var(--muted); padding: .35rem .1rem; }
 .group-member-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 68px; }

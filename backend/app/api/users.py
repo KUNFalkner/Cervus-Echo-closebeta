@@ -126,6 +126,22 @@ def search_users(
     return users
 
 
+@router.get("/directory", response_model=List[PublicUser])
+def user_directory(
+    q: str = Query("", max_length=40, description="可选过滤词"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    """用户名录：建群选人用。默认直接列出（按 karma），可选过滤，排除封禁号。"""
+    query = db.query(UserModel).filter(UserModel.banned == False)
+    if q.strip():
+        like = f"%{q.strip()}%"
+        query = query.filter((UserModel.nickname.ilike(like)) | (UserModel.username.ilike(like)))
+    users = query.order_by(UserModel.karma.desc()).offset(skip).limit(limit).all()
+    return users
+
+
 @router.get("/{user_id}", response_model=PublicUser)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     """他人主页公开信息（不暴露 uid / 真实姓名）。"""

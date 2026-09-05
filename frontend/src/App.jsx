@@ -779,53 +779,68 @@ const GroupChat = ({ user, onOpenUser }) => {
   </div>
 };
 
-// 建群弹窗：群名 + 从关注列表选人（简化：搜索用户）
+// 建群弹窗：默认直接列出用户名录（点选即加），输入框仅做过滤
 const GroupCreateModal = ({ user, onClose, onCreated }) => {
   const toast=useToast();
   const [name,setName]=useState('');
   const [q,setQ]=useState('');
   const [picked,setPicked]=useState([]);
   const [results,setResults]=useState([]);
+  const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
-  const search=async(t)=>{ setQ(t); if(!t.trim()){ setResults([]); return }
-    try{ const r=await apiFetch(`/users/search?q=${encodeURIComponent(t.trim())}&limit=8`); if(r.ok)setResults(await r.json()) }catch{} };
+  // 打开即拉名录（按 karma 排序），输入时转为过滤
+  useEffect(()=>{ let m=true; setLoading(true);
+    apiFetch('/users/directory?limit=30'+(q.trim()?`&q=${encodeURIComponent(q.trim())}`:''))
+      .then(res=>{ if(!m)return; return res.ok ? res.json() : [] })
+      .then(list=>{ if(m){ setResults(Array.isArray(list)?list:[]); setLoading(false) } })
+      .catch(()=>{ if(m)setLoading(false) });
+    return ()=>{m=false} },[q]);
   const toggle=(u)=>{ setPicked(prev=>prev.some(x=>x.id===u.id)?prev.filter(x=>x.id!==u.id):[...prev,u]) };
   const create=async()=>{ if(!name.trim()){ toast.error('请输入群名'); return } if(picked.length===0){ toast.error('至少选 1 位成员'); return }
     setBusy(true); try{ const r=await apiFetch('/groups',{method:'POST',body:JSON.stringify({name:name.trim(),member_ids:picked.map(u=>u.id)})}); if(!r.ok)throw new Error(await errMsg(r,'建群失败')); const g=await r.json(); toast.success('群已创建'); onCreated&&onCreated(g.id) }catch(e){ toast.error(e.message) }finally{ setBusy(false) } };
   return <AnimatedModal onClose={onClose} className="follow-list-modal">{({requestClose})=>(<>
     <h3>创建群聊</h3>
     <input className="glass-input" placeholder="群名称（最多 64 字）" value={name} maxLength={64} onChange={e=>setName(e.target.value)} style={{marginBottom:'.5rem'}}/>
-    <input className="glass-input" placeholder="搜索用户加入…" value={q} onChange={e=>search(e.target.value)}/>
-    <div className="group-pick-hint">{picked.length>0&&<span>已选 {picked.length} 人：{picked.map(u=>u.nickname).join('、')}</span>}</div>
-    <div className="group-member-grid">
-      {picked.map(u=><div key={u.id} className="group-member-item"><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><button className="burn-opt" onClick={()=>toggle(u)}>移除</button></div>)}
-      {results.filter(u=>u.id!==user.id).map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>toggle(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span>{picked.some(x=>x.id===u.id)?<b>✓</b>:<span className="burn-tap">＋</span>}</div>)}
-    </div>
+    <input className="glass-input" placeholder="过滤成员（可不填，直接点下面的人）" value={q} onChange={e=>setQ(e.target.value)}/>
+    <div className="group-pick-hint">{picked.length>0?<span>已选 {picked.length} 人：{picked.map(u=>u.nickname).join('、')}</span>:<span>点击下方用户加入你的群</span>}</div>
+    {loading?<Spinner/>:(
+      <div className="group-member-grid">
+        {picked.map(u=><div key={'p'+u.id} className="group-member-item group-member-picked" onClick={()=>toggle(u)} title="点击移除"><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><b className="group-pick-mark">✓</b></div>)}
+        {results.filter(u=>u.id!==user.id&&!picked.some(x=>x.id===u.id)).map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>toggle(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><span className="burn-tap">＋</span></div>)}
+        {!loading&&results.filter(u=>u.id!==user.id).length===0&&picked.length===0&&<div className="group-empty">没有匹配的用户，换个词试试</div>}
+      </div>
+    )}
     <div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>取消</button><button className="glass-button btn-primary" onClick={create} disabled={busy||!name.trim()||picked.length===0}>{busy?'创建中…':'创建'}</button></div>
   </>)}</AnimatedModal>;
 };
 
-// 群管理弹窗：成员列表 + 拉人 + （群主）踢人/改名/解散
+// 群管理弹窗：成员列表 + 名录选人拉入 + （群主）踢人/改名/解散
 const GroupManageModal = ({ user, gid, name, members, amCreator, onClose, onChanged, onOpenUser }) => {
   const toast=useToast();
   const [q,setQ]=useState('');
-  const [results,setResults]=useState([]);
+  const [cands,setCands]=useState([]);
   const [newName,setNewName]=useState(name);
-  const search=async(t)=>{ setQ(t); if(!t.trim()){ setResults([]); return }
-    try{ const r=await apiFetch(`/users/search?q=${encodeURIComponent(t.trim())}&limit=6`); if(r.ok)setResults(await r.json()) }catch{} };
-  const addUser=async(u)=>{ try{ const r=await apiFetch(`/groups/${gid}/members`,{method:'POST',body:JSON.stringify({user_ids:[u.id]})}); if(!r.ok)throw new Error(await errMsg(r,'拉人失败')); toast.success(`${u.nickname} 已入群`); setQ(''); setResults([]); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  // 默认列出非成员用户；输入做过滤
+  useEffect(()=>{ let m=true;
+    apiFetch('/users/directory?limit=30'+(q.trim()?`&q=${encodeURIComponent(q.trim())}`:''))
+      .then(res=>{ if(!m)return; return res.ok ? res.json() : [] })
+      .then(list=>{ if(m)setCands(Array.isArray(list)?list.filter(u=>!members.some(mm=>mm.id===u.id)):[]) })
+      .catch(()=>{ if(m)setCands([]) });
+    return ()=>{m=false} },[q,members]);
+  const addUser=async(u)=>{ try{ const r=await apiFetch(`/groups/${gid}/members`,{method:'POST',body:JSON.stringify({user_ids:[u.id]})}); if(!r.ok)throw new Error(await errMsg(r,'拉人失败')); toast.success(`${u.nickname} 已入群`); setQ(''); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   const kick=async(u)=>{ if(!confirm(`移出 ${u.nickname}？`))return; try{ const r=await apiFetch(`/groups/${gid}/members/${u.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); toast.success('已移出'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   const rename=async()=>{ if(!newName.trim())return; try{ const r=await apiFetch(`/groups/${gid}/name`,{method:'PUT',body:JSON.stringify({name:newName.trim()})}); if(!r.ok)throw new Error(await errMsg(r,'改名失败')); toast.success('已改名'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   const disband=async()=>{ if(!confirm('确定解散此群？所有人将无法再进入。'))return; try{ const r=await apiFetch(`/groups/${gid}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'解散失败')); toast.success('群已解散'); onClose(); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   return <AnimatedModal onClose={onClose} className="follow-list-modal">{({requestClose})=>(<>
     <h3>群管理 · {name}</h3>
     {amCreator&&<div style={{display:'flex',gap:'.4rem',marginBottom:'.5rem'}}><input className="glass-input" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="新群名" style={{flex:1}}/><button className="glass-button" onClick={rename}>改名</button></div>}
-    <input className="glass-input" placeholder="搜索用户拉进群…" value={q} onChange={e=>search(e.target.value)}/>
+    <input className="glass-input" placeholder="过滤并拉人（可不填，直接点下面的人）" value={q} onChange={e=>setQ(e.target.value)}/>
     <div className="group-member-grid">
-      {results.filter(u=>!members.some(m=>m.id===u.id)).map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>addUser(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><span className="burn-tap">＋ 拉入</span></div>)}
+      {cands.map(u=><div key={u.id} className="group-member-item group-member-cand" onClick={()=>addUser(u)}><Avatar src={u.avatar} seed={u.nickname} className="group-member-avatar"/><span>{u.nickname}</span><span className="burn-tap">＋ 拉入</span></div>)}
+      {cands.length===0&&<div className="group-empty">没有可拉的用户</div>}
     </div>
     <div className="group-member-grid" style={{marginTop:'.5rem'}}>
-      {members.map(m=><div key={m.id} className="group-member-item"><Avatar src={m.avatar} seed={m.nickname} className="group-member-avatar"/><span>{m.nickname}{m.id===user.id?'（我）':''}{m.id===members.find(x=>x.id)?.id&&''}</span>{m.id!==user.id&&amCreator&&<button className="burn-opt" style={{fontSize:'.65rem'}} onClick={()=>kick(m)}>移出</button>}</div>)}
+      {members.map(m=><div key={m.id} className="group-member-item"><Avatar src={m.avatar} seed={m.nickname} className="group-member-avatar"/><span>{m.nickname}{m.id===user.id?'（我）':''}</span>{m.id!==user.id&&amCreator&&<button className="burn-opt" style={{fontSize:'.65rem'}} onClick={()=>kick(m)}>移出</button>}</div>)}
     </div>
     {amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button><button className="glass-button btn-danger" onClick={disband}>解散群</button></div>}
     {!amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button></div>}
@@ -1447,7 +1462,7 @@ function App() {
       <nav className="glass-nav"><div className="nav-brand"><h2 className="nav-title brand-title">鹿鸣回音</h2><span className="brand-subtitle-en nav-subtitle-en">Cervus Echo</span></div><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
         <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
-        {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span>通知</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''}`} onClick={()=>clickNotif(n)}><span className="notif-icon">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@️⃣':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
+        {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span className="notif-panel-title"><span className="notif-panel-glyph">🔔</span>通知{notifs.some(n=>!n.read)&&<span className="notif-head-badge">{notifs.filter(n=>!n.read).length}</span>}</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''} notif-${n.type}`} onClick={()=>clickNotif(n)}><span className="notif-icon-badge">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
       <main className="main-content">
         {curPage==='home'&&<div className="home-page">
           {user&&<div className="glass-card create-post-card"><h3>发布新帖子</h3><PostForm user={user} visibleForums={getVisibleForums()} onPostCreated={fetchPosts}/></div>}

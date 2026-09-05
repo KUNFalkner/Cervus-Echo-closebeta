@@ -56,32 +56,44 @@ export default function WelcomeHello({ nickname, onDone, duration = 3400 }) {
       return () => { root.removeEventListener('click', skip); window.removeEventListener('keydown', keySkip); if (timerRef.current) clearTimeout(timerRef.current); };
     }
 
-    // 动画序列：hello 逐笔 -> 昵称淡入 -> 品牌落款淡入 -> 整层淡出
-    const strokes = root.querySelectorAll('.welcome-hello-stroke');
-    const drawables = [...strokes].map((p) => createDrawable(p));
-    // 先全部藏起（stroke 画线起点）
-    strokes.forEach((p) => { p.style.strokeDasharray = 'none'; });
-
-    const anim = animate(drawables, {
-      draw: ['0 0', '0 1'],
-      delay: stagger(160),
-      duration: 850,
-      ease: 'inOutQuad',
-    });
-    anim.finished.then(() => {
-      setPhase('name');
-      const t1 = setTimeout(() => setPhase('brand'), 700);
-      const t2 = setTimeout(() => { setPhase('fade'); const t3 = setTimeout(() => onDone && onDone(), 800); timerRef.current = t3; }, 2300);
-      timerRef.current = t2;
-      // 清理 t1（若组件提前卸载）
-      timerRef.current._t1 = t1;
-    });
+    // 动画序列：hello 逐笔 -> 昵称淡入 -> 品牌落款淡出 -> 整层淡出
+    // 注意：animejs v4 的 animate() 返回值直接是 thenable（anim.then），没有 .finished。
+    // 这里任何一步出错都不能炸掉登录后的 React 树（曾因 undefined.then 崩过整页）。
+    let phaseTimers = [];
+    const goTo = (p) => setPhase(p);
+    try {
+      const strokes = root.querySelectorAll('.welcome-hello-stroke');
+      const drawables = [...strokes].map((p) => createDrawable(p));
+      strokes.forEach((p) => { p.style.strokeDasharray = 'none'; });
+      const anim = animate(drawables, {
+        draw: ['0 0', '0 1'],
+        delay: stagger(160),
+        duration: 850,
+        ease: 'inOutQuad',
+      });
+      const chain = (anim && typeof anim.then === 'function') ? anim.then : null;
+      if (chain) {
+        chain.call(anim, () => {
+          goTo('name');
+          phaseTimers.push(setTimeout(() => goTo('brand'), 700));
+          phaseTimers.push(setTimeout(() => { goTo('fade'); phaseTimers.push(setTimeout(() => onDone && onDone(), 800)); }, 2300));
+        });
+      } else {
+        // 兜底：拿不到 thenable 就直接按时间轴走
+        phaseTimers.push(setTimeout(() => goTo('name'), 900));
+        phaseTimers.push(setTimeout(() => goTo('brand'), 1600));
+        phaseTimers.push(setTimeout(() => { goTo('fade'); phaseTimers.push(setTimeout(() => onDone && onDone(), 800)); }, 3200));
+      }
+    } catch (err) {
+      console.warn('[WelcomeHello] 动画失败，降级为静态展示', err);
+      goTo('name');
+      phaseTimers.push(setTimeout(() => { goTo('fade'); phaseTimers.push(setTimeout(() => onDone && onDone(), 800)); }, 1600));
+    }
 
     return () => {
       root.removeEventListener('click', skip);
       window.removeEventListener('keydown', keySkip);
-      if (timerRef.current) { clearTimeout(timerRef.current); if (timerRef.current._t1) clearTimeout(timerRef.current._t1); }
-      try { anim.pause(); } catch (e) {}
+      phaseTimers.forEach(clearTimeout);
     };
   }, [onDone]);
 
