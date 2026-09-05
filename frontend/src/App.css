@@ -2165,54 +2165,68 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .welcome-hello-svg { color: #efe7d2; opacity: 1; }
 .welcome-hello-wrap { min-height: 130px; display: flex; align-items: center; justify-content: center; }
 
-/* ── CommunityStory（B 版：Sketchbook 手法 × 午夜蓝+沙金）── */
-.story-page { min-height: 100dvh; background: #0d1126; color: var(--fg, #f2e8d8); position: relative; overflow-x: hidden; }
-.story-wash { position: fixed; inset: 0; z-index: 0; pointer-events: none;
+
+
+/* ── CommunityStory v2（树洞手记：可翻纸页 + 缩放，午夜蓝+沙金）── */
+.cs-page-root { min-height: 100dvh; background: #0d1126; color: #f2e8d8; position: relative; overflow-x: hidden; perspective: 1600px; }
+.cs-wash { position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(1200px 700px at 78% -8%, rgba(227,196,120,.07), transparent 60%),
-    radial-gradient(900px 600px at 12% 104%, rgba(120,140,220,.06), transparent 60%),
-    repeating-linear-gradient(0deg, transparent 0 2px, rgba(255,255,255,.012) 2px 4px);
-}
-.story-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: .6rem;
-  padding: .8rem clamp(1rem, 4vw, 2.4rem); background: rgba(13,17,38,.78); backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(227,196,120,.14); }
-.story-back { background: none; border: 1px solid rgba(227,196,120,.3); color: var(--fg, #f2e8d8); padding: .35rem .8rem; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: .85rem; transition: all .2s; }
-.story-back:hover { border-color: #e3c478; color: #e3c478; }
-.story-brand { font-size: .92rem; letter-spacing: .14em; color: #c8bda0; }
-.story-lens-btn { background: none; border: 1px solid rgba(227,196,120,.3); color: var(--fg, #f2e8d8); padding: .35rem .8rem; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: .85rem; transition: all .2s; }
-.story-lens-btn.on { background: rgba(227,196,120,.16); border-color: #e3c478; color: #e3c478; }
-.story-head { position: relative; z-index: 1; text-align: center; padding: clamp(3.4rem, 9vh, 6rem) 1.2rem 2.4rem; }
-.story-kicker { font-size: .72rem; letter-spacing: .34em; color: rgba(200,189,160,.6); margin-bottom: 1rem; }
-.story-title { font-size: clamp(2.6rem, 7vw, 4.6rem); margin: 0; color: #c8bda0; font-weight: 600; letter-spacing: .06em; }
-.story-sub { color: rgba(242,232,216,.62); margin: 1rem auto 0; max-width: 34em; font-size: .98rem; }
-.story-index { position: relative; z-index: 1; display: flex; flex-wrap: wrap; justify-content: center; gap: .55rem; padding: 0 1rem 2.6rem; }
-.story-idx-item { display: inline-flex; align-items: baseline; gap: .5rem; background: rgba(255,255,255,.03); border: 1px solid rgba(227,196,120,.16);
-  color: var(--fg, #f2e8d8); padding: .42rem .95rem; border-radius: 999px; cursor: pointer; font-family: inherit; transition: all .25s cubic-bezier(.22,1,.36,1); }
-.story-idx-item:hover, .story-idx-item.on { border-color: #e3c478; background: rgba(227,196,120,.1); transform: translateY(-2px); }
-.story-idx-no { font-size: .72rem; color: #b8923f; letter-spacing: .1em; }
-.story-idx-zh { font-size: .9rem; }
-.story-idx-en { font-size: .68rem; letter-spacing: .16em; color: rgba(242,232,216,.4); }
-.story-plates { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 0 1.2rem 3rem; display: flex; flex-direction: column; gap: 1.4rem; }
-.story-plate { position: relative; border: 1px solid rgba(227,196,120,.18); border-radius: 18px; padding: clamp(1.4rem, 4vw, 2.6rem);
-  background: linear-gradient(160deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
-  display: flex; gap: clamp(1rem, 4vw, 2.2rem); align-items: flex-start; transition: border-color .3s, transform .3s cubic-bezier(.22,1,.36,1); }
-.story-plate.on { border-color: rgba(227,196,120,.5); transform: translateY(-2px); }
-.story-plate-no { font-size: clamp(2rem, 5vw, 3rem); color: rgba(227,196,120,.34); font-family: Georgia, serif; line-height: 1; min-width: 2.4em; }
-.story-plate-body { flex: 1; }
-.story-plate-en { font-size: .7rem; letter-spacing: .3em; color: rgba(200,189,160,.55); margin: 0 0 .5rem; }
-.story-plate-zh { font-size: clamp(1.4rem, 3.4vw, 1.9rem); margin: 0 0 .7rem; color: #e3c478; font-weight: 600; letter-spacing: .05em; }
-.story-plate-text { margin: 0 0 .8rem; line-height: 1.9; color: rgba(242,232,216,.86); font-size: .98rem; }
-.story-plate-meta { margin: 0; font-size: .76rem; color: rgba(242,232,216,.42); letter-spacing: .08em; border-top: 1px dashed rgba(227,196,120,.2); padding-top: .6rem; }
-.story-foot { position: relative; z-index: 1; text-align: center; color: rgba(242,232,216,.4); font-size: .8rem; padding: 1.6rem 1rem 2.6rem; letter-spacing: .1em; }
-/* 放大镜 */
-.story-lens { position: fixed; left: 0; top: 0; z-index: 60; width: 180px; height: 180px; border-radius: 50%; pointer-events: none;
-  border: 2px solid rgba(227,196,120,.65); box-shadow: 0 10px 34px rgba(0,0,0,.5), inset 0 0 26px rgba(227,196,120,.14);
-  backdrop-filter: blur(0px) brightness(1.24) saturate(1.12); overflow: hidden; }
-.story-lens-inner { position: absolute; inset: 0; border-radius: 50%;
-  background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.16), transparent 42%); }
+    radial-gradient(1100px 640px at 80% -10%, rgba(227,196,120,.08), transparent 60%),
+    radial-gradient(900px 560px at 8% 106%, rgba(120,140,220,.06), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,.014) 3px 6px); }
+.cs-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem;
+  padding: .85rem clamp(1rem, 4vw, 2.4rem); background: rgba(13,17,38,.8); backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(227,196,120,.16); }
+.cs-back { background: none; border: 1px solid rgba(227,196,120,.32); color: #f2e8d8; padding: .34rem .8rem; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: .85rem; transition: all .2s; }
+.cs-back:hover { border-color: #e3c478; color: #e3c478; }
+.cs-stamp { width: 46px; height: 46px; border-radius: 50%; border: 1.5px dashed rgba(227,196,120,.5); display: grid; place-items: center;
+  font-size: .5rem; letter-spacing: .12em; color: rgba(227,196,120,.75); text-align: center; line-height: 1.3; transform: rotate(-8deg); flex: none; }
+.cs-stamp span { display: block; font-size: .72rem; font-weight: 700; }
+.cs-masthead { flex: 1; display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }
+.cs-kicker { margin: 0; font-size: .64rem; letter-spacing: .3em; color: rgba(200,189,160,.55); }
+.cs-title { margin: 0; font-size: 1.5rem; color: #c8bda0; letter-spacing: .1em; font-weight: 600; }
+.cs-zoom { display: flex; align-items: center; gap: .5rem; flex: none; }
+.cs-zoom button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(227,196,120,.32); background: none; color: #f2e8d8; font-size: 1rem; cursor: pointer; transition: all .2s; }
+.cs-zoom button:hover { border-color: #e3c478; color: #e3c478; }
+.cs-zoom span { font-size: .74rem; color: rgba(242,232,216,.5); min-width: 3em; text-align: center; font-variant-numeric: tabular-nums; }
+.cs-sub { position: relative; z-index: 1; text-align: center; color: rgba(242,232,216,.55); margin: 2.2rem 1rem 1.6rem; font-size: .92rem; letter-spacing: .06em; }
+/* 纸叠 */
+.cs-book { position: relative; z-index: 1; max-width: 760px; margin: 0 auto; padding: 0 1.2rem 1rem;
+  display: flex; flex-direction: column; gap: 1.1rem; transition: transform .45s cubic-bezier(.22,1,.36,1); transform-origin: 50% 20%; }
+/* 每一页：3D 翻面卡 */
+.cs-page { cursor: pointer; perspective: 1400px; }
+.cs-page-inner { position: relative; transform-style: preserve-3d; transition: transform .7s cubic-bezier(.3,.9,.3,1);
+  transform: rotate(var(--tilt)); }
+.cs-page.flipped .cs-page-inner { transform: rotateY(180deg); }
+.cs-page:hover .cs-page-inner:not(.flipped .cs-page-inner) { }
+.cs-page:hover .cs-page-inner { filter: brightness(1.05); }
+.cs-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; position: relative;
+  border-radius: 14px; padding: clamp(1.4rem, 4vw, 2.4rem); min-height: 210px;
+  background: linear-gradient(155deg, rgba(244,240,228,.07), rgba(244,240,228,.02) 55%), rgba(20,24,48,.6);
+  border: 1px solid rgba(227,196,120,.22);
+  box-shadow: 0 14px 34px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06); }
+.cs-back { position: absolute; inset: 0; transform: rotateY(180deg);
+  display: flex; flex-direction: column; justify-content: center; gap: .5rem;
+  background: linear-gradient(205deg, rgba(227,196,120,.1), rgba(227,196,120,.03) 60%), rgba(16,19,40,.85); }
+/* 折痕 + 翘角高光（纸感细节） */
+.cs-crease { position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  background: linear-gradient(100deg, transparent 46%, rgba(0,0,0,.14) 50%, transparent 54%); opacity: .6; }
+.cs-face::after { content: ""; position: absolute; right: 10px; top: 10px; width: 34px; height: 34px; pointer-events: none;
+  background: radial-gradient(circle at 100% 0%, rgba(255,255,255,.1), transparent 70%); }
+.cs-no { position: absolute; top: 1rem; right: 1.3rem; font-family: Georgia, serif; font-size: 2.1rem; color: rgba(227,196,120,.3); line-height: 1; }
+.cs-no-back { right: auto; left: 1.3rem; top: auto; bottom: 1rem; }
+.cs-en { margin: 0 0 .4rem; font-size: .66rem; letter-spacing: .3em; color: rgba(200,189,160,.55); }
+.cs-zh { margin: 0 0 .7rem; font-size: clamp(1.5rem, 3.6vw, 2rem); color: #e3c478; letter-spacing: .08em; font-weight: 600; }
+.cs-text { margin: 0; line-height: 2; color: rgba(242,232,216,.88); font-size: .98rem; max-width: 30em; }
+.cs-note-label { margin: 0; font-size: .68rem; letter-spacing: .26em; color: rgba(200,189,160,.6); }
+.cs-note { margin: 0; font-size: 1.02rem; color: rgba(242,232,216,.9); letter-spacing: .04em; }
+.cs-flip-hint { display: inline-block; margin-top: 1rem; font-size: .72rem; color: rgba(227,196,120,.5); letter-spacing: .1em; }
+.cs-foot { position: relative; z-index: 1; text-align: center; color: rgba(242,232,216,.38); font-size: .78rem; padding: 1.6rem 1rem 2.6rem; letter-spacing: .1em; }
 @media (max-width: 640px) {
-  .story-plate { flex-direction: column; gap: .6rem; }
-  .story-plate-no { min-width: 0; }
-  .story-lens { display: none; }  /* 触屏无 hover，隐藏放大镜 */
+  .cs-book { transform-origin: 50% 10%; }
+  .cs-masthead .cs-kicker { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .story-lens { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cs-page-inner { transition: none; }
+  .cs-book { transition: none; }
+}
