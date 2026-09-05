@@ -1423,6 +1423,14 @@ function App() {
 
   const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setShowRules(true); setShowWelcome(true) }
 
+  // 页面切换过渡：main 挂 key={curPage} 重挂载后做一次上浮淡入（GSAP；尊重 reduced-motion）
+  useEffect(() => {
+    const el = document.querySelector('.main-content')
+    if (!el) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    gsap.fromTo(el, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: .38, ease: 'power2.out', clearProps: 'opacity,transform' })
+  }, [curPage])
+
   // 星标/点赞统一切换：乐观更新 + 本地高亮 + 计数回退；star/like 共用一份逻辑，避免重复实现
   const toggleReaction = async (kind, post) => {
     const uid = user?.id
@@ -1466,7 +1474,7 @@ function App() {
         <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span className="notif-panel-title"><span className="notif-panel-glyph">🔔</span>通知{notifs.some(n=>!n.read)&&<span className="notif-head-badge">{notifs.filter(n=>!n.read).length}</span>}</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''} notif-${n.type}`} onClick={()=>clickNotif(n)}><span className="notif-icon-badge">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
-      <main className="main-content">
+      <main className="main-content" key={curPage} data-page={curPage}>
         {curPage==='home'&&<div className="home-page">
           {user&&<div className="glass-card create-post-card"><h3>发布新帖子</h3><PostForm user={user} visibleForums={getVisibleForums()} onPostCreated={fetchPosts}/></div>}
           <div className="forum-tabs"><button className={`forum-tab ${activeForum==='all'?'active':''}`} onClick={()=>setActiveForum('all')}>全部</button>{getVisibleForums().map(f=><button key={f.code} className={`forum-tab ${activeForum===f.code?'active':''}`} onClick={()=>setActiveForum(f.code)}>{f.code==='main'?'🏠':'🏫'} {f.name}</button>)}</div>
