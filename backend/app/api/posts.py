@@ -13,7 +13,7 @@ from app.schemas.post import PostCreate, Post as PostSchema, CommentCreate, Comm
 from app.schemas.social import PostUpdate
 from app.services.perm import assert_can_moderate, can_see_uid
 from app.services.sensitive_words import sensitive_filter
-from app.services.mute import is_muted, mute_message
+from app.services.mute import is_muted, mute_message, assert_not_banned
 from app.services.notif import notify_from_comment, notify_like, notify_star
 from app.core.ratelimit import rate_limit
 from app.search_index import (
@@ -95,7 +95,8 @@ def create_post(
 ):
     # 频率限制：发帖 5 条/分钟
     rate_limit("post", 5, 60, user_id=user.id)
-    # 禁言拦截
+    # 封禁拦截 + 禁言拦截
+    assert_not_banned(user)
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
 
@@ -594,6 +595,7 @@ def create_comment(
         raise HTTPException(status_code=404, detail="帖子不存在")
     if is_muted(user):
         raise HTTPException(status_code=403, detail=mute_message(user))
+    assert_not_banned(user)
 
     # 楼中楼：校验父评论存在且同属本帖，并限制嵌套深度（最多 5 层）
     parent_comment = None

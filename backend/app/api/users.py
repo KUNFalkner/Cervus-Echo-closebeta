@@ -135,16 +135,49 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return target
 
 @router.get("/me/comments", response_model=list)
-def my_comments(user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
+def my_comments(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
     """当前用户发表过的评论，附带所属帖子标题（帖子已删则为 null）。"""
     comments = db.query(CommentModel).filter(CommentModel.user_id == user.id)\
-        .order_by(CommentModel.created_at.desc()).limit(50).all()
+        .order_by(CommentModel.created_at.desc()).offset(skip).limit(limit).all()
     out = []
     for c in comments:
         post = db.query(PostModel).filter(PostModel.id == c.post_id).first()
         out.append({"id": c.id, "content": c.content, "created_at": c.created_at,
                     "post_id": c.post_id, "post_title": post.title if post else None})
     return out
+
+
+@router.delete("/me/comments/{comment_id}")
+def delete_my_comment(
+    comment_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """「我的内容」页删除自己的评论（不依赖 post_id，帖子已删也能删）。"""
+    comment = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
+    if comment is None:
+        raise HTTPException(status_code=404, detail="评论不存在")
+    if comment.user_id != user.id:
+        raise HTTPException(status_code=403, detail="只能删除自己的评论")
+    # 同步帖子评论数（帖子若已删则跳过）
+    post = db.query(PostModel).filter(PostModel.id == comment.post_id).first()
+    if post and post.comment_count > 0:
+        post.comment_count -= 1
+    db.delete(comment)
+    db.commit()
+    # 同步全文索引
+    try:
+        from app.search_index import remove_comment
+        remove_comment(db, comment_id)
+        db.commit()
+    except Exception as _e:
+        print(f"[FTS] 删除评论索引失败: {_e}")
+    return {"message": "删除成功"}
 
 
 # ── Registration (legacy) ─────────────────────────────────────────────

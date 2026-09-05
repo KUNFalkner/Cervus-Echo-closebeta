@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm, boards, polls
+from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm, boards, polls, burn, groups
 
 app = FastAPI(
     title="鹿鸣回音社区 API",
@@ -72,6 +72,66 @@ def _migrate_comment_fields():
 _migrate_comment_parent()
 _migrate_comment_fields()
 
+
+def _migrate_add_columns(table: str, cols):
+    """幂等补列。cols 为 [(列名, 完整 ALTER 语句)]。"""
+    try:
+        from sqlalchemy import inspect as _sa_inspect, text as _text
+        from app.models.database import engine
+        _have = [c["name"] for c in _sa_inspect(engine).get_columns(table)]
+        _added = []
+        for _col, _sql in cols:
+            if _col not in _have:
+                with engine.begin() as _conn:
+                    _conn.execute(_text(_sql))
+                _added.append(_col)
+        if _added:
+            print(f"[MIGRATE] {table} 已添加列: {', '.join(_added)}")
+    except Exception as _e:
+        print(f"[MIGRATE] 跳过 {table} 补列: {_e}")
+
+
+def _migrate_burn_indexes():
+    """清扫与统计要按 expires_at / burn_mode / is_anonymous 过滤，补上索引。"""
+    try:
+        from sqlalchemy import text as _text
+        from app.models.database import engine
+        with engine.begin() as _conn:
+            for _sql in (
+                "CREATE INDEX IF NOT EXISTS ix_dm_burn ON direct_messages(burn_mode, burned_at)",
+                "CREATE INDEX IF NOT EXISTS ix_dm_expires ON direct_messages(expires_at)",
+                "CREATE INDEX IF NOT EXISTS ix_msg_burn ON messages(burn_mode, burned_at)",
+                "CREATE INDEX IF NOT EXISTS ix_msg_expires ON messages(expires_at)",
+                "CREATE INDEX IF NOT EXISTS ix_posts_anon ON posts(is_anonymous)",
+            ):
+                _conn.execute(_text(_sql))
+    except Exception as _e:
+        print(f"[MIGRATE] 跳过阅后即焚索引: {_e}")
+
+
+# ── 阅后即焚所需列（私信 direct_messages / 群聊 messages 同构）──
+# 只存密文：焚毁消息的 content 恒为 NULL，正文只写 content_enc。
+# burned_at = 已焚时间；expires_at = 30 天兜底到期时间。
+_BURN_COLS = [
+    ("burn_mode", "ALTER TABLE {t} ADD COLUMN burn_mode VARCHAR(8)"),
+    ("content_enc", "ALTER TABLE {t} ADD COLUMN content_enc TEXT"),
+    ("burned_at", "ALTER TABLE {t} ADD COLUMN burned_at TIMESTAMP"),
+    ("expires_at", "ALTER TABLE {t} ADD COLUMN expires_at TIMESTAMP"),
+]
+for _t in ("direct_messages", "messages"):
+    _migrate_add_columns(_t, [(c, s.format(t=_t)) for c, s in _BURN_COLS])
+
+# 会话列表摘要：最后一条是焚毁消息时不显示明文
+_migrate_add_columns("conversations", [
+    ("last_message_burned", "ALTER TABLE conversations ADD COLUMN last_message_burned BOOLEAN DEFAULT 0"),
+])
+
+# 匿名发帖统计的唯一数据源：发帖时由服务端落库（User.is_anonymous 只是偏好，前端表单没读它）
+_migrate_add_columns("posts", [
+    ("is_anonymous", "ALTER TABLE posts ADD COLUMN is_anonymous BOOLEAN DEFAULT 0"),
+])
+_migrate_burn_indexes()
+
 # ── 增量迁移：全文搜索 FTS5 虚拟表 ───────────────────────────────────────
 # 启动时幂等建表并回填存量数据，新帖/新评论在写库时实时同步索引。
 try:
@@ -112,6 +172,8 @@ app.include_router(uploads.router, prefix="/api/uploads", tags=["uploads"])
 app.include_router(tarot.router, tags=["tarot"])
 app.include_router(social.router, prefix="/api/social", tags=["social"])
 app.include_router(dm.router, prefix="/api/dm", tags=["dm"])
+app.include_router(burn.router, prefix="/api/burn", tags=["burn"])
+app.include_router(groups.router, prefix="/api/groups", tags=["groups"])
 app.include_router(boards.router, tags=["boards"])
 app.include_router(polls.router, tags=["polls"])
 

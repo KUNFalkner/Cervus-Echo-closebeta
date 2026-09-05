@@ -12,6 +12,8 @@ from app.models.conversation import Conversation, DirectMessage
 from app.models.tarot_history import TarotHistory
 from app.models.board import Board
 from app.models.poll import Poll, Vote
+from app.models.group import ChatGroup, ChatGroupMember
+from app.models.burn import MessageRead, BurnAuditLog
 from app.services.password import hash_password
 
 Base.metadata.create_all(bind=engine)

@@ -15,6 +15,8 @@ class PostCreate(PostBase):
     # user_id / user_uid / user_school 不再由客户端提供，一律取自 JWT 认证结果
     display_name: Optional[str] = None
     hide_uid: bool = False
+    # 匿名标记：前端按 isAdmin/isAnon 决定，服务端落库作为匿名统计唯一数据源
+    is_anonymous: bool = False
 
 class Post(PostBase):
     id: int
@@ -24,6 +26,7 @@ class Post(PostBase):
     user_uid: Optional[str] = None
     user_school: Optional[str] = None
     hide_uid: bool = False
+    is_anonymous: bool = False
     author_avatar: Optional[str] = None
     like_count: int = 0
     star_count: int = 0
@@ -31,7 +34,7 @@ class Post(PostBase):
     created_at: datetime
 
     # 历史脏数据（计数字段为 NULL）会让整个列表接口 500，这里统一兜底
-    @field_validator("is_announcement", "hide_uid", mode="before")
+    @field_validator("is_announcement", "hide_uid", "is_anonymous", mode="before")
     @classmethod
     def _default_false(cls, v):
         return False if v is None else v

@@ -8,6 +8,7 @@ from app.auth import ws_authenticate
 from app.models.database import SessionLocal
 from app.models.message import Message
 from app.models.user import User
+from app.models.group import ChatGroup, ChatGroupMember
 from app.services.mute import is_muted, mute_message
 from app.services.sensitive_words import sensitive_filter
 from app.core.ratelimit import rate_limit
@@ -122,7 +123,7 @@ def authenticate(token: Optional[str]):
 
 
 def load_sender_state(user_id: int):
-    """返回 (禁言提示或 None, 最新昵称, 最新头像)。
+    """返回 (禁言提示或 None, 最新昵称, 最新头像, 是否封禁)。
 
     复用同一次查询顺带取最新昵称/头像：否则广播会一直用握手那一刻的旧值，
     用户改完头像得重连才生效。
@@ -131,9 +132,37 @@ def load_sender_state(user_id: int):
     try:
         sender = db.query(User).filter(User.id == user_id).first()
         if sender is None:
-            return None, None, None
+            return None, None, None, False
         muted = mute_message(sender) if is_muted(sender) else None
-        return muted, sender.nickname, sender.avatar
+        banned = getattr(sender, "banned", False)
+        return muted, sender.nickname, sender.avatar, banned
+    finally:
+        db.close()
+
+
+def can_join_room(user_id: int, room_id: str) -> bool:
+    """群聊房间 group/{gid} 仅成员可连；公共聊天室与其它房间放行。"""
+    if not room_id.startswith("group/"):
+        return True
+    try:
+        gid = int(room_id.split("/", 1)[1])
+    except (IndexError, ValueError):
+        return False
+    db = SessionLocal()
+    try:
+        g = db.query(ChatGroup).filter(ChatGroup.id == gid, ChatGroup.disbanded_at.is_(None)).first()
+        if g is None:
+            return False
+        member = (
+            db.query(ChatGroupMember)
+            .filter(
+                ChatGroupMember.group_id == gid,
+                ChatGroupMember.user_id == user_id,
+                ChatGroupMember.left_at.is_(None),
+            )
+            .first()
+        )
+        return member is not None
     finally:
         db.close()
 
@@ -147,11 +176,20 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
         return
     user_id, nickname, avatar = identity
 
+    # 群聊房间 group/{gid} 仅成员可连（公共聊天室无此限制）
+    if not can_join_room(user_id, room_id):
+        await websocket.close(code=4403)
+        return
+
+    is_group_room = room_id.startswith("group/")
+
     await websocket.accept()
     manager.join(room_id, websocket)
     try:
-        for item in load_history(room_id):
-            await websocket.send_text(json.dumps(item, ensure_ascii=False))
+        # 群聊历史走 REST（需要按查看者脱敏焚毁内容），WS 只负责实时推送
+        if not is_group_room:
+            for item in load_history(room_id):
+                await websocket.send_text(json.dumps(item, ensure_ascii=False))
 
         while True:
             data = await websocket.receive_text()
@@ -173,6 +211,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
                 }, ensure_ascii=False))
                 continue
 
+            if is_group_room:
+                # 群消息必须走 POST /api/groups/{gid}/messages（携带焚毁模式）
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": "群聊消息请通过发送接口提交",
+                }, ensure_ascii=False))
+                continue
+
             content = (message.get("content") or "").strip()
             if not content:
                 continue
@@ -181,8 +227,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
             content = sensitive_filter.filter_text(content)
 
             # 身份只认握手时认证出来的那个人，客户端帧里的 user_id / nickname 一律忽略
-            # 禁言拦截：仅向发送者回送错误帧，不影响房间其他人
-            muted, cur_nickname, cur_avatar = load_sender_state(user_id)
+            # 封禁 / 禁言拦截：仅向发送者回送错误帧，不影响房间其他人
+            muted, cur_nickname, cur_avatar, banned = load_sender_state(user_id)
+            if banned:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": "账号已被封禁，无法发送消息",
+                }, ensure_ascii=False))
+                continue
             if muted:
                 await websocket.send_text(json.dumps({
                     "type": "error",

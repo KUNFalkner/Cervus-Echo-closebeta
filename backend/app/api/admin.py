@@ -1,16 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func, distinct
 from typing import List
 from datetime import datetime, timezone, timedelta
 from collections import Counter
 
-from app.auth import require_admin
+from app.auth import require_admin, require_founder
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.report import Report as ReportModel
 from app.models.tarot_history import TarotHistory
 from app.models.board import Board
+from app.models.conversation import DirectMessage
+from app.models.message import Message
 from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban
 
 router = APIRouter()
@@ -271,3 +274,102 @@ def admin_read_posts(
         "comment_count": p.comment_count,
         "star_count": p.star_count,
     } for p in posts]
+
+
+@router.get("/privacy-stats")
+def privacy_stats(
+    founder: UserModel = Depends(require_founder),
+    db: Session = Depends(get_db),
+):
+    """阅后即焚 / 匿名发帖的使用画像。仅创始人可见（大使无权）。
+
+    口径：
+    - 活跃用户 = 近 30 天发帖 ∪ 评论 ∪ 私信 ∪ 群聊消息的去重用户（项目无 last_login，用行为代理）
+    - 「用过阅后即焚」= 发过至少一条 burn_mode 非空的消息（私信或群聊）
+    - 条数占比分母只含私信 + 群聊（排除公共聊天室 chat/main）
+    - 匿名统计自 posts.is_anonymous 列上线起，历史帖不计入（不回填）
+    """
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=30)
+
+    def pct(n, d):
+        return round(n * 100.0 / d, 2) if d else 0.0
+
+    total_users = db.query(func.count(UserModel.id)).scalar() or 0
+    total_posts = db.query(func.count(PostModel.id)).scalar() or 0
+
+    # 近 30 天活跃用户（四表 UNION 去重，SQL 侧聚合不拉内存）
+    q_post = db.query(PostModel.user_id.label("uid")).filter(PostModel.created_at >= since)
+    q_cmt = db.query(CommentModel.user_id.label("uid")).filter(CommentModel.created_at >= since)
+    q_dm = db.query(DirectMessage.sender_id.label("uid")).filter(DirectMessage.created_at >= since)
+    q_msg = db.query(Message.user_id.label("uid")).filter(Message.created_at >= since)
+    active = q_post.union(q_cmt, q_dm, q_msg).subquery()
+    active_users_30d = db.query(func.count(distinct(active.c.uid))).scalar() or 0
+
+    # 用过阅后即焚的人数
+    b_dm = db.query(DirectMessage.sender_id.label("uid")).filter(DirectMessage.burn_mode.isnot(None))
+    b_grp = db.query(Message.user_id.label("uid")).filter(Message.burn_mode.isnot(None))
+    burn_users = b_dm.union(b_grp).subquery()
+    burn_user_count = db.query(func.count(distinct(burn_users.c.uid))).scalar() or 0
+    burn_active_count = (
+        db.query(func.count(distinct(burn_users.c.uid)))
+        .select_from(burn_users.join(active, burn_users.c.uid == active.c.uid))
+        .scalar() or 0
+    )
+
+    # 匿名发帖人数
+    anon_user_count = (
+        db.query(func.count(distinct(PostModel.user_id)))
+        .filter(PostModel.is_anonymous.is_(True))
+        .scalar() or 0
+    )
+    anon_active_count = (
+        db.query(func.count(distinct(PostModel.user_id)))
+        .select_from(PostModel)
+        .join(active, PostModel.user_id == active.c.uid)
+        .filter(PostModel.is_anonymous.is_(True))
+        .scalar() or 0
+    )
+
+    # 条数占比：焚毁消息 / 可焚毁消息总数（私信 + 群聊）
+    dm_total = db.query(func.count(DirectMessage.id)).scalar() or 0
+    dm_burn = db.query(func.count(DirectMessage.id)).filter(DirectMessage.burn_mode.isnot(None)).scalar() or 0
+    grp_total = db.query(func.count(Message.id)).filter(Message.room_id.like("group/%")).scalar() or 0
+    grp_burn = db.query(func.count(Message.id)).filter(
+        Message.room_id.like("group/%"), Message.burn_mode.isnot(None)
+    ).scalar() or 0
+    burn_msgs = dm_burn + grp_burn
+    msg_total = dm_total + grp_total
+
+    anon_posts = db.query(func.count(PostModel.id)).filter(PostModel.is_anonymous.is_(True)).scalar() or 0
+
+    return {
+        "total_users": total_users,
+        "active_users_30d": active_users_30d,
+        "total_posts": total_posts,
+        "burn": {
+            "users": burn_user_count,
+            "pct_of_all": pct(burn_user_count, total_users),
+            "pct_of_active": pct(burn_active_count, active_users_30d),
+            "active_users": burn_active_count,
+        },
+        "burn_msg": {
+            "count": burn_msgs,
+            "total": msg_total,
+            "pct": pct(burn_msgs, msg_total),
+            "dm": {"count": dm_burn, "total": dm_total},
+            "grp": {"count": grp_burn, "total": grp_total},
+        },
+        "anon": {
+            "users": anon_user_count,
+            "pct_of_all": pct(anon_user_count, total_users),
+            "pct_of_active": pct(anon_active_count, active_users_30d),
+            "active_users": anon_active_count,
+        },
+        "anon_post": {
+            "count": anon_posts,
+            "total": total_posts,
+            "pct": pct(anon_posts, total_posts),
+        },
+        "note": "匿名统计自 posts.is_anonymous 列上线起计算，此前发帖不计入",
+    }

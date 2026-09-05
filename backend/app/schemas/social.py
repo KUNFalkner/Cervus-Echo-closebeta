@@ -12,6 +12,8 @@ class CreateConversation(BaseModel):
 
 class SendMessage(BaseModel):
     content: str
+    # None = 永久消息；否则为 any / all / per_user 三种焚毁模式之一
+    burn_mode: Optional[str] = None
 
 
 class PostUpdate(BaseModel):

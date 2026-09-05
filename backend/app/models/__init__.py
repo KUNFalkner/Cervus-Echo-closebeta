@@ -6,5 +6,7 @@ from app.models.report import Report
 from app.models.follow import Follow
 from app.models.conversation import Conversation, DirectMessage
 from app.models.tarot_history import TarotHistory
+from app.models.group import ChatGroup, ChatGroupMember
+from app.models.burn import MessageRead, BurnAuditLog
 
-__all__ = ["Base", "User", "Post", "Comment", "Message", "Report", "Follow", "Conversation", "DirectMessage", "TarotHistory"]
+__all__ = ["Base", "User", "Post", "Comment", "Message", "Report", "Follow", "Conversation", "DirectMessage", "TarotHistory", "ChatGroup", "ChatGroupMember", "MessageRead", "BurnAuditLog"]
