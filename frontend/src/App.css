@@ -562,6 +562,41 @@ body:not([data-time="day"]) .login-header .brand-subtitle-en { color: #c8bda0; }
 .login-btn { width: 100%; margin-top: 0.5rem; padding: 0.85rem; background: var(--primary-grad); border: none; border-radius: 12px; color: var(--btn-primary-fg); font-size: 1rem; font-weight: 600; font-family: inherit; cursor: pointer; }
 .login-btn:hover:not(:disabled) { opacity: 0.9; }
 .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* ── 登录按钮 · Interactive Hover Button 动效（圆点扩散铺底 + 双层文字换层）── */
+.ihb-btn { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: .5rem; }
+.ihb-btn .ihb-dot {
+  position: absolute; left: 0; top: 50%; z-index: 0;
+  width: 3rem; height: 3rem; border-radius: 999px;
+  background: linear-gradient(135deg, #e0a458, #c77b4a);
+  transform: translateY(-50%) scale(1);
+  transition: transform .55s cubic-bezier(.22,1,.36,1);
+  pointer-events: none;
+}
+.ihb-btn:hover:not(:disabled) .ihb-dot { transform: translateY(-50%) scale(18); }
+.ihb-btn .ihb-t1 {
+  position: relative; z-index: 1; display: inline-flex; align-items: center; gap: .45rem;
+  transition: transform .4s cubic-bezier(.55,0,.55,.2), opacity .35s;
+}
+.ihb-btn .ihb-t1 svg { width: 16px; height: 16px; }
+.ihb-btn:hover:not(:disabled) .ihb-t1 { transform: translateY(-150%); opacity: 0; }
+.ihb-btn .ihb-t2 {
+  position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: .4rem;
+  color: #241a08; font-weight: 700; letter-spacing: .02em;
+  transform: translateY(150%); opacity: 0;
+  transition: transform .5s cubic-bezier(.22,1,.36,1) .05s, opacity .45s .05s;
+  pointer-events: none;
+}
+.ihb-btn:hover:not(:disabled) .ihb-t2 { transform: translateY(0); opacity: 1; }
+.ihb-btn .ihb-t2-arrow { font-size: .8em; }
+/* 触屏 / :active 反馈：无 hover 设备也看得到扩散 */
+@media (hover: none) {
+  .ihb-btn:active:not(:disabled) .ihb-dot { transform: translateY(-50%) scale(18); }
+  .ihb-btn:active:not(:disabled) .ihb-t1 { transform: translateY(-150%); opacity: 0; }
+  .ihb-btn:active:not(:disabled) .ihb-t2 { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ihb-btn .ihb-dot, .ihb-btn .ihb-t1, .ihb-btn .ihb-t2 { transition: none; }
+}
 .switch-link { text-align: center; margin-top: 0.9rem; font-size: 0.85rem; color: var(--faint); cursor: pointer; }
 .switch-link button { background: none; border: none; color: var(--accent); cursor: pointer; font-weight: 600; font-family: inherit; font-size: inherit; }
 
