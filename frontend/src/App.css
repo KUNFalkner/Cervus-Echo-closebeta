@@ -563,6 +563,8 @@ body:not([data-time="day"]) .login-header .brand-subtitle-en { color: #c8bda0; }
 .login-btn:hover:not(:disabled) { opacity: 0.9; }
 .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 /* ── 登录按钮 · Interactive Hover Button 动效（圆点扩散铺底 + 双层文字换层）── */
+/* 按钮底色改沙金渐变（与金球/主题同源），弃用蓝色 */
+.login-btn { background: linear-gradient(135deg, #e3c478, #b8923f); color: #2a2010; }
 .ihb-btn { position: relative; overflow: hidden; isolation: isolate; display: flex; align-items: center; justify-content: center; gap: .5rem; }
 .ihb-btn .ihb-dot {
   position: absolute; left: 0; top: 50%; z-index: 0;
@@ -2147,3 +2149,17 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   .welcome-name, .welcome-brand { opacity: 1; transform: none; transition: none; }
   .welcome-fade { transition: opacity .3s ease; }
 }
+
+/* ── WelcomeHello v2：真字形描边 + 降级 ── */
+.welcome-loading { color: var(--accent, #e3c478); font-size: 2rem; animation: orb-breath 1.6s ease-in-out infinite; }
+.welcome-hello-css { font-family: 'Segoe Script', 'Comic Sans MS', cursive; font-size: 3.6rem; color: var(--accent, #e3c478); filter: drop-shadow(0 0 12px rgba(232,196,138,.5)); }
+
+/* ── WelcomeHello v3：Caveat 真字体描边 ── */
+.welcome-hello-text {
+  font-family: 'Caveat', 'Segoe Script', cursive;
+  font-weight: 700; font-size: 96px;
+  fill: transparent; stroke: currentColor; stroke-width: 2.4;
+  stroke-linecap: round; stroke-linejoin: round;
+  paint-order: stroke;
+}
+.welcome-hello-wrap { min-height: 120px; display: flex; align-items: center; justify-content: center; }
