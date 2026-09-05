@@ -3,51 +3,25 @@ import { animate } from 'animejs'
 import '@fontsource/caveat/700.css'
 
 /**
- * 登录欢迎遮罩：手写 "hello" 逐笔描出 → 昵称与品牌落款依次浮现。
+ * 登录欢迎遮罩：手写 "hello" 整词描出 → 昵称与品牌落款依次浮现。
  *
- * 字形方案（v3）：SVG <text> 直接用 Caveat 真手写字体渲染（字形绝对正确），
- * 描边动画用 stroke-dasharray + animejs 补间 strokeDashoffset（每字母一条 <text>，
- * 逐字 stagger 描出）。不再手搓贝塞尔，也不再依赖 opentype 运行时解析。
- *
- * 描边字用的是 text 的 stroke（fill 透明），dashoffset 从 length→0 形成书写感。
+ * v4：
+ * - 字形：SVG <text> + Caveat 700（连笔手写体，字母自然相连，l 不再生硬）
+ * - 动画：整词一道 strokeDashoffset 描边（连笔字本来就是一笔，逐字反而生硬）
+ * - 关键修复：onDone 用 ref 持有，避免父组件重渲染（通知轮询每 2s）
+ *   换新函数引用导致 effect 反复重跑、遮罩冻在半透明水印状态的 bug
+ * - 降级链：字体 3s 未就绪 → CSS 手写体；动画异常 → 静态成品；均不炸页面
  */
-const TEXT = 'hello'
-
-const HelloStrokes = ({ fontReady }) => {
-  const ref = useRef(null)
-  const [lens, setLens] = useState(null)
-
-  // 字体就绪后量每字母的笔画长度（驱动 dash 动画）
-  useEffect(() => {
-    if (!fontReady || !ref.current) return
-    const els = ref.current.querySelectorAll('text')
-    const l = [...els].map(t => {
-      try { return t.getComputedTextLength() * 6 } // 周长近似：字宽×系数，略冗余保证画满
-      catch { return 400 }
-    })
-    setLens(l)
-  }, [fontReady])
-
-  return (
-    <svg ref={ref} viewBox="0 0 340 120" className="welcome-hello-svg" aria-label="hello">
-      {[...TEXT].map((ch, i) => (
-        <text key={i} x={18 + i * 62} y="88"
-          className="welcome-hello-text"
-          style={lens ? { strokeDasharray: lens[i], strokeDashoffset: lens[i] } : { opacity: 0 }}>
-          {ch}
-        </text>
-      ))}
-    </svg>
-  )
-}
-
 export default function WelcomeHello({ nickname, onDone }) {
   const rootRef = useRef(null)
+  const textRef = useRef(null)
   const [phase, setPhase] = useState('drawing')
   const [fontReady, setFontReady] = useState(false)
   const [fontFailed, setFontFailed] = useState(false)
+  const doneRef = useRef(onDone)
+  doneRef.current = onDone  // 永远指向最新回调，但不触发 effect 重跑
 
-  // 等 Caveat 真字体加载完成（document.fonts API），3s 超时降级
+  // 等 Caveat 真字体加载（3s 超时降级）
   useEffect(() => {
     let dead = false
     const t = setTimeout(() => { if (!dead) setFontFailed(true) }, 3000)
@@ -62,66 +36,77 @@ export default function WelcomeHello({ nickname, onDone }) {
     return () => { dead = true; clearTimeout(t) }
   }, [])
 
-  // 动画序列（任何失败都不炸 React 树）
+  // 主动画序列：等字体+量长度 → 描边 → 昵称 → 品牌落款 → 淡出 → onDone
   useEffect(() => {
+    if (fontFailed) return  // 走降级渲染，无动画
+    if (!fontReady) return  // 字体没好，先不启动
     const root = rootRef.current
-    if (!root) return
+    const textEl = textRef.current
+    if (!root || !textEl) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let phaseTimers = []
-    const skip = () => { phaseTimers.forEach(clearTimeout); onDone && onDone() }
+    let cancelled = false
+    const finish = () => { if (!cancelled) doneRef.current && doneRef.current() }
+    const skip = () => { phaseTimers.forEach(clearTimeout); finish() }
     root.addEventListener('click', skip)
     const keySkip = (e) => { if (['Enter', 'Escape', ' '].includes(e.key)) { e.preventDefault(); skip() } }
     window.addEventListener('keydown', keySkip)
-    const goTo = setPhase
     const tail = () => {
-      goTo('name')
-      phaseTimers.push(setTimeout(() => goTo('brand'), 700))
-      phaseTimers.push(setTimeout(() => { goTo('fade'); phaseTimers.push(setTimeout(() => onDone && onDone(), 800)) }, 2300))
+      if (cancelled) return
+      setPhase('name')
+      phaseTimers.push(setTimeout(() => setPhase('brand'), 700))
+      phaseTimers.push(setTimeout(() => setPhase('fade'), 2300))
+      phaseTimers.push(setTimeout(finish, 3100))
     }
 
-    if (reduce || fontFailed) {
-      // 降级：不描边，直接成品
-      goTo('name')
-      phaseTimers.push(setTimeout(() => goTo('brand'), 600))
-      phaseTimers.push(setTimeout(() => { goTo('fade'); phaseTimers.push(setTimeout(() => onDone && onDone(), 800)) }, 2200))
-    } else if (fontReady) {
+    if (reduce) {
+      setPhase('name'); setPhase('brand')
+      phaseTimers.push(setTimeout(() => setPhase('fade'), 1400))
+      phaseTimers.push(setTimeout(finish, 2200))
+    } else {
       try {
-        const strokes = root.querySelectorAll('.welcome-hello-text')
-        // animejs 补间 strokeDashoffset：length → 0 = 从无到有写出
-        const anims = [...strokes].map((t, i) => {
-          const dash = parseFloat(t.style.strokeDasharray) || 400
-          return animate(t, {
-            strokeDashoffset: [dash, 0],
-            delay: 200 + i * 260,
-            duration: 620,
-            ease: 'inOutQuad',
-          })
+        // 连笔整词：先无描边隐藏，量真实笔画长度，再一道写出
+        const len = textEl.getComputedTextLength() * 5.5 + 260  // 周长近似，冗余量保证画满
+        textEl.style.strokeDasharray = String(len)
+        textEl.style.strokeDashoffset = String(len)
+        textEl.style.opacity = '1'
+        const anim = animate(textEl, {
+          strokeDashoffset: [len, 0],
+          duration: 1500,
+          delay: 250,
+          ease: 'inOutQuad',
         })
-        const last = anims[anims.length - 1]
-        const chain = (last && typeof last.then === 'function') ? last.then.bind(last) : null
+        const chain = (anim && typeof anim.then === 'function') ? anim.then.bind(anim) : null
         if (chain) chain(tail)
-        else phaseTimers.push(setTimeout(tail, 200 + 5 * 260 + 620 + 200))
+        else phaseTimers.push(setTimeout(tail, 2100))
       } catch (err) {
         console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
-        root.querySelectorAll('.welcome-hello-text').forEach(t => { t.style.strokeDasharray = 'none'; t.style.opacity = 1 })
+        textEl.style.strokeDasharray = 'none'
+        textEl.style.opacity = '1'
         tail()
       }
     }
     return () => {
+      cancelled = true
       root.removeEventListener('click', skip)
       window.removeEventListener('keydown', keySkip)
       phaseTimers.forEach(clearTimeout)
     }
-  }, [fontReady, fontFailed, onDone])
+  }, [fontReady, fontFailed])
+
+  const helloNode = fontFailed
+    ? <div className="welcome-hello-css">hello</div>
+    : (
+      <svg viewBox="0 0 300 130" className="welcome-hello-svg" aria-label="hello">
+        <text ref={textRef} x="150" y="92" textAnchor="middle" className="welcome-hello-text"
+          style={{ opacity: 0 }}>hello</text>
+      </svg>
+    )
 
   return (
     <div ref={rootRef} className={`welcome-overlay ${phase === 'fade' ? 'welcome-fade' : ''}`} role="dialog" aria-label="欢迎">
       <div className="welcome-inner">
-        <div className={`welcome-hello-wrap ${fontFailed ? 'css-fallback' : ''}`}>
-          {fontFailed
-            ? <div className="welcome-hello-css">hello</div>
-            : <HelloStrokes fontReady={fontReady} />}
-        </div>
+        <div className="welcome-hello-wrap">{helloNode}</div>
         <div className={`welcome-name ${phase === 'name' || phase === 'brand' || phase === 'fade' ? 'on' : ''}`}>
           {nickname ? `欢迎，${nickname}` : '欢迎回来'}
         </div>
