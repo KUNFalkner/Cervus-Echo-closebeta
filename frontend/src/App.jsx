@@ -623,8 +623,8 @@ const BURN_MODES = [
 const BurnPicker = ({ value, onChange }) => (
   <div className="burn-picker">
     <span className="burn-picker-label">阅后即焚</span>
-    {BURN_MODES.map(m => <button key={m.key} type="button" className={`burn-opt ${value===m.key?'active':''}`} onClick={()=>onChange(value===m.key?null:m.key)} title={m.key==='per_user'?'默认：你看过只对你消失':''}>{m.label}</button>)}
-    {value&&<button type="button" className="burn-opt burn-opt-clear" onClick={()=>onChange(null)}>✕ 取消</button>}
+    {BURN_MODES.map(m => <button key={m.key} type="button" className={`burn-opt ${value===m.key?'active':''}`} onClick={()=>onChange(value===m.key?null:m.key)} title={m.key==='per_user'?'默认：你看过只对你消失':''}><span className="burn-opt-label">{m.label}</span></button>)}
+    {value&&<button type="button" className="burn-opt burn-opt-clear" onClick={()=>onChange(null)}><span className="burn-opt-label">✕ 取消</span></button>}
   </div>
 );
 // 焚毁消息渲染：burned=已焚 / pending=待点击查看 / own=发送者自己 / permanent=普通
@@ -1475,7 +1475,7 @@ function App() {
 
     : <div className="app">
       <nav className="glass-nav"><div className="nav-brand"><h2 className="nav-title brand-title">鹿鸣回音</h2><span className="brand-subtitle-en nav-subtitle-en">Cervus Echo</span></div><div className="nav-links"><button className={curPage==='home'?'active':''} onClick={()=>setCurPage('home')}>首页</button>{isAdmin&&<button className={curPage==='admin'?'active':''} onClick={()=>setCurPage('admin')}>管理</button>}<button className={curPage==='chat'?'active':''} onClick={()=>setCurPage('chat')}>消息{dmUnread>0&&<span key={'dm'+dmUnread} className="notif-badge">{dmUnread>99?'99+':dmUnread}</span>}</button><button className={curPage==='profile'?'active':''} onClick={()=>setCurPage('profile')}>我的</button><button className={`nav-bell ${notifOpen?'active':''}`} onClick={toggleNotif}>通知{unread>0&&<span key={unread} className="notif-badge">{unread>99?'99+':unread}</span>}</button>
-        <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索">🔍</button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
+        <button className="nav-search" onClick={()=>{setGsSeed('');setGsOpen(true)}} title="搜索" aria-label="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:'15px',height:'15px',display:'block'}} aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>        <button className="nav-theme" onClick={toggleTheme} title="点击切换">{theme==='auto'?'自动':isLight?'白天':'夜间'}</button>
       </div><div className="user-info">{isAdmin&&<span className="role-indicator">{user.role==='founder'?'👑':'🏅'}</span>}<Avatar src={user.avatar} seed={user.username} className="nav-avatar" /><span className="user-nickname">{user.nickname}</span></div></nav>
         {notifOpen&&<div ref={notifPanelRef} className="notif-panel glass-card"><div className="notif-panel-head"><span className="notif-panel-title"><span className="notif-panel-glyph">🔔</span>通知{notifs.some(n=>!n.read)&&<span className="notif-head-badge">{notifs.filter(n=>!n.read).length}</span>}</span><button className="notif-markall" onClick={markAll}>全部已读</button></div>{notifs.length===0?<Empty icon="🔔" title="暂无通知" desc="有人回复、点赞、收藏或 @ 你时会在这里提醒"/>:<div className="notif-list">{notifs.map(n=><div key={n.id} className={`notif-item ${n.read?'read':''} notif-${n.type}`} onClick={()=>clickNotif(n)}><span className="notif-icon-badge">{n.type==='like'?'❤️':n.type==='star'?'⭐':n.type==='mention'?'@':n.type==='follow'?'➕':'💬'}</span><div className="notif-body"><p className="notif-text">{notifText(n)}</p>{n.post_title&&<p className="notif-post">「{n.post_title}」</p>}<span className="notif-time">{fmtTime(n.created_at)}</span></div>{!n.read&&<span className="notif-dot"/>}</div>)}</div>}</div>}
       <main className="main-content" key={curPage} data-page={curPage}>
