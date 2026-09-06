@@ -400,15 +400,15 @@ const TarotExperience = () => {
         try { toast && toast.success('已记录本次抽牌 ✦') } catch {}
         setTimeout(() => dealCards(), 70)
       }
-      // 洗牌收束：星盘减速回正 + 容器淡出，再发牌，衔接更顺（不突兀消失）
+      // 洗牌收束 v2：星盘减速 + 整个洗牌组淡出，finish 后立刻发牌（无空拍）
       if (reduceMotion() || !deckRef.current) { finish(); return }
       if (deckTweenRef.current) deckTweenRef.current.kill()
-      gsap.to(deckRef.current, { rotation: '+=160', duration: 0.5, ease: 'power3.out' })
+      gsap.to(deckRef.current, { rotation: '+=140', duration: 0.45, ease: 'power3.out' })
       const cont = deckRef.current.closest('.tarot-deck')
-      if (cont) gsap.to(cont, { autoAlpha: 0, duration: 0.4, ease: 'power2.in', onComplete: finish })
-      else finish()
-    }, 760)
-  }
+      if (cont) gsap.to(cont.querySelectorAll('.tarot-shuffle-card'), { autoAlpha: 0, scale: 0.6, duration: 0.3, ease: 'power2.in', stagger: 0.05 })
+      gsap.to(cont, { autoAlpha: 0, duration: 0.38, ease: 'power2.in', delay: 0.12, onComplete: finish })
+      }, 1050)
+      }
 
   const flip = contextSafe((i) => {
     if (!drawn) return
@@ -806,7 +806,7 @@ const TarotExperience = () => {
         <button className="tarot-history-btn" onClick={() => setShowHistory(true)}>✦ 抽牌历史（{history.length}）</button>
       </div>
 
-      {/* 洗牌星盘 */}
+      {/* 洗牌星盘 v2：三张牌背绕星盘循环洗切（CSS 驱动，流畅 60fps） */}
       {shuffling && (
         <div className="tarot-deck" aria-hidden>
           <svg ref={deckRef} className="tarot-deck-star" viewBox="0 0 100 100">
@@ -816,7 +816,10 @@ const TarotExperience = () => {
               <path d="M50 6 L56 44 L94 50 L56 56 L50 94 L44 56 L6 50 L44 44 Z" transform="rotate(45 50 50)" fill={GOLD} fillOpacity="0.4" stroke="none" />
             </g>
           </svg>
-          <div className="tarot-deck-ring" />
+          {/* 三张牌背沿轨道洗切：上下浮动 + 前后穿插（scale 模拟远近） */}
+          <div className="tarot-shuffle-card sc1"><TarotBack /></div>
+          <div className="tarot-shuffle-card sc2"><TarotBack /></div>
+          <div className="tarot-shuffle-card sc3"><TarotBack /></div>
         </div>
       )}
 

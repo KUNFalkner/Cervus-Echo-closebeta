@@ -2241,3 +2241,30 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .tcw-sec { margin: 0; font-size: .74rem; color: rgba(242,232,216,.4); letter-spacing: .08em; }
 @keyframes tcw-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tcw-stage { animation: none; } .tcw-astro-outer, .tcw-astro-inner { animation: none; } }
+
+/* ── 洗牌星盘 v2：三张牌背绕星循环洗切 ── */
+.tarot-shuffle-card {
+  position: absolute; width: 64px; height: 96px; border-radius: 8px; overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 14px rgba(227,196,120,.18);
+  will-change: transform, opacity;
+}
+.tarot-shuffle-card .tarot-card-back-wrap, .tarot-shuffle-card svg { width: 100%; height: 100%; display: block; }
+.tarot-shuffle-card.sc1 { animation: shuffleOrbit1 1.15s cubic-bezier(.45,.05,.55,.95) infinite; }
+.tarot-shuffle-card.sc2 { animation: shuffleOrbit2 1.15s cubic-bezier(.45,.05,.55,.95) infinite; animation-delay: -.38s; }
+.tarot-shuffle-card.sc3 { animation: shuffleOrbit3 1.15s cubic-bezier(.45,.05,.55,.95) infinite; animation-delay: -.76s; }
+@keyframes shuffleOrbit1 {
+  0%   { transform: translate(-70px, 8px) rotate(-14deg) scale(.92); z-index: 3; }
+  50%  { transform: translate(0, -26px) rotate(0deg) scale(1.12); z-index: 5; }
+  100% { transform: translate(70px, 8px) rotate(14deg) scale(.92); z-index: 3; }
+}
+@keyframes shuffleOrbit2 {
+  0%   { transform: translate(-46px, -14px) rotate(-8deg) scale(.96); }
+  50%  { transform: translate(22px, 14px) rotate(6deg) scale(1.04); }
+  100% { transform: translate(74px, -10px) rotate(12deg) scale(.9); }
+}
+@keyframes shuffleOrbit3 {
+  0%   { transform: translate(70px, -8px) rotate(12deg) scale(.9); }
+  50%  { transform: translate(-20px, 16px) rotate(-6deg) scale(1.05); }
+  100% { transform: translate(-72px, -12px) rotate(-12deg) scale(.94); }
+}
+@media (prefers-reduced-motion: reduce) { .tarot-shuffle-card { animation: none; opacity: .8; } }
