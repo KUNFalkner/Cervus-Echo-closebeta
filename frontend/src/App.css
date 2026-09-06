@@ -2179,10 +2179,7 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   border-bottom: 1px solid rgba(227,196,120,.16); }
 .cs-back { background: none; border: 1px solid rgba(227,196,120,.32); color: #f2e8d8; padding: .34rem .8rem; border-radius: 999px; cursor: pointer; font-family: inherit; font-size: .85rem; transition: all .2s; }
 .cs-back:hover { border-color: #e3c478; color: #e3c478; }
-.cs-stamp { width: 46px; height: 46px; border-radius: 50%; border: 1.5px dashed rgba(227,196,120,.5); display: grid; place-items: center;
-  font-size: .5rem; letter-spacing: .12em; color: rgba(227,196,120,.75); text-align: center; line-height: 1.3; transform: rotate(-8deg); flex: none; }
-.cs-stamp span { display: block; font-size: .72rem; font-weight: 700; }
-.cs-masthead { flex: 1; display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }
+  .cs-masthead { flex: 1; display: flex; align-items: baseline; gap: .9rem; flex-wrap: wrap; }
 .cs-kicker { margin: 0; font-size: .64rem; letter-spacing: .3em; color: rgba(200,189,160,.55); }
 .cs-title { margin: 0; font-size: 1.5rem; color: #c8bda0; letter-spacing: .1em; font-weight: 600; }
 .cs-zoom { display: flex; align-items: center; gap: .5rem; flex: none; }
@@ -2205,7 +2202,7 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   background: linear-gradient(155deg, rgba(244,240,228,.07), rgba(244,240,228,.02) 55%), rgba(20,24,48,.6);
   border: 1px solid rgba(227,196,120,.22);
   box-shadow: 0 14px 34px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06); }
-.cs-back { position: absolute; inset: 0; transform: rotateY(180deg);
+.cs-pageback { position: absolute; inset: 0; transform: rotateY(180deg);
   display: flex; flex-direction: column; justify-content: center; gap: .5rem;
   background: linear-gradient(205deg, rgba(227,196,120,.1), rgba(227,196,120,.03) 60%), rgba(16,19,40,.85); }
 /* 折痕 + 翘角高光（纸感细节） */
@@ -2231,14 +2228,14 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   .cs-book { transition: none; }
 }
 
-/* ── AI 解读等待：星轨进度环 + 阶段文案（把 40s 变仪式）── */
+/* ── AI 解读等待：转动星盘 + 阶段文案（把 40s 变仪式）── */
 .tarot-counsel-wait { display: flex; align-items: center; gap: 1rem; padding: 1rem .4rem .4rem; }
-.tcw-ring { width: 58px; height: 58px; flex: none; transform: rotate(-90deg); }
-.tcw-ring-bg { fill: none; stroke: rgba(227,196,120,.14); stroke-width: 3; }
-.tcw-ring-fg { fill: none; stroke: #e3c478; stroke-width: 3; stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear; filter: drop-shadow(0 0 6px rgba(227,196,120,.5)); }
+.tcw-astro { width: 64px; height: 64px; flex: none; filter: drop-shadow(0 0 8px rgba(227,196,120,.35)); }
+.tcw-astro-outer { transform-origin: 40px 40px; animation: tcw-spin 14s linear infinite; }
+.tcw-astro-inner { transform-origin: 40px 40px; animation: tcw-spin 9s linear infinite reverse; }
+@keyframes tcw-spin { to { transform: rotate(360deg); } }
 .tcw-body { flex: 1; }
 .tcw-stage { margin: 0 0 .3rem; font-size: .95rem; color: #e3c478; letter-spacing: .06em; animation: tcw-fade .8s ease; }
 .tcw-sec { margin: 0; font-size: .74rem; color: rgba(242,232,216,.4); letter-spacing: .08em; }
 @keyframes tcw-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .tcw-stage { animation: none; } .tcw-ring-fg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .tcw-stage { animation: none; } .tcw-astro-outer, .tcw-astro-inner { animation: none; } }

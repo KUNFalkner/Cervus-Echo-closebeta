@@ -832,6 +832,7 @@ const GroupManageModal = ({ user, gid, name, members, amCreator, onClose, onChan
   const kick=async(u)=>{ if(!confirm(`移出 ${u.nickname}？`))return; try{ const r=await apiFetch(`/groups/${gid}/members/${u.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); toast.success('已移出'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   const rename=async()=>{ if(!newName.trim())return; try{ const r=await apiFetch(`/groups/${gid}/name`,{method:'PUT',body:JSON.stringify({name:newName.trim()})}); if(!r.ok)throw new Error(await errMsg(r,'改名失败')); toast.success('已改名'); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   const disband=async()=>{ if(!confirm('确定解散此群？所有人将无法再进入。'))return; try{ const r=await apiFetch(`/groups/${gid}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'解散失败')); toast.success('群已解散'); onClose(); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
+  const leave=async()=>{ if(!confirm('确定退出此群？退出后需重新被拉入。'))return; try{ const r=await apiFetch(`/groups/${gid}/leave`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'退群失败')); toast.success('已退出群聊'); onClose(); onChanged&&onChanged() }catch(e){ toast.error(e.message) } };
   return <AnimatedModal onClose={onClose} className="follow-list-modal">{({requestClose})=>(<>
     <h3>群管理 · {name}</h3>
     {amCreator&&<div style={{display:'flex',gap:'.4rem',marginBottom:'.5rem'}}><input className="glass-input" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="新群名" style={{flex:1}}/><button className="glass-button" onClick={rename}>改名</button></div>}
@@ -843,8 +844,11 @@ const GroupManageModal = ({ user, gid, name, members, amCreator, onClose, onChan
     <div className="group-member-grid" style={{marginTop:'.5rem'}}>
       {members.map(m=><div key={m.id} className="group-member-item"><Avatar src={m.avatar} seed={m.nickname} className="group-member-avatar"/><span>{m.nickname}{m.id===user.id?'（我）':''}</span>{m.id!==user.id&&amCreator&&<button className="burn-opt" style={{fontSize:'.65rem'}} onClick={()=>kick(m)}>移出</button>}</div>)}
     </div>
-    {amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button><button className="glass-button btn-danger" onClick={disband}>解散群</button></div>}
-    {!amCreator&&<div className="modal-actions"><button className="glass-button btn-secondary" onClick={requestClose}>关闭</button></div>}
+    <div className="modal-actions">
+      <button className="glass-button btn-secondary" onClick={requestClose}>关闭</button>
+      {!amCreator&&<button className="glass-button btn-danger" onClick={leave}>退出群聊</button>}
+      {amCreator&&<button className="glass-button btn-danger" onClick={disband}>解散群</button>}
+    </div>
   </>)}</AnimatedModal>;
 };
 

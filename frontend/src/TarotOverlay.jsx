@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useMemo, useId, useState } from 'react'
 import gsap from 'gsap'
-import { animate } from 'animejs'
 import TarotExperience from './TarotExperience'
 import TarotCanvas from './TarotCanvas'
 
@@ -15,116 +14,6 @@ const reduceMotion = () => window.matchMedia && window.matchMedia('(prefers-redu
 //  - 更稀：相邻两次出现间隔 6~13s，基础流星降到 3~4 颗，避免「一直在刷」；
 //  - 角度更多样（18~68°），且起点散布在上方/左上不同位置、终点落在对侧下方，路径不再千篇一律；
 //  - 拖尾更长更细、亮头更收、整体峰值更低，像夜空里一缕将散未散的流光，而非硬白横条。
-function buildMeteors() {
-  const rnd = (a, b) => a + Math.random() * (b - a)
-  const out = []
-  const count = 3 + (Math.random() < 0.5 ? 0 : 1) // 3~4 颗基础流星（稀疏）
-  for (let i = 0; i < count; i++) {
-    out.push({
-      angle: +rnd(18, 68).toFixed(1),          // 角度更多样，斜掠更自然
-      len: Math.round(rnd(150, 320)),           // 更长
-      thick: +rnd(1, 2).toFixed(2),             // 更细
-      x0: `${-rnd(2, 22).toFixed(1)}vw`,        // 起点散布在上方/左上
-      y0: `${-rnd(2, 24).toFixed(1)}vh`,
-      x1: `${rnd(58, 110).toFixed(1)}vw`,       // 终点落在对侧下方不同位置
-      y1: `${rnd(40, 86).toFixed(1)}vh`,
-      dur: Math.round(rnd(3800, 6400)),         // 更慢
-      delay: Math.round(rnd(0, 7000)),
-      loop: Math.round(rnd(6000, 13000)),       // 更稀疏
-      peak: +rnd(0.5, 0.82).toFixed(2),
-      // 自然化 v3：轨迹微弧（风偏）——终点横向偏移 ±6vw，配 rotate 补间让头微摆
-      curve: +rnd(-6, 6).toFixed(1),
-      // 亮度节奏：入窗慢 → 巡行亮 → 熄尾快（非线性补间，见 keyframes）
-    })
-  }
-  // 偶尔成双：挑一颗做近孪生的第二颗（同角度、近同时、略短），像真实夜空「时不时划过两颗」
-  if (Math.random() < 0.5) {
-    const s = out[Math.floor(Math.random() * out.length)]
-    out.push({
-      angle: +(s.angle + rnd(-4, 4)).toFixed(1),
-      len: Math.round(s.len * rnd(0.7, 1)),
-      thick: s.thick,
-      x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1,
-      dur: s.dur, peak: +(s.peak * rnd(0.8, 1)).toFixed(2),
-      delay: s.delay + Math.round(rnd(160, 520)),
-      loop: s.loop,
-      curve: +(s.curve + rnd(-2, 2)).toFixed(1),
-    })
-  }
-  return out
-}
-const MeteorField = ({ perfTier }) => {
-  const ref = useRef(null)
-  const meteors = useMemo(buildMeteors, [])
-  useEffect(() => {
-    if (reduceMotion()) return
-    if (perfTier === 'low') return
-    // 手机端背景固定：不启动流星动画，CSS 会兜底隐藏整个流星场
-    if (window.innerWidth <= 520) return
-    const root = ref.current
-    if (!root) return
-    const anims = []
-    root.querySelectorAll('.tarot-meteor').forEach((m, i) => {
-      const c = meteors[i % meteors.length]
-      // 自然化 v3（animejs skill · keyframes）：
-      //  - 位移不再一条直线匀速：主补间走 inOutSine，但把 rotate 加一个 ±1.2° 的
-      //    微摆（pivot 在尾端，视觉是「头微摆、尾拖住」），破坏机械感
-      //  - 亮度四段 keyframes：暗入场(慢) → 亮起(快) → 巡行(稳) → 熄灭(快)，
-      //    与真实流星「掠入视野才显形、离开前先熄」的观感一致
-      //  - scaleX 尾迹：起步拖出(0.3→1) + 熄灭前回缩(1→0.25)，模拟尾巴收光
-      anims.push(animate(m, {
-        translateX: [c.x0, c.x1],
-        translateY: [c.y0, c.y1],
-        scaleX: [
-          { to: 0.3, duration: 1 },
-          { to: 1, duration: c.dur * 0.22, ease: 'outQuad' },
-          { to: 1, duration: c.dur * 0.5 },
-          { to: 0.25, duration: c.dur * 0.28, ease: 'inQuad' },
-        ],
-        opacity: [
-          { to: 0, duration: 1 },
-          { to: c.peak * 0.55, duration: c.dur * 0.18, ease: 'outSine' },
-          { to: c.peak, duration: c.dur * 0.24, ease: 'inOutSine' },
-          { to: c.peak * 0.9, duration: c.dur * 0.38 },
-          { to: 0, duration: c.dur * 0.2, ease: 'inQuad' },
-        ],
-        duration: c.dur,
-        delay: c.delay,
-        loop: true,
-        loopDelay: c.loop,
-        ease: 'inOutSine',
-      }))
-      // 头部微摆：独立小补间挂在 pivot 上（rotate 固定角上叠加摆动，互不覆盖）
-      const pivot = m.parentNode
-      if (pivot && !pivot.dataset.sway) {
-        pivot.dataset.sway = '1'
-        anims.push(animate(pivot, {
-          rotate: [`${c.angle}deg`, `${c.angle + (c.curve > 0 ? 1.4 : -1.4)}deg`, `${c.angle}deg`],
-          duration: c.dur,
-          delay: c.delay,
-          loop: true,
-          loopDelay: c.loop,
-          ease: 'inOutQuad',
-        }))
-      }
-    })
-    const mo = new MutationObserver(() => {
-      const dealing = document.body.classList.contains('tarot-dealing')
-      anims.forEach(a => (dealing ? a.pause() : a.resume()))
-    })
-    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] })
-    return () => { mo.disconnect(); anims.forEach(a => a.cancel && a.cancel()) }
-  }, [perfTier, meteors])
-  return (
-    <div className="tarot-meteor-field" ref={ref} aria-hidden>
-      {meteors.map((c, i) => (
-        <span className="tarot-meteor-pivot" key={i} style={{ transform: `rotate(${c.angle}deg)` }}>
-          <span className="tarot-meteor" style={{ width: c.len + 'px', height: c.thick + 'px' }} />
-        </span>
-      ))}
-    </div>
-  )
-}
 
 // 性能分档：先用设备内存/核心数做硬件启发式，再采样 ~1.2s 真实帧率校准，
 // 输出 high/med/low。弱设备（内存小/核心少，或实测帧率过低）自动降特效。
@@ -370,8 +259,6 @@ const TarotOverlay = ({ open, onClose }) => {
             </svg>
           ))}
         </div>
-        {/* 流星场：anime.js 驱动的有机流光，错峰掠过背景 */}
-        <MeteorField perfTier={perfTier} />
       </div>
       <div className="tarot-overlay-inner" ref={innerRef}>
         <button className="tarot-overlay-close" onClick={onClose} aria-label="关闭">×</button>

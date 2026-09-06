@@ -341,6 +341,22 @@ def rename_group(
     return {"id": g.id, "name": g.name}
 
 
+@router.post("/{gid}/leave")
+def leave_group(gid: int, user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
+    """成员主动退群（群主请用解散；被移出与主动退群同构：left_at 标记）。"""
+    g = _get_group(db, gid)
+    _require_member(db, gid, user.id)
+    if g.creator_id == user.id:
+        raise HTTPException(status_code=400, detail="群主请使用「解散群」")
+    mem = _membership(db, gid, user.id)
+    if mem is None:
+        raise HTTPException(status_code=404, detail="你已不在群中")
+    mem.left_at = burn_svc.utcnow_naive()
+    g.member_count = max(0, (g.member_count or 1) - 1)
+    db.commit()
+    return {"message": "已退出群聊"}
+
+
 @router.delete("/{gid}")
 def disband_group(gid: int, user: UserModel = Depends(require_user), db: Session = Depends(get_db)):
     g = _get_group(db, gid)

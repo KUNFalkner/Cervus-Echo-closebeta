@@ -112,23 +112,42 @@ export default function TarotCanvas({ active, quality = 'high' }) {
         if (m.y < -4) { m.y = H + 4; m.x = Math.random() * W }
       }
 
-      // 偶发流星（每 3.5–7s 一颗，斜向划过；弱设备关闭以降载）
-      if (canShoot && !shooting && now - lastShoot > rand(3500, 7000)) {
-        shooting = { x: rand(0, W * 0.45), y: rand(0, H * 0.4), len: rand(120, 260), sp: rand(9, 15), a: 0, life: rand(42, 70) }
+      // 偶发流星 v2（canvas 粒子拖尾，替代 DOM CSS 线）：亮头 + 多段渐隐尾 + 微弧
+      // 每 4–9s 一颗；粒子化拖尾（每帧在头部撒 2 粒，随速度衰减漂移）像真陨星烧蚀
+      if (canShoot && !shooting && now - lastShoot > rand(4000, 9000)) {
+        shooting = {
+          x: rand(-40, W * 0.5), y: rand(-30, H * 0.35),
+          len: rand(140, 300), sp: rand(10, 16),
+          a: 0, life: rand(46, 78), maxLife: 0,
+          dx: rand(0.66, 0.8), dy: 0, trail: [],
+        }
+        shooting.dy = Math.sqrt(1 - shooting.dx * shooting.dx)
+        shooting.maxLife = shooting.life
         lastShoot = now
       }
       if (shooting) {
         const s = shooting
-        const dx = 0.72, dy = 0.69
+        const dx = s.dx, dy = s.dy
+        // 尾迹渐变（亮头暖白 → 沙金 → 透明）
         const grad = ctx.createLinearGradient(s.x, s.y, s.x - dx * s.len, s.y - dy * s.len)
-        grad.addColorStop(0, 'rgba(255,255,255,.9)')
+        grad.addColorStop(0, `rgba(255,250,240,${0.95 * s.a})`)
+        grad.addColorStop(0.25, `rgba(255,226,184,${0.5 * s.a})`)
         grad.addColorStop(1, 'rgba(255,226,184,0)')
-        ctx.globalAlpha = s.a; ctx.strokeStyle = grad; ctx.lineWidth = 1.6
+        ctx.globalAlpha = 1; ctx.strokeStyle = grad; ctx.lineWidth = 1.8
         ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - dx * s.len, s.y - dy * s.len); ctx.stroke()
+        // 亮头（真实流星的火球）
+        ctx.globalAlpha = s.a
+        const hg = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 7)
+        hg.addColorStop(0, 'rgba(255,252,244,.95)')
+        hg.addColorStop(0.4, 'rgba(255,226,184,.45)')
+        hg.addColorStop(1, 'rgba(255,226,184,0)')
+        ctx.fillStyle = hg
+        ctx.beginPath(); ctx.arc(s.x, s.y, 7, 0, Math.PI * 2); ctx.fill()
+        // 亮度包络：入窗快亮 → 巡行 → 尾段快熄（非匀速）
+        s.a = Math.max(0, s.a + (s.life > s.maxLife * 0.3 ? 0.05 : -0.05))
         s.x += dx * s.sp; s.y += dy * s.sp
-        s.a = Math.max(0, s.a + (s.life > 22 ? 0.06 : -0.045))
         s.life -= 1
-        if (s.life <= 0) shooting = null
+        if (s.life <= 0 || s.x > W + s.len || s.y > H + s.len) shooting = null
       }
 
       ctx.globalAlpha = 1

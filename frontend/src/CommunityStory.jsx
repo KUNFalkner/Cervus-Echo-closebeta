@@ -39,7 +39,7 @@ export default function CommunityStory({ onBack }) {
 
       <header className="cs-top">
         <button className="cs-back" onClick={onBack}>← 返回</button>
-        <div className="cs-stamp" aria-hidden>EST<span>2025</span></div>
+        
         <div className="cs-masthead">
           <p className="cs-kicker">THE NOTEBOOK OF CERVUS ECHO</p>
           <h1 className="cs-title">树洞手记</h1>
@@ -70,7 +70,7 @@ export default function CommunityStory({ onBack }) {
                   <p className="cs-text">{p.text}</p>
                   <span className="cs-flip-hint">点击翻面 ⤷</span>
                 </div>
-                <div className="cs-face cs-back">
+                <div className="cs-face cs-pageback">
                   <div className="cs-crease" aria-hidden />
                   <p className="cs-note-label">手记注脚</p>
                   <p className="cs-note">{p.note}</p>

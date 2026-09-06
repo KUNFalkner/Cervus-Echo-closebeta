@@ -186,15 +186,22 @@ const CounselWait = () => {
     return () => clearInterval(t)
   }, [])
   const stage = [...COUNSEL_STAGES].reverse().find(s => sec >= s.at) || COUNSEL_STAGES[0]
-  // 进度环：40s 估时填满（视觉参考，不承诺精确）
-  const pct = Math.min(1, sec / 40)
-  const R = 26, C = 2 * Math.PI * R
   return (
     <div className="tarot-counsel-wait" role="status" aria-live="polite">
-      <svg className="tcw-ring" viewBox="0 0 64 64" aria-hidden>
-        <circle cx="32" cy="32" r={R} className="tcw-ring-bg" />
-        <circle cx="32" cy="32" r={R} className="tcw-ring-fg"
-          strokeDasharray={C} strokeDashoffset={C * (1 - pct)} />
+      {/* 转动星盘（替代进度环）：外环顺时针 + 内十字逆时针，双层缓转 */}
+      <svg className="tcw-astro" viewBox="0 0 80 80" aria-hidden>
+        <g className="tcw-astro-outer">
+          <circle cx="40" cy="40" r="30" fill="none" stroke="#e3c478" strokeWidth="1" opacity=".55" />
+          <circle cx="40" cy="40" r="24" fill="none" stroke="#e3c478" strokeWidth=".6" opacity=".35" />
+          {Array.from({ length: 12 }).map((_, i) => {
+            const a = (i / 12) * Math.PI * 2
+            return <line key={i} x1={40 + Math.cos(a) * 24} y1={40 + Math.sin(a) * 24} x2={40 + Math.cos(a) * 30} y2={40 + Math.sin(a) * 30} stroke="#e3c478" strokeWidth=".8" opacity=".6" />
+          })}
+        </g>
+        <g className="tcw-astro-inner">
+          <path d="M40 18 L42.5 37.5 L62 40 L42.5 42.5 L40 62 L37.5 42.5 L18 40 L37.5 37.5 Z" fill="none" stroke="#e3c478" strokeWidth=".7" opacity=".5" />
+          <circle cx="40" cy="40" r="2.2" fill="#e3c478" opacity=".8" />
+        </g>
       </svg>
       <div className="tcw-body">
         <p className="tcw-stage">{stage.text}</p>
@@ -463,10 +470,12 @@ const TarotExperience = () => {
         love: c.love, career: c.career, mood: c.mood, spiritual: c.spiritual,
       })),
     }
-    // 单次请求：20s 客户端超时（AbortController），超时即视为模型繁忙
+    // 单次请求：150s 客户端超时（与后端本地模型 150s 对齐）。
+    // qwen3:8b 实测 ~40s 出稿；此前 20s 超时必然 abort → toast「本地模型正忙」，
+    // 这是「总是显示本地模型正忙」的唯一根因。
     const runOnce = async () => {
       const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), 20000)
+      const timer = setTimeout(() => ctrl.abort(), 150000)
       try {
         return await fetchCounsel(payload, ctrl.signal)
       } finally {
