@@ -239,6 +239,10 @@ const TarotExperience = () => {
   const [counsel, setCounsel] = useState(() => lastInit ? (lastInit.counsel || null) : null)
   const counselRef = useRef(null)
   const freshRef = useRef(false)
+  // AI 解读生命周期：drawSeq 每次「重新抽牌」+1，请求全程携带自己的代数；
+  // 旧代数的响应一律丢弃（不写 counsel、不写历史、不弹 toast），并 abort 网络请求。
+  const counselSeqRef = useRef(0)
+  const counselAbortRef = useRef(null)
   // 动态卡牌引用：支持 3 张（过去·现在·未来）或 10 张（凯尔特十字）
   const cardRefs = useRef([])
   // 抽牌历史：每次抽牌独立写入一条（按 ts 累加），可回看与展开解读
@@ -374,6 +378,11 @@ const TarotExperience = () => {
     if (shuffling) return
     setShuffling(true)
     freshRef.current = true
+    // 用户重新抽牌：立刻作废进行中的 AI 解读（abort 网络请求 + 代数失效），
+    // 旧响应回来时会被代数校验丢弃，绝不写入新一抽，也不弹「模型正忙」。
+    counselSeqRef.current++
+    if (counselAbortRef.current) { try { counselAbortRef.current.abort() } catch {} counselAbortRef.current = null }
+    setInterpreting(false); setCounsel(null)
     setTimeout(() => {
       const finish = () => {
         const n = spread === 'celtic' ? 10 : 3
@@ -471,25 +480,29 @@ const TarotExperience = () => {
       })),
     }
     // 单次请求：150s 客户端超时（与后端本地模型 150s 对齐）。
-    // qwen3:8b 实测 ~40s 出稿；此前 20s 超时必然 abort → toast「本地模型正忙」，
-    // 这是「总是显示本地模型正忙」的唯一根因。
+    // abort 分两种来源：150s 超时、或用户重新抽牌（counselAbortRef 被 draw() 触发 abort）。
     const runOnce = async () => {
       const ctrl = new AbortController()
+      counselAbortRef.current = ctrl
       const timer = setTimeout(() => ctrl.abort(), 150000)
       try {
         return await fetchCounsel(payload, ctrl.signal)
       } finally {
         clearTimeout(timer)
+        if (counselAbortRef.current === ctrl) counselAbortRef.current = null
       }
     }
+    const mySeq = ++counselSeqRef.current   // 本次解读的代数
     try {
       let d
       try {
         d = await runOnce()
       } catch (e1) {
+        if (counselSeqRef.current !== mySeq) return   // 重抽导致的中止：静默退出，不重试不提示
         // 首次失败（本地模型繁忙 / 网络抖动）→ 重试一次
         d = await runOnce()
       }
+      if (counselSeqRef.current !== mySeq) return   // 响应回来时已换了一抽：整体作废
       setCounsel({ text: d.text, source: d.source })
       // 把 AI 解读同步存回本次抽牌的历史记录（按 ts 定位）；同时把「抽牌后补填」的问题也写回，避免历史里问题丢失
       const next = history.map(h => h.ts === drawnTs ? { ...h, question: question || h.question, counsel: { text: d.text, source: d.source } } : h)
@@ -501,11 +514,12 @@ const TarotExperience = () => {
         try { localStorage.setItem(LAST_KEY, JSON.stringify({ spread, ts: drawnTs, cards: drawn, question: question || updated.question, counsel: { text: d.text, source: d.source } })) } catch {}
       }
     } catch (e) {
+      if (counselSeqRef.current !== mySeq) return   // 作废的请求失败：不弹任何提示
       // 两次皆失败：区分超时（繁忙）与连接错误，给出明确提示
       const busy = e && e.name === 'AbortError'
       toast.error(busy ? '本地模型正忙，请稍后再试 ✦' : '星语暂时沉默，请稍后再试')
     } finally {
-      setInterpreting(false)
+      if (counselSeqRef.current === mySeq) setInterpreting(false)   // 只有仍在当代的请求才收尾；旧代被作废时不碰新抽牌的状态
     }
   }
 
@@ -793,7 +807,7 @@ const TarotExperience = () => {
               })()}
             </div>
 
-            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(LAST_KEY); setDrawn(null); setDrawnTs(0); setRevealed([]); setOpenIdx(-1); setCounsel(null); setQuestion(''); toast.success('已重新洗牌') }}>重新洗牌</button>
+            <button className="tarot-redraw" onClick={() => { localStorage.removeItem(LAST_KEY); counselSeqRef.current++; if (counselAbortRef.current) { try { counselAbortRef.current.abort() } catch {} counselAbortRef.current = null } setInterpreting(false); setDrawn(null); setDrawnTs(0); setRevealed([]); setOpenIdx(-1); setCounsel(null); setQuestion(''); toast.success('已重新洗牌') }}>重新洗牌</button>
 
             {/* 分享：复制结果文案 / 保存为星图 */}
             <div className="tarot-share">
