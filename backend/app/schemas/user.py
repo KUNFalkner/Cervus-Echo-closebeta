@@ -16,9 +16,33 @@ class UserCreate(UserBase):
     nickname: str = Field(min_length=1, max_length=20)
     # 学校：仅允许白名单（后端按 School 表二次校验），此处给个合理范围
     school_id: Optional[str] = Field(default=None, min_length=2, max_length=16)
-    enrollment_year: Optional[int] = Field(default=None, ge=2000, le=2035)
-    class_number: Optional[int] = Field(default=None, ge=1, le=30)
-    student_number: Optional[int] = Field(default=None, ge=1, le=999)
+    # 入学年份：动态滑动窗口——在读高中生最长 3 年学制，可选 [今年-3, 今年]。
+    # 用 validator 而非 ge/le：窗口随真实日期每年自动滑动，永不"做死"。
+    enrollment_year: Optional[int] = Field(default=None)
+    # 班级：现实一个班一般 ≤ 55 人
+    class_number: Optional[int] = Field(default=None, ge=1, le=55)
+    # 学号：4-10 位纯数字（过渡方案；将来学校名单制再精确化）。
+    # 以 int 承接前端输入，用 validator 限定位数区间。
+    student_number: Optional[int] = Field(default=None, ge=1, le=9999999999)
+
+    @field_validator("enrollment_year")
+    @classmethod
+    def _check_enrollment_year(cls, v):
+        if v is None:
+            return v
+        this_year = datetime.now().year
+        if not (this_year - 3 <= v <= this_year):
+            raise ValueError(f"入学年份只能是 {this_year - 3}–{this_year}（在读年级范围）")
+        return v
+
+    @field_validator("student_number")
+    @classmethod
+    def _check_student_number(cls, v):
+        if v is None:
+            return v
+        if not (4 <= len(str(v)) <= 10):
+            raise ValueError("学号需为 4–10 位数字")
+        return v
 
     @field_validator("password")
     @classmethod
