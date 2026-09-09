@@ -108,6 +108,10 @@ def create_post(
     if post.is_announcement and not can_post_announcement(user, post.forum):
         raise HTTPException(status_code=403, detail="无权发布公告")
 
+    # 教师/校方（已批准）：不允许匿名发布，is_anonymous 强制 False
+    if user.role in ("teacher", "school_official") and user.approved:
+        post.is_anonymous = False
+
     # 敏感词过滤
     post.title = sensitive_filter.filter_text(post.title)
     post.content = sensitive_filter.filter_text(post.content)
@@ -177,6 +181,13 @@ def read_posts(
                 (~PostModel.category.contains("feedback")) |
                 (PostModel.user_id == current_user.id)
             )
+
+    # 教师/校方账号：匿名帖整体不可见（feed 层过滤，非打码）。
+    # 未批准的教师（approved=False）按学生权限运行，此时不隐藏。
+    if current_user and current_user.role in ("teacher", "school_official") and current_user.approved:
+        query = query.filter(
+            (~PostModel.is_anonymous) | (PostModel.user_id == current_user.id)
+        )
 
     if category:
         # 分类以逗号分隔存储(如 "general,study")，需按分隔符匹配，避免多分类帖子在筛选时漏掉
@@ -424,6 +435,10 @@ def read_post(
 ):
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    # 教师/校方：匿名帖不可读（自己发的除外）；未批准教师按学生权限
+    if (current_user and current_user.role in ("teacher", "school_official")
+            and current_user.approved and post.is_anonymous and post.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="帖子不存在")
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     return _mask_post(post, current_user, author.avatar if author else None)
