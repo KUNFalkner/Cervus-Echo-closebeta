@@ -56,6 +56,9 @@ def admin_read_reports(
     admin: UserModel = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    from app.models.audit import AuditLog
+    is_reviewer = admin.role in ("founder", "ambassador")
+    is_watcher = admin.role in ("teacher", "school_official") and admin.approved
     q = db.query(ReportModel)
     if status:
         q = q.filter(ReportModel.status == status)
@@ -64,16 +67,42 @@ def admin_read_reports(
     result = []
     for r in reports:
         reporter = db.query(UserModel).filter(UserModel.id == r.reporter_id).first()
+        # 被举报内容 + 被举报人：reviewer（founder/ambassador）全量；
+        # teacher/school_official 也可看（站长拍板：举报箱内追溯言语不当），但每次查看留审计
+        target_summary, target_uid = None, None
+        if r.target_type == "post":
+            p = db.query(PostModel).filter(PostModel.id == r.target_id).first()
+            if p:
+                target_summary = f"「{p.title}」{p.content or ''}"[:120]
+        elif r.target_type == "comment":
+            cm = db.query(CommentModel).filter(CommentModel.id == r.target_id).first()
+            if cm:
+                target_summary = (cm.content or '')[:120]
+        tu = db.query(UserModel).filter(UserModel.id == r.reporter_id).first()
+        if r.target_type == "post" and p:
+            tu = db.query(UserModel).filter(UserModel.id == p.user_id).first()
+        elif r.target_type == "comment" and cm:
+            tu = db.query(UserModel).filter(UserModel.id == cm.user_id).first()
+        target_uid = tu.uid if tu else None
+        target_nickname = tu.nickname if tu else None
         result.append({
             "id": r.id,
             "reporter_uid": reporter.uid if reporter else None,
             "reporter_nickname": reporter.nickname if reporter else None,
             "target_type": r.target_type,
             "target_id": r.target_id,
+            "target_summary": target_summary,
+            "target_uid": target_uid,
+            "target_nickname": target_nickname,
             "reason": r.reason,
             "status": r.status,
             "created_at": r.created_at.isoformat() if r.created_at else None
         })
+    # 教师/校方查看举报箱：后台自动留痕（不含 founder/ambassador，他们本就有权）
+    if is_watcher:
+        db.add(AuditLog(actor_id=admin.id, action="report_view",
+                        detail=f"查看举报箱（{len(result)} 条）"))
+        db.commit()
     return result
 
 @router.put("/reports/{report_id}/status")
@@ -87,6 +116,9 @@ def admin_update_report(
     report = db.query(ReportModel).filter(ReportModel.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="举报不存在")
+    # 教师只读：不允许更新举报状态（站长拍板：教师仅辅助查看，处置归 founder/ambassador）
+    if admin.role in ("teacher", "school_official"):
+        raise HTTPException(status_code=403, detail="教师与校方账号仅可查看举报，处置由大使与创始人执行")
     # 联动处置被举报的内容
     if action == "delete_post":
         post = db.query(PostModel).filter(PostModel.id == report.target_id).first()
@@ -103,7 +135,37 @@ def admin_update_report(
             db.delete(comment)
     report.status = status
     db.commit()
+    # 处置审计：谁改了状态/删了内容，留痕
+    from app.models.audit import AuditLog
+    db.add(AuditLog(actor_id=admin.id, action="report_resolve",
+                    detail=f"report_id={report_id} status={status} action={action}"))
+    db.commit()
     return {"message": "状态更新成功"}
+
+
+@router.get("/audit-logs")
+def read_audit_logs(
+    skip: int = 0,
+    limit: int = 100,
+    founder: UserModel = Depends(require_founder),
+    db: Session = Depends(get_db)
+):
+    """founder 专属：审计日志（教师/校方查看举报箱、大使处置等敏感动作留痕）"""
+    from app.models.audit import AuditLog
+    logs = db.query(AuditLog).order_by(AuditLog.created_at.desc()).offset(skip).limit(limit).all()
+    result = []
+    for log in logs:
+        actor = db.query(UserModel).filter(UserModel.id == log.actor_id).first()
+        result.append({
+            "id": log.id,
+            "actor_id": log.actor_id,
+            "actor_nickname": actor.nickname if actor else None,
+            "actor_uid": actor.uid if actor else None,
+            "action": log.action,
+            "detail": log.detail,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        })
+    return result
 
 @router.put("/users/{target_id}/mute")
 def admin_mute_user(

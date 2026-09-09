@@ -75,8 +75,11 @@ def require_user(
 def require_admin(
     user: UserModel = Depends(require_user),
 ) -> UserModel:
-    if user.role not in ("founder", "ambassador"):
+    if user.role not in ("founder", "ambassador", "teacher", "school_official"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权限")
+    # 教师/校方：必须已批准；未批准按学生权限
+    if user.role in ("teacher", "school_official") and not user.approved:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="身份审核中，暂无管理权限")
     return user
 
 
