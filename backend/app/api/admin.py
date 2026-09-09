@@ -8,6 +8,7 @@ from collections import Counter
 from app.auth import require_admin, require_founder
 from app.models.database import get_db
 from app.models.user import User as UserModel
+from app.models.school import School as SchoolModel
 from app.models.post import Post as PostModel, Comment as CommentModel
 from app.models.report import Report as ReportModel
 from app.models.tarot_history import TarotHistory
@@ -274,6 +275,81 @@ def admin_read_posts(
         "comment_count": p.comment_count,
         "star_count": p.star_count,
     } for p in posts]
+
+
+# ── 教师审批 + 校方账号管理（founder 专属）─────────────────────
+from app.services.password import hash_password as _hash_pw
+from app.schemas.user import User as _UserSchema
+from app.auth import create_token as _create_token
+
+
+@router.get("/teacher-approvals")
+def teacher_approvals(db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
+    """待审核教师列表（role=teacher 且 approved=False）"""
+    rows = db.query(UserModel).filter(
+        UserModel.role == "teacher", UserModel.approved == False  # noqa: E712
+    ).order_by(UserModel.id.desc()).all()
+    return [{
+        "id": u.id, "username": u.username, "nickname": u.nickname, "uid": u.uid,
+        "school_id": u.school_id, "created_at": u.created_at.isoformat() if u.created_at else None,
+    } for u in rows]
+
+
+@router.post("/teacher-approvals/{uid_num}/approve")
+def approve_teacher(uid_num: int, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
+    """批准教师：approved=True；可选 body.staff_num 指定工号（默认取当前序号）"""
+    u = db.query(UserModel).filter(UserModel.id == uid_num, UserModel.role == "teacher").first()
+    if not u:
+        raise HTTPException(status_code=404, detail="待审教师不存在")
+    if u.approved:
+        raise HTTPException(status_code=400, detail="该教师已批准")
+    u.approved = True
+    db.commit()
+    return {"message": f"教师 {u.nickname} 已批准", "uid": u.uid}
+
+
+@router.post("/teacher-approvals/{uid_num}/reject")
+def reject_teacher(uid_num: int, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
+    """驳回教师申请：删除该账号（未批准的教师无任何内容，可安全删除）"""
+    u = db.query(UserModel).filter(UserModel.id == uid_num, UserModel.role == "teacher", UserModel.approved == False).first()  # noqa: E712
+    if not u:
+        raise HTTPException(status_code=404, detail="待审教师不存在")
+    db.delete(u)
+    db.commit()
+    return {"message": "已驳回并移除该申请"}
+
+
+from pydantic import BaseModel as _BM
+
+
+class _SchoolOfficialCreate(_BM):
+    username: str
+    password: str
+    nickname: str
+    school_id: str
+
+
+@router.post("/school-officials")
+def create_school_official(body: _SchoolOfficialCreate, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
+    """founder 手动创建学校官方账号（UID = 校码+OFFICIAL，每校唯一），返回一次性登录 token"""
+    if db.query(UserModel).filter(UserModel.username == body.username).first():
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    if not db.query(SchoolModel).filter(SchoolModel.code == body.school_id).first():
+        raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
+    uid = f"{body.school_id}OFFICIAL"
+    if db.query(UserModel).filter(UserModel.uid == uid).first():
+        raise HTTPException(status_code=400, detail="该校已存在官方账号（每校一个）")
+    user = UserModel(
+        username=body.username, nickname=body.nickname, uid=uid,
+        password=_hash_pw(body.password), school_id=body.school_id,
+        role="school_official", approved=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = _create_token(user.id, user.uid)
+    return {"message": f"官方账号 {body.nickname} 已创建", "uid": uid, "access_token": token,
+            "user": _UserSchema.model_validate(user).model_dump()}
 
 
 @router.get("/privacy-stats")

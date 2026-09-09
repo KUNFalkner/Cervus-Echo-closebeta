@@ -13,6 +13,9 @@ class User(Base):
     password = Column(String, nullable=True)
     is_anonymous = Column(Boolean, default=True)
     role = Column(String, default="student")
+    # 特权角色审核：student 恒为 True；teacher 注册后默认 False（待 founder 批准，
+    # 批准前仅按学生权限运行）；school_official 不开放自注册，founder 创建时即 True。
+    approved = Column(Boolean, default=True)
     enrollment_year = Column(Integer, nullable=True)
     class_number = Column(Integer, nullable=True)
     student_number = Column(Integer, nullable=True)

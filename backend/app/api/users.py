@@ -213,7 +213,20 @@ def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db
     if not db.query(SchoolModel).filter(SchoolModel.code == sid).first():
         raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
 
-    uid = _gen_uid(sid, body.enrollment_year or 2024, body.class_number or 1, body.student_number or 1)
+    # 角色与 UID：学生=校码+年份+班+号；教师=校码+T+序号（审核通过时由 founder 分配工号，
+    # 注册先占 T0000 占位保证唯一）；校方号不开放自注册。
+    if body.role == "teacher":
+        approved = False
+        base = f"{sid}T"
+        seq = 1
+        while db.query(UserModel).filter(UserModel.uid == f"{base}{seq:04d}").first():
+            seq += 1
+        uid = f"{base}{seq:04d}"
+        if body.enrollment_year or body.class_number or body.student_number:
+            raise HTTPException(status_code=400, detail="教师账号无需填写班级学号信息")
+    else:
+        approved = True
+        uid = _gen_uid(sid, body.enrollment_year or 2024, body.class_number or 1, body.student_number or 1)
 
     if db.query(UserModel).filter(UserModel.uid == uid).first():
         raise HTTPException(status_code=400, detail="该学号已被注册")
@@ -221,9 +234,10 @@ def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db
     pwh = hash_password(body.password) if body.password else None
     user = UserModel(
         username=body.username, nickname=nickname, uid=uid,
-        password=pwh, school_id=sid,
-        enrollment_year=body.enrollment_year, class_number=body.class_number,
-        student_number=body.student_number,
+        password=pwh, school_id=sid, role=body.role, approved=approved,
+        enrollment_year=body.enrollment_year if body.role == "student" else None,
+        class_number=body.class_number if body.role == "student" else None,
+        student_number=body.student_number if body.role == "student" else None,
     )
     db.add(user)
     db.commit()

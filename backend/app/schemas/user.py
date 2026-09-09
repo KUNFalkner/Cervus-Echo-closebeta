@@ -24,6 +24,8 @@ class UserCreate(UserBase):
     # 学号：4-10 位纯数字（过渡方案；将来学校名单制再精确化）。
     # 以 int 承接前端输入，用 validator 限定位数区间。
     student_number: Optional[int] = Field(default=None, ge=1, le=9999999999)
+    # 注册身份自选：student（默认）/ teacher。school_official 不开放自注册。
+    role: str = Field(default="student", pattern=r"^(student|teacher)$")
 
     @field_validator("enrollment_year")
     @classmethod
@@ -70,6 +72,7 @@ class User(UserBase):
     is_anonymous: bool = True
     real_name: Optional[str] = None
     role: str = "student"
+    approved: bool = True
     enrollment_year: Optional[int] = None
     class_number: Optional[int] = None
     student_number: Optional[int] = None
