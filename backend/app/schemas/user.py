@@ -76,7 +76,7 @@ class User(UserBase):
     enrollment_year: Optional[int] = None
     class_number: Optional[int] = None
     student_number: Optional[int] = None
-    school_id: str = "ZC"
+    school_id: Optional[str] = None  # founder 不属于任何学校，允许空
     profile_bg: str = ""
     star_count: int = 0
     karma: int = 0

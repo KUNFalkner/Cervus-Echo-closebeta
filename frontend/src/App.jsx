@@ -78,7 +78,7 @@ let SCHOOLS = [
   { code: 'KSHQ', name: '花桥高级中学', short: '花桥' }, { code: 'KSJX', name: '锦溪高级中学', short: '锦溪' },
   { code: 'KSPL', name: '蓬朗高级中学', short: '蓬朗' }, { code: 'KSTL', name: '亭林高级中学', short: '亭林' },
 ]
-const getSchoolName = (code) => code === 'main' ? '主论坛' : (SCHOOLS.find(s => s.code === code)?.short || code)
+const getSchoolName = (code) => code === 'main' ? '主论坛' : (code ? (SCHOOLS.find(s => s.code === code)?.short || code) : '—')
 
 const ADJS = ['快乐的','神秘的','可爱的','聪明的','勇敢的','温柔的','活泼的','安静的']
 const ANIMALS = ['小猫','小狗','小兔','小熊','小狐狸','小松鼠','小熊猫','小海豚']

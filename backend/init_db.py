@@ -66,14 +66,15 @@ try:
     founder = db.query(User).filter(User.username == "founder").first()
     if not founder:
         founder = User(
-            username="founder",
-            nickname="Xavier Kun Falkner",
-            uid="AAA00000000",
-            role="founder",
-            school_id="JSKS",
-            password=hash_password("20100606"),
-            avatar="https://api.dicebear.com/7.x/avataaars/svg?seed=founder"
-        )
+                username="founder",
+                nickname="Xavier Kun Falkner",
+                uid="AAA00000000",
+                role="founder",
+                # 站长不属于任何学校：school_id 留空（所有权限判断均按 role 短路，
+                # 显示处对空学校回退 '—'）
+                password=hash_password("20100606"),
+                avatar="https://api.dicebear.com/7.x/avataaars/svg?seed=founder"
+            )
         db.add(founder)
         db.commit()
         print("已创建创始人账号: founder / 20100606")
