@@ -449,6 +449,8 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 .role-badge { padding: 0.1rem 0.4rem; border-radius: 99px; font-size: 0.7rem; font-weight: 600; }
 .role-badge.founder { background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #000; }
 .role-badge.ambassador { background: var(--primary-grad); color: #fff; }
+.role-badge.teacher { background: rgba(110,231,183,.18); color: #6ee7b7; border: 1px solid rgba(110,231,183,.4); }
+.role-badge.school_official { background: rgba(147,197,253,.16); color: #93c5fd; border: 1px solid rgba(147,197,253,.4); }
 
 /* 管理后台：禁言操作 */
 .mute-bar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; padding: 0.6rem 0.9rem; }
