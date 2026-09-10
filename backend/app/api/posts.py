@@ -20,6 +20,7 @@ from app.search_index import (
     index_post, remove_post, index_comment, remove_comment,
     search_post_ids, search_comment_ids,
 )
+from app.services.semantic import index_post_async, remove_post_vector, semantic_ids
 
 router = APIRouter()
 
@@ -62,7 +63,49 @@ def can_post_announcement(user: Optional[UserModel], forum_code: str) -> bool:
     return False
 
 
-def _mask_post(post: PostModel, viewer: Optional[UserModel], author_avatar: Optional[str] = None) -> PostSchema:
+def _visible_posts_query(query, current_user):
+    """帖子可见性的唯一实现（关键词搜索与语义搜索共用，避免规则漂移）。
+
+    三层过滤，顺序与语义无关：
+    1. 论坛范围：主论坛 + 本校（founder/ambassador 全可见）
+    2. 意见箱隐私：仅本人 / 本校大使 / founder 可见
+    3. 教师·校方：已批准账号整体看不到匿名帖（feed 层过滤，非打码）
+    """
+    if current_user:
+        visible_forums = ["main"]
+        if current_user.school_id:
+            visible_forums.append(current_user.school_id)
+        if current_user.role in ["founder", "ambassador"]:
+            visible_forums = None
+    else:
+        visible_forums = ["main"]
+
+    if visible_forums is not None:
+        query = query.filter(PostModel.forum.in_(visible_forums))
+
+    if current_user:
+        if current_user.role == "founder":
+            pass  # 创始人看所有
+        elif current_user.role == "ambassador":
+            query = query.filter(
+                (~PostModel.category.contains("feedback")) |
+                (PostModel.user_school == current_user.school_id) |
+                (PostModel.user_id == current_user.id)
+            )
+        else:
+            query = query.filter(
+                (~PostModel.category.contains("feedback")) |
+                (PostModel.user_id == current_user.id)
+            )
+
+    if current_user and current_user.role in ("teacher", "school_official") and current_user.approved:
+        query = query.filter(
+            (~PostModel.is_anonymous) | (PostModel.user_id == current_user.id)
+        )
+    return query
+
+
+def _mask_post(post: PostModel, viewer: Optional[UserModel], author_avatar: Optional[str] = None):
     """UID 是学生的真实身份，不能无条件下发——按可见性规则在服务端抹掉。
     头像同理：匿名帖（hide_uid）一律不下发真实头像，避免去匿名化。"""
     data = PostSchema.model_validate(post)
@@ -135,6 +178,8 @@ def create_post(
         db.commit()
     except Exception as _e:
         print(f"[FTS] 索引帖子失败: {_e}")
+    # 语义索引：后台异步（嵌入约 1.3s，不能拖慢发帖）
+    index_post_async(db_post.id)
     return _mask_post(db_post, user, author_avatar=user.avatar)
 
 @router.get("/", response_model=List[PostSchema])
@@ -152,42 +197,7 @@ def read_posts(
     db: Session = Depends(get_db)
 ):
     query = db.query(PostModel)
-
-    # 论坛权限过滤
-    if current_user:
-        visible_forums = ["main"]
-        if current_user.school_id:
-            visible_forums.append(current_user.school_id)
-        if current_user.role in ["founder", "ambassador"]:
-            visible_forums = None
-    else:
-        visible_forums = ["main"]
-
-    if visible_forums is not None:
-        query = query.filter(PostModel.forum.in_(visible_forums))
-
-    # 意见箱隐私：只有本人、本校大使、创始人能看到
-    if current_user:
-        if current_user.role == "founder":
-            pass  # 创始人看所有
-        elif current_user.role == "ambassador":
-            query = query.filter(
-                (~PostModel.category.contains("feedback")) |
-                (PostModel.user_school == current_user.school_id) |
-                (PostModel.user_id == current_user.id)
-            )
-        else:
-            query = query.filter(
-                (~PostModel.category.contains("feedback")) |
-                (PostModel.user_id == current_user.id)
-            )
-
-    # 教师/校方账号：匿名帖整体不可见（feed 层过滤，非打码）。
-    # 未批准的教师（approved=False）按学生权限运行，此时不隐藏。
-    if current_user and current_user.role in ("teacher", "school_official") and current_user.approved:
-        query = query.filter(
-            (~PostModel.is_anonymous) | (PostModel.user_id == current_user.id)
-        )
+    query = _visible_posts_query(query, current_user)
 
     if category:
         # 分类以逗号分隔存储(如 "general,study")，需按分隔符匹配，避免多分类帖子在筛选时漏掉
@@ -243,6 +253,45 @@ def read_posts(
     posts = query.offset(skip).limit(limit).all()
     avatar_map = _avatar_map(db, [p.user_id for p in posts])
     return [_mask_post(p, current_user, avatar_map.get(p.user_id)) for p in posts]
+
+@router.get("/semantic")
+def semantic_search(
+    q: str = Query(..., min_length=1, max_length=100, description="自然语言查询"),
+    limit: int = Query(20, le=50, description="返回条数"),
+    min_score: float = Query(0.35, description="相似度下限（低于此值视为不相关）"),
+    current_user: Optional[UserModel] = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """语义搜索：按向量相似度召回「意思相近」的帖子。
+
+    与关键词搜索的关系：FTS5 只能字面匹配（搜「心情不好」找不到「emo 了」），
+    本接口补语义召回。**可见性过滤复用 _visible_posts_query**，与 feed 完全一致，
+    因此匿名帖、意见箱、论坛范围等隐私边界不可能被搜索绕过。
+    """
+    hit = semantic_ids(db, q, limit=max(limit * 10, 100))
+    if hit is None:
+        # Ollama 不可用/未建索引：明确告知前端降级，而不是伪装成「无结果」
+        return {"degraded": True, "results": [], "reason": "语义服务不可用"}
+
+    score_map = dict(hit)
+    ids = [pid for pid, _s in hit]
+    if not ids:
+        return {"degraded": False, "results": []}
+
+    query = db.query(PostModel).filter(PostModel.id.in_(ids))
+    query = _visible_posts_query(query, current_user)
+    posts = query.all()
+
+    avatar_map = _avatar_map(db, [p.user_id for p in posts])
+    rows = [
+        {"post": _mask_post(p, current_user, avatar_map.get(p.user_id)).model_dump(),
+         "score": round(score_map.get(p.id, 0.0), 4)}
+        for p in posts
+        if score_map.get(p.id, 0.0) >= min_score
+    ]
+    rows.sort(key=lambda r: -r["score"])
+    return {"degraded": False, "results": rows[:limit]}
+
 
 @router.get("/comments/search")
 def search_comments(
@@ -478,6 +527,8 @@ def update_post(
         db.commit()
     except Exception as _e:
         print(f"[FTS] 重索引帖子失败: {_e}")
+    # 语义向量同步重算（后台异步，内容变了旧向量就失效了）
+    index_post_async(post.id)
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     return _mask_post(post, user, author.avatar if author else None)
 
@@ -692,6 +743,12 @@ def delete_post(
         db.commit()
     except Exception as _e:
         print(f"[FTS] 删除帖子索引失败: {_e}")
+    # 同步删除语义向量（否则已删帖仍可能被搜出来）
+    try:
+        remove_post_vector(db, post_id)
+        db.commit()
+    except Exception as _e:
+        print(f"[语义] 删除向量失败: {_e}")
     return {"message": "删除成功"}
 
 @router.delete("/{post_id}/comments/{comment_id}")

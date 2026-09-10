@@ -141,6 +141,16 @@ try:
 except Exception as _e:
     print(f"[FTS] 初始化失败（搜索将回退 LIKE）: {_e}")
 
+# ── 语义搜索：向量表 + 后台预热/回填 ─────────────────────────────────────
+# 嵌入模型（bge-m3）走本机 Ollama。首次加载约 20s，因此预热与存量回填都放
+# 后台线程，不阻塞启动；Ollama 不可用时整条链路静默降级为关键词搜索。
+try:
+    from app.services.semantic import ensure_vector_table, start_background_setup
+    ensure_vector_table()
+    start_background_setup()
+except Exception as _e:
+    print(f"[语义] 初始化失败（语义搜索不可用，关键词搜索不受影响）: {_e}")
+
 # 构建后的前端目录（production preview 同源托管用）
 _DIST = pathlib.Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 

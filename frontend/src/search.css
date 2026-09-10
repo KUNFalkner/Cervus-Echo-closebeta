@@ -1,0 +1,134 @@
+/* ══════════════════════════════════════════════════════════════
+   全局搜索面板样式（v2 精修）
+   承载：相似度读数徽章 / 语义分区标识 / 条目强调 / 滚动条
+   说明：本文件在 App.css 之后加载，覆盖同名旧规则。
+
+   注意：旧样式里 .gs-score 是「3px 高的进度条轨道」
+   （display:block; height:3px; overflow:hidden），必须显式重置
+   height/overflow/margin，否则文字会被裁掉变成一条细线。
+   ══════════════════════════════════════════════════════════════ */
+
+/* 结果区滚动条：沙金细条 */
+.gs-results {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+}
+.gs-results::-webkit-scrollbar { width: 9px; }
+.gs-results::-webkit-scrollbar-track { background: transparent; }
+.gs-results::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.32);
+  border-radius: 999px;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+.gs-results::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.55);
+  background-clip: content-box;
+}
+
+/* ── 相似度读数徽章 ──
+   父级 .gs-post-item 是 column 方向 + align-items:stretch，
+   不写 align-self 就会被拉成整行宽；再叠加旧规则的 height:3px
+   与 overflow:hidden，文字会被完全裁掉。下面逐项重置。 */
+.gs-post-item .gs-score {
+  align-self: flex-end;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: .22rem;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  margin-top: .1rem;
+  padding: .18rem .52rem;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.13);
+  border: 1px solid rgba(212, 175, 55, 0.42);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.gs-post-item .gs-score .gs-score-num {
+  font-size: .82rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #ffd96b;
+  letter-spacing: -.01em;
+}
+
+.gs-post-item .gs-score .gs-score-label {
+  font-size: .62rem;
+  font-style: normal;
+  font-weight: 600;
+  color: rgba(255, 217, 107, 0.72);
+  letter-spacing: .02em;
+}
+
+/* ── 语义分区标题：✦ + 副说明，与关键词结果一眼区分 ── */
+.gs-title-ai {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .38rem;
+}
+.gs-title-ai .gs-spark {
+  color: #ffd96b;
+  font-size: .82rem;
+  transform: translateY(-1px);
+}
+.gs-title-ai .gs-section-note {
+  font-size: .7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: .01em;
+}
+
+/* 分区计数徽章：提高对比度 */
+.gs-badge {
+  display: inline-block;
+  min-width: 1.35rem;
+  padding: .05rem .42rem;
+  border-radius: 999px;
+  background: rgba(212, 175, 55, 0.16);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: #ffd96b;
+  font-size: .68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 分区之间更透气 */
+.gs-section + .gs-section { margin-top: 1.15rem; }
+
+/* ── 语义条目：左侧沙金竖条 + 极轻底色 ──
+   不覆盖内置的 ::before（那是悬停动画用的），只用 border-left 做静态标识。 */
+.gs-post-item.is-semantic {
+  border-left: 2px solid rgba(212, 175, 55, 0.45);
+  background: linear-gradient(90deg, rgba(212, 175, 55, 0.07), transparent 45%);
+  /* 横向排布：文字占满左侧，相似度徽章居中贴右 —— 避免徽章悬在
+     下方一片空白里。App.css 里该条目是 column，这里显式覆盖。 */
+  flex-direction: row;
+  align-items: center;
+  gap: .7rem;
+}
+
+/* 文字块：必须显式设成 flex column。
+   它是内联 <span>，不设的话标题与作者会挤在同一行。 */
+.gs-post-item.is-semantic .gs-post-main {
+  display: flex;
+  flex-direction: column;
+  gap: .22rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.gs-post-item.is-semantic .gs-post-title,
+.gs-post-item.is-semantic .gs-post-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 横排后徽章改为垂直居中（覆盖前面 column 布局用的 flex-end） */
+.gs-post-item.is-semantic .gs-score {
+  align-self: center;
+  margin-top: 0;
+}
