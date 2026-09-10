@@ -249,6 +249,12 @@ const TarotExperience = () => {
   const [history, setHistory] = useState(() => loadHistory())
   const [showHistory, setShowHistory] = useState(false)
   const [historyView, setHistoryView] = useState('list') // 'list' | 'calendar'
+
+  // 预加载整副牌（78 张 × 25KB ≈ 2.3MB，本地缓存）：翻牌瞬间即有图案，
+  // 避免 lazy 加载在动画期间还没下载完造成的「空白卡面」闪帧。
+  useEffect(() => {
+    TAROT_DECK.forEach(c => { const im = new Image(); im.src = faceSrc(c) })
+  }, [])
   const [openTs, setOpenTs] = useState(null)
 
   // 当前牌阵的槽位定义（名称 + 可选提示）
@@ -725,7 +731,7 @@ const TarotExperience = () => {
                         <div className="tarot-inner">
                           <div className="tarot-face tarot-back"><TarotBack /></div>
                           <div className="tarot-face tarot-front">
-                            <img className="tarot-face-img" src={faceSrc(card)} alt={card.name} loading="lazy" />
+                            <img className="tarot-face-img" src={faceSrc(card)} alt={card.name} loading="eager" decoding="async" />
                             <span className="tarot-corner">{th.label.split(' ')[0]}</span>
                             <div className="tarot-face-label">
                               <span className="tarot-face-name">{card.name}</span>
