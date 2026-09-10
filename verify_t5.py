@@ -63,7 +63,7 @@ ok('教师改状态 403', st == 403, str(st))
 st, rf = http('POST', '/users/login', {'username': 'founder', 'password': '201006'}); ftok = rf['access_token']
 st, logs = http('GET', '/admin/audit-logs', t=ftok)
 ok('founder 可读审计日志', st == 200 and isinstance(logs, list))
-report_views = [x for x in logs if x.get('action') == 'report_view' and x.get('actor_uid', '').startswith('JSKST')] if isinstance(logs, list) else []
+report_views = [x for x in logs if x.get('action') == 'report_view' and (x.get('actor_uid') or '').startswith('JSKST')] if isinstance(logs, list) else []
 ok('教师查看举报箱已留痕', len(report_views) >= 1)
 
 # 非教师改状态仍正常（ambassador 权限不变——用 founder 快速验证处置路径）

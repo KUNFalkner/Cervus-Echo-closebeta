@@ -55,7 +55,7 @@ def js(expr):
     except Exception: return None
 
 # 访问 + 注入错误收集
-send("Page.navigate", {"url": "http://localhost:8001/"})
+send("Page.navigate", {"url": "http://localhost:8000/"})
 time.sleep(3)
 js("window.__errs=[]; window.addEventListener('error',e=>window.__errs.push(e.message))")
 
@@ -88,13 +88,15 @@ time.sleep(0.8)
 
 nav = js("[...document.querySelectorAll('button')].map(b=>b.textContent).join('|')") or ""
 ok("导航含消息/我的", ("消息" in nav or "私信" in nav) and "我的" in nav)
-ok("聊天室 tab 存在", "聊天室" in nav or "群聊" in nav)
 
 # 切到消息页（chat）
 js("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('消息')||b.textContent.includes('聊天'))?.click()")
 time.sleep(1.5)
 nav2 = js("[...document.querySelectorAll('button')].map(b=>b.textContent).join('|')") or ""
+# 注意：聊天室/私信/群聊是「消息页」内部的 tab，未进入该页时不在 DOM 中，
+# 因此这三项必须在点击「消息」之后再断言。
 ok("群聊 tab 在消息页", "群聊" in nav2)
+ok("聊天室 tab 在消息页", "聊天室" in nav2)
 ok("私信 tab 在消息页", "私信" in nav2)
 
 # 切群聊 tab

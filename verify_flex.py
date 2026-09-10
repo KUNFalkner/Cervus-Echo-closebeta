@@ -2,7 +2,7 @@ import websocket, json, threading, time, urllib.request, subprocess, random, str
 
 PORT = 9354
 CHROME = r"C:/Users/FXK/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe"
-BASE = "http://localhost/api"
+BASE = "http://localhost:8000/api"
 UD = "/tmp/cdp_flex2_%d" % random.randint(1000, 9999)
 RAND = ''.join(random.choices(string.digits, k=6))
 USERNAME = "flex2_" + RAND
@@ -16,7 +16,7 @@ def http(m, p, b=None, t=None):
     except urllib.error.HTTPError as e: return e.code, json.loads(e.read().decode() or "{}")
 
 st, reg = http("POST", "/users/", {"username": USERNAME, "password": "test1234", "nickname": "Xavier Kun Falkner",
-    "school_id": "JSKS", "enrollment_year": 2024, "class_number": random.randint(1,99), "student_number": random.randint(1,99)})
+    "school_id": "JSKS", "enrollment_year": 2024, "class_number": random.randint(1, 55), "student_number": random.randint(1000, 9999)})
 token = reg["access_token"]; user = reg["user"]; uid = user["id"]
 
 proc = subprocess.Popen([CHROME, "--headless=new", "--disable-gpu", "--no-sandbox", "--remote-allow-origins=*",
@@ -50,7 +50,7 @@ def send(method, params=None, timeout=25):
     return None
 
 send("Page.enable"); send("Runtime.enable")
-send("Page.navigate", {"url": "http://localhost/"}); time.sleep(1.5)
+send("Page.navigate", {"url": "http://localhost:8088/"}); time.sleep(1.5)
 send("Runtime.evaluate", {"expression": """localStorage.setItem('token', %s); localStorage.setItem('user', JSON.stringify(%s)); localStorage.setItem('rules_accepted','true'); location.reload();""" % (json.dumps(token), json.dumps(user))})
 time.sleep(2.5)
 for _ in range(40):

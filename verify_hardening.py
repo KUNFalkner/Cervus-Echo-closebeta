@@ -3,7 +3,7 @@
 """
 import urllib.request, urllib.error, json, random, string, sqlite3, sys
 
-BASE = "http://localhost/api"
+BASE = "http://localhost:8000/api"
 passed=[]; failed=[]
 def ok(n,e=""): print("  ok:",n+(" :: "+e if e else "")); passed.append(n)
 def bad(n,e=""): print("  BAD:",n+(" :: "+e if e else "")); failed.append(n)
@@ -33,7 +33,7 @@ RAND=''.join(random.choices(string.digits,k=6))
 def uname(p): return p+"_"+RAND
 def mkuser(p, xff=None):
     st,reg,_=req("POST","/users/",{"username":uname(p),"password":"Abcd1234","nickname":"验证"+p,
-        "school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,9),"student_number":random.randint(1,999)}, xff=xff)
+        "school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,9),"student_number":random.randint(1000, 9999)}, xff=xff)
     return st,reg
 
 # 1) 合法注册 -> 拿到 token（无 XFF -> 走 127.0.0.1）
@@ -71,29 +71,29 @@ else:
 
 # 4) 注册校验：错误输入应被拒（各用独立 XFF，避免触发注册限流）
 # 4a 密码过短 -> 422
-st,_,_=req("POST","/users/",{"username":uname("pw"),"password":"1","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1,999)},xff="203.0.113.1")
+st,_,_=req("POST","/users/",{"username":uname("pw"),"password":"1","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1000, 9999)},xff="203.0.113.1")
 if st in (422,400): ok("REG_SHORT_PW", f"st={st}")
 else: bad("REG_SHORT_PW", f"st={st}")
 
 # 4b 学校不在白名单 -> 400
-st,_,_=req("POST","/users/",{"username":uname("sch"),"password":"Abcd1234","nickname":"x","school_id":"XX","enrollment_year":2024,"class_number":1,"student_number":random.randint(1,999)},xff="203.0.113.2")
+st,_,_=req("POST","/users/",{"username":uname("sch"),"password":"Abcd1234","nickname":"x","school_id":"XX","enrollment_year":2024,"class_number":1,"student_number":random.randint(1000, 9999)},xff="203.0.113.2")
 if st==400: ok("REG_BAD_SCHOOL", f"st={st}")
 else: bad("REG_BAD_SCHOOL", f"st={st}")
 
 # 4c 用户名含非法字符 -> 422
-st,_,_=req("POST","/users/",{"username":"bad name","password":"Abcd1234","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1,999)},xff="203.0.113.3")
+st,_,_=req("POST","/users/",{"username":"bad name","password":"Abcd1234","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1000, 9999)},xff="203.0.113.3")
 if st in (422,400): ok("REG_BAD_USERNAME", f"st={st}")
 else: bad("REG_BAD_USERNAME", f"st={st}")
 
 # 4d 密码无数字 -> 422
-st,_,_=req("POST","/users/",{"username":uname("nodig"),"password":"Abcdefgh","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1,999)},xff="203.0.113.4")
+st,_,_=req("POST","/users/",{"username":uname("nodig"),"password":"Abcdefgh","nickname":"x","school_id":"JSKS","enrollment_year":2024,"class_number":1,"student_number":random.randint(1000, 9999)},xff="203.0.113.4")
 if st in (422,400): ok("REG_PW_NO_DIGIT", f"st={st}")
 else: bad("REG_PW_NO_DIGIT", f"st={st}")
 
 # 5) 同 IP 注册限流：3/小时 -> 第4个 429（固定唯一 XFF，配合重启后端保证桶为空）
 created_uids=[]
 for i in range(4):
-    st,reg,_=req("POST","/users/",{"username":uname("rl%d"%i),"password":"Abcd1234","nickname":"限流","school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,9),"student_number":random.randint(1,999)},xff="198.51.100.23")
+    st,reg,_=req("POST","/users/",{"username":uname("rl%d"%i),"password":"Abcd1234","nickname":"限流","school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,9),"student_number":random.randint(1000, 9999)},xff="198.51.100.23")
     if st==200: created_uids.append(reg["user"]["id"])
 if len(created_uids)==3 and st==429:
     ok("REG_IP_RATE_LIMIT", f"created={len(created_uids)} 4th={st}")

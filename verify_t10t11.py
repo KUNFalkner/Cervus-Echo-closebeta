@@ -2,7 +2,7 @@ import websocket, json, threading, time, urllib.request, subprocess, sys, random
 
 PORT = 9339
 CHROME = r"C:/Users/FXK/AppData/Local/ms-playwright/chromium-1228/chrome-win64/chrome.exe"
-BASE = "http://localhost/api"
+BASE = "http://localhost:8000/api"
 UD = "/tmp/cdp_t10t11_%d" % random.randint(1000, 9999)
 RAND = ''.join(random.choices(string.digits, k=6))
 USERNAME = "t10t11_" + RAND
@@ -36,8 +36,8 @@ def http(method, path, body=None, token=None):
 st, reg = http("POST", "/users/", {
     "username": USERNAME, "password": "test1234",
     "nickname": "验证同学", "school_id": "JSKS",
-    "enrollment_year": 2024, "class_number": random.randint(1, 99),
-    "student_number": random.randint(1, 99),
+    "enrollment_year": 2024, "class_number": random.randint(1, 55),
+    "student_number": random.randint(1000, 9999),
 })
 if st != 200:
     print("REGISTER FAIL", st, reg); sys.exit(1)
@@ -118,7 +118,7 @@ def wait_for(expr, timeout=15):
 send("Page.enable"); send("Runtime.enable"); send("Network.enable")
 
 # navigate + inject auth
-send("Page.navigate", {"url": "http://localhost/"})
+send("Page.navigate", {"url": "http://localhost:8088/"})
 time.sleep(1.2)
 ev("""(function(){localStorage.setItem('token', %s); localStorage.setItem('user', JSON.stringify(%s)); localStorage.setItem('rules_accepted','true'); location.reload();})()""" % (json.dumps(token), json.dumps(user)))
 if not wait_for("document.querySelector('.nav-title')!=null", 20):

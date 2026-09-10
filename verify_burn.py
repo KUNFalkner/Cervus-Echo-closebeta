@@ -36,7 +36,7 @@ def reg(pfx):
     u = f"{pfx}{R}"
     st, r = http("POST", "/users/", {"username": u, "password": "test1234", "nickname": u,
         "school_id": "JSKS", "enrollment_year": 2024, "class_number": random.randint(1, 30),
-        "student_number": random.randint(1, 99)})
+        "student_number": random.randint(1000, 9999)})
     if st == 200:
         _used_names.add(u)
         return r["access_token"], r["user"], u
@@ -54,10 +54,10 @@ def reg(pfx):
     print("REG FAIL", st, r); sys.exit(1)
 
 # founder 账号（init_db 种子：founder/20100606）
-st, r = http("POST", "/users/login", {"username": "founder", "password": "20100606"})
+st, r = http("POST", "/users/login", {"username": "founder", "password": "201006"})
 if st != 200:
     # 可能登录接口参数结构不同，试 query
-    st, r = http("POST", "/users/login?username=founder&password=20100606", None)
+    st, r = http("POST", "/users/login?username=founder&password=201006", None)
 if st != 200:
     print("FOUNDER LOGIN FAIL", st, r); sys.exit(1)
 FTOKEN = r["access_token"]
