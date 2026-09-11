@@ -27,16 +27,13 @@ con.execute("DELETE FROM users WHERE username LIKE 'vso%' OR username LIKE 'vt%'
 # 教师（approved=1）
 con.execute("""INSERT INTO users (uid,username,nickname,password,is_anonymous,role,approved,school_id,star_count,karma,created_at)
 VALUES (?,?,?,?,1,'teacher',1,'JSKS',0,0,datetime('now'))""", ('JSKST00' + R[-2:], 'vt' + R, '验证教师', h))
-# 校方号（approved=1，password 列对齐）
-con.execute("""INSERT INTO users (uid,username,nickname,password,is_anonymous,role,approved,school_id,star_count,karma,created_at)
-VALUES ('JSKSOFFICIAL',?, ?, ?, 1, 'school_official', 1, 'JSKS',0,0,datetime('now'))""",
-    ('vso' + R, '校方验证号', h))
+# 校方号：改用 init_db 预注册的 JSKSofficial（自插会撞 UID 唯一约束）
 # 未批准教师
 con.execute("""INSERT INTO users (uid,username,nickname,password,is_anonymous,role,approved,school_id,star_count,karma,created_at)
 VALUES (?,?,?,?,1,'teacher',0,'JSKS',0,0,datetime('now'))""", ('JSKST00' + R[-2:] + '9', 'tp' + R, '待审教师', h))
 con.commit()
 vt_user = con.execute("SELECT username FROM users WHERE username=?", ('vt' + R,)).fetchone()[0]
-so_user = con.execute("SELECT username FROM users WHERE username=?", ('vso' + R,)).fetchone()[0]
+so_user = 'JSKSofficial'
 tp_user = con.execute("SELECT username FROM users WHERE username=?", ('tp' + R,)).fetchone()[0]
 con.close()
 
@@ -44,12 +41,13 @@ con.close()
 st, rt = http('POST', '/users/login', {'username': vt_user, 'password': 'teach1234'})
 ok('教师登录(role=teacher,approved=True)', st == 200 and rt['user']['role'] == 'teacher' and rt['user']['approved'] is True, str(rt)[:80])
 ttok = rt['access_token']
-st, rso = http('POST', '/users/login', {'username': so_user, 'password': 'teach1234'})
+st, rso = http('POST', '/users/login', {'username': so_user, 'password': 'JSKS001'})
 ok('校方登录(role=school_official)', st == 200 and rso['user']['role'] == 'school_official', str(rso)[:80])
 sotok = rso['access_token']
 stu = None
 con = sqlite3.connect(r'E:/mimo code 树洞设计/backend/cervus.db')
-stu = con.execute("SELECT username FROM users WHERE role='student' LIMIT 1").fetchone()[0]
+stu = con.execute("SELECT username FROM users WHERE role='student' AND password IS NOT NULL "
+                  "AND (username LIKE 'grp%' OR username LIKE 'burn%' OR username LIKE 'chk%') LIMIT 1").fetchone()[0]
 con.close()
 st, rs = http('POST', '/users/login', {'username': stu, 'password': 'test1234'}); stok = rs['access_token']
 

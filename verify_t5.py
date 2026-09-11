@@ -28,7 +28,8 @@ con.execute("""INSERT INTO users (uid,username,nickname,password,is_anonymous,ro
 VALUES (?,?,?,?,1,'teacher',1,'JSKS',0,0,datetime('now'))""", ('JSKST00' + R[-2:], 'vt' + R, '举报箱验证教师', h))
 con.commit()
 vt_user = con.execute("SELECT username FROM users WHERE username=?", ('vt' + R,)).fetchone()[0]
-stu = con.execute("SELECT username FROM users WHERE role='student' LIMIT 1").fetchone()[0]
+stu = con.execute("SELECT username FROM users WHERE role='student' AND password IS NOT NULL "
+                  "AND (username LIKE 'grp%' OR username LIKE 'burn%' OR username LIKE 'chk%') LIMIT 1").fetchone()[0]
 con.close()
 
 st, rt = http('POST', '/users/login', {'username': vt_user, 'password': 'teach1234'}); ttok = rt['access_token']

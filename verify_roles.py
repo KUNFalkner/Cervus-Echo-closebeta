@@ -58,17 +58,16 @@ ok('驳回教师B', st == 200, str(r)[:60])
 st, _ = http('POST', '/users/login', {'username': 'teacherb' + R, 'password': 'teach1234'})
 ok('驳回后无法登录', st in (400, 401), str(st))
 
-un = 'schooloff' + R
-st, r = http('POST', '/admin/school-officials', {'username': un, 'password': 'school1234', 'nickname': '昆山中学官方', 'school_id': 'JSKS'}, t=tf)
-ok('创建校方号', st == 200, str(r)[:80])
-ok('校方 UID=JSKSOFFICIAL', r.get('uid') == 'JSKSOFFICIAL')
-st, r = http('POST', '/admin/school-officials', {'username': un + 'x', 'password': 'school1234', 'nickname': '重复', 'school_id': 'JSKS'}, t=tf)
-ok('每校仅一个校方号', st == 400, str(st))
-st, r = http('POST', '/users/login', {'username': un, 'password': 'school1234'})
-ok('校方号登录 role=school_official', st == 200 and r['user']['role'] == 'school_official')
+# 校方账号：12 校已预注册（init_db.py），创建接口对已有校方的学校应拒绝
+st, r = http('POST', '/admin/school-officials', {'username': 'schooloff' + R, 'password': 'school1234', 'nickname': '昆山中学官方', 'school_id': 'JSKS'}, t=tf)
+ok('校方号已预注册 → 拒绝重复创建', st == 400, str(r)[:80])
+st, r = http('POST', '/users/login', {'username': 'JSKSofficial', 'password': 'JSKS001'})
+ok('预注册校方号登录 role=school_official', st == 200 and r['user']['role'] == 'school_official', str(st))
 
 con = sqlite3.connect(r'E:/mimo code 树洞设计/backend/cervus.db')
-u = con.execute("SELECT username FROM users WHERE role='student' LIMIT 1").fetchone()[0]
+# 必须是「有密码且口令为 test1234」的账号：无密码账号现在会被登录接口拒绝（洞已堵）
+u = con.execute("SELECT username FROM users WHERE role='student' AND password IS NOT NULL "
+                "AND (username LIKE 'grp%' OR username LIKE 'burn%' OR username LIKE 'chk%') LIMIT 1").fetchone()[0]
 con.close()
 st, rs = http('POST', '/users/login', {'username': u, 'password': 'test1234'})
 st, r = http('GET', '/admin/teacher-approvals', t=rs['access_token'])
