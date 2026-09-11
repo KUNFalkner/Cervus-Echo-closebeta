@@ -48,6 +48,11 @@ def approver_scope(actor: UserModel) -> Optional[str]:
     raise HTTPException(status_code=403, detail="仅本校校方或站长可审核教师")
 
 
+def view_scope(actor: UserModel) -> Optional[str]:
+    """管理后台的可见范围：founder 全域（None）；其余管理角色（大使/校方/教师）仅本校。"""
+    return None if actor.role == "founder" else actor.school_id
+
+
 def assert_can_mute(actor: UserModel, target: UserModel):
     """禁言校验：不能禁言管理员；大使仅可禁言本校学生。"""
     if target.role in ("founder", "ambassador"):

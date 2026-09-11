@@ -15,7 +15,7 @@ from app.models.tarot_history import TarotHistory
 from app.models.board import Board
 from app.models.conversation import DirectMessage
 from app.models.message import Message
-from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban, approver_scope
+from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban, approver_scope, view_scope
 
 router = APIRouter()
 
@@ -34,7 +34,12 @@ def admin_read_users(
     admin: UserModel = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    users = db.query(UserModel).offset(skip).limit(limit).all()
+    # 非 founder 只列本校用户（用户名单是最直接的身份暴露面）
+    q = db.query(UserModel)
+    scope = view_scope(admin)
+    if scope:
+        q = q.filter(UserModel.school_id == scope)
+    users = q.offset(skip).limit(limit).all()
     return [{
         "id": u.id,
         "uid": u.uid,
@@ -237,7 +242,11 @@ def admin_stats(
     admin: UserModel = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    """创始人 / 大使数据看板：仅做数据聚合展示，不含任何管理操作。"""
+    """创始人 / 大使数据看板：仅做数据聚合展示，不含任何管理操作。
+
+    注：这里是全站聚合计数（不含任何个人身份信息），因此不做按校切分；
+    涉及个人身份的用户名单与内容列表已按 view_scope 限定本校。
+    """
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=30)
     total_users = db.query(UserModel).count()
@@ -319,9 +328,10 @@ def admin_read_posts(
     db: Session = Depends(get_db)
 ):
     query = db.query(PostModel)
-    # 大使仅能看本校帖子；创始人看全部
-    if admin.role == "ambassador":
-        query = query.filter(PostModel.user_school == admin.school_id)
+    # 非 founder 只看本校内容（大使/校方/教师一视同仁，避免跨校可见）
+    scope = view_scope(admin)
+    if scope:
+        query = query.filter(PostModel.user_school == scope)
     if search:
         query = query.filter(
             (PostModel.title.contains(search)) | (PostModel.content.contains(search))

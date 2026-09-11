@@ -124,4 +124,23 @@ if isinstance(users, list):
 else:
     ok('12 校校方账号齐备且免审', False, f'管理接口返回异常 [{st}]')
 
+# ── 6. 管理后台可见范围（校方/大使只看本校）─────────────────
+st, us = http('GET', '/admin/users?limit=400', token=sotok)
+if isinstance(us, list) and us:
+    bad = sorted({x.get('school_id') for x in us if x.get('school_id') != 'JSKS'})
+    ok('校方用户列表仅本校', not bad, f'越界学校={bad} 共{len(us)}条')
+else:
+    ok('校方用户列表仅本校', False, f'返回异常 [{st}]')
+
+st, ps = http('GET', '/admin/posts?limit=300', token=sotok)
+if isinstance(ps, list):
+    bad = sorted({x.get('user_school') for x in ps if x.get('user_school') != 'JSKS'})
+    ok('校方内容列表仅本校', not bad, f'越界学校={bad} 共{len(ps)}条')
+else:
+    ok('校方内容列表仅本校', False, f'返回异常 [{st}]')
+
+st, us_f = http('GET', '/admin/users?limit=400', token=ftok)
+ok('创始人仍可见多校用户', isinstance(us_f, list) and len({x.get('school_id') for x in us_f}) > 2,
+   f'学校数={len({x.get("school_id") for x in us_f}) if isinstance(us_f, list) else "-"}')
+
 print(f'\n=== PASS {P} / {P+F} ===')

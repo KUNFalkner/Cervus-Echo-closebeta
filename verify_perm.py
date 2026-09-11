@@ -99,7 +99,8 @@ ok('未批准教师可见匿名帖', anon_id in ids)
 
 # 清理
 con = sqlite3.connect(r'E:/mimo code 树洞设计/backend/cervus.db')
-con.execute("DELETE FROM users WHERE username IN (?, ?, ?)", (vt_user, so_user, tp_user))
+# 只清理本脚本自己创建的教师账号；so_user 是预注册的正式校方号，不能删
+con.execute("DELETE FROM users WHERE username IN (?, ?)", (vt_user, tp_user))
 con.commit()
 con.close()
 
