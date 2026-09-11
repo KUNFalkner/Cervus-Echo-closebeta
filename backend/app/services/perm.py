@@ -35,6 +35,19 @@ def can_see_uid(viewer: Optional[UserModel], hide_uid: bool, content_school: Opt
     return not hide_uid
 
 
+def approver_scope(actor: UserModel) -> Optional[str]:
+    """教师审核的作用域：founder → None（全部）；已批准的校方 → 本校校码；其余 403。
+
+    站长无法核实 12 所学校的老师真假，所以审核按校下放给本校校方，
+    founder 只在某校还没有校方账号时兜底。
+    """
+    if actor.role == "founder":
+        return None
+    if actor.role == "school_official" and actor.approved:
+        return actor.school_id
+    raise HTTPException(status_code=403, detail="仅本校校方或站长可审核教师")
+
+
 def assert_can_mute(actor: UserModel, target: UserModel):
     """禁言校验：不能禁言管理员；大使仅可禁言本校学生。"""
     if target.role in ("founder", "ambassador"):

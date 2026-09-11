@@ -12,8 +12,8 @@ class UserCreate(UserBase):
     username: str = Field(min_length=3, max_length=20, pattern=r"^[A-Za-z0-9_]+$")
     # 密码：必填，至少 8 位，且需同时含字母与数字
     password: str = Field(min_length=8, max_length=64)
-    # 昵称：1-20 位，不能为空
-    nickname: str = Field(min_length=1, max_length=20)
+    # 昵称：可留空——留空由服务端随机生成（形容词+动物），学生不用为起名卡住
+    nickname: Optional[str] = Field(default=None, max_length=20)
     # 学校：仅允许白名单（后端按 School 表二次校验），此处给个合理范围
     school_id: Optional[str] = Field(default=None, min_length=2, max_length=16)
     # 入学年份：动态滑动窗口——在读高中生最长 3 年学制，可选 [今年-3, 今年]。
@@ -55,8 +55,8 @@ class UserCreate(UserBase):
 
     @field_validator("nickname")
     @classmethod
-    def _strip_nickname(cls, v: str) -> str:
-        return v.strip()
+    def _strip_nickname(cls, v):
+        return v.strip() if isinstance(v, str) else v
 
 class UserUpdate(BaseModel):
     nickname: Optional[str] = None

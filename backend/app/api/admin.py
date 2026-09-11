@@ -5,7 +5,7 @@ from typing import List
 from datetime import datetime, timezone, timedelta
 from collections import Counter
 
-from app.auth import require_admin, require_founder
+from app.auth import require_admin, require_founder, require_user
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.school import School as SchoolModel
@@ -15,7 +15,7 @@ from app.models.tarot_history import TarotHistory
 from app.models.board import Board
 from app.models.conversation import DirectMessage
 from app.models.message import Message
-from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban
+from app.services.perm import assert_can_moderate, assert_can_mute, assert_can_ban, approver_scope
 
 router = APIRouter()
 
@@ -70,6 +70,8 @@ def admin_read_reports(
         # 被举报内容 + 被举报人：reviewer（founder/ambassador）全量；
         # teacher/school_official 也可看（站长拍板：举报箱内追溯言语不当），但每次查看留审计
         target_summary, target_uid = None, None
+        # p/cm 先置 None：原名在分支内赋值、分支外引用，首个评论类举报会 NameError
+        p = cm = None
         if r.target_type == "post":
             p = db.query(PostModel).filter(PostModel.id == r.target_id).first()
             if p:
@@ -346,11 +348,15 @@ from app.auth import create_token as _create_token
 
 
 @router.get("/teacher-approvals")
-def teacher_approvals(db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
-    """待审核教师列表（role=teacher 且 approved=False）"""
-    rows = db.query(UserModel).filter(
+def teacher_approvals(db: Session = Depends(get_db), actor: UserModel = Depends(require_user)):
+    """待审核教师列表。校方只见本校，站长见全部（作用域见 perm.approver_scope）。"""
+    scope = approver_scope(actor)
+    q = db.query(UserModel).filter(
         UserModel.role == "teacher", UserModel.approved == False  # noqa: E712
-    ).order_by(UserModel.id.desc()).all()
+    )
+    if scope:
+        q = q.filter(UserModel.school_id == scope)
+    rows = q.order_by(UserModel.id.desc()).all()
     return [{
         "id": u.id, "username": u.username, "nickname": u.nickname, "uid": u.uid,
         "school_id": u.school_id, "created_at": u.created_at.isoformat() if u.created_at else None,
@@ -358,11 +364,14 @@ def teacher_approvals(db: Session = Depends(get_db), founder: UserModel = Depend
 
 
 @router.post("/teacher-approvals/{uid_num}/approve")
-def approve_teacher(uid_num: int, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
-    """批准教师：approved=True；可选 body.staff_num 指定工号（默认取当前序号）"""
+def approve_teacher(uid_num: int, db: Session = Depends(get_db), actor: UserModel = Depends(require_user)):
+    """批准教师：approved=True；校方仅可批准本校申请人。"""
+    scope = approver_scope(actor)
     u = db.query(UserModel).filter(UserModel.id == uid_num, UserModel.role == "teacher").first()
     if not u:
         raise HTTPException(status_code=404, detail="待审教师不存在")
+    if scope and u.school_id != scope:
+        raise HTTPException(status_code=403, detail="只能审核本校教师")
     if u.approved:
         raise HTTPException(status_code=400, detail="该教师已批准")
     u.approved = True
@@ -371,11 +380,14 @@ def approve_teacher(uid_num: int, db: Session = Depends(get_db), founder: UserMo
 
 
 @router.post("/teacher-approvals/{uid_num}/reject")
-def reject_teacher(uid_num: int, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
+def reject_teacher(uid_num: int, db: Session = Depends(get_db), actor: UserModel = Depends(require_user)):
     """驳回教师申请：删除该账号（未批准的教师无任何内容，可安全删除）"""
+    scope = approver_scope(actor)
     u = db.query(UserModel).filter(UserModel.id == uid_num, UserModel.role == "teacher", UserModel.approved == False).first()  # noqa: E712
     if not u:
         raise HTTPException(status_code=404, detail="待审教师不存在")
+    if scope and u.school_id != scope:
+        raise HTTPException(status_code=403, detail="只能审核本校教师")
     db.delete(u)
     db.commit()
     return {"message": "已驳回并移除该申请"}

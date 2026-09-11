@@ -87,15 +87,18 @@ def login_user(body: LoginRequest, request: Request, db: Session = Depends(get_d
     if getattr(user, "banned", False):
         raise HTTPException(status_code=403, detail="该账号已被封禁，请联系管理员")
 
-    if user.password:
-        if not password:
-            raise HTTPException(status_code=401, detail="请输入密码")
-        if not verify_password(password, user.password):
-            raise HTTPException(status_code=401, detail="密码错误")
-        # 老账号的无盐 sha256 在这次成功登录时静默升级为 bcrypt
-        if is_legacy_hash(user.password):
-            user.password = hash_password(password)
-            db.commit()
+    # 无密码账号（微信登录创建，或历史数据）不得走用户名+密码这条路径。
+    # 旧写法把整段校验包在 `if user.password:` 里，无密码账号于是免密发 token。
+    if not user.password:
+        raise HTTPException(status_code=401, detail="该账号未设置密码，请用微信登录或联系站长")
+    if not password:
+        raise HTTPException(status_code=401, detail="请输入密码")
+    if not verify_password(password, user.password):
+        raise HTTPException(status_code=401, detail="密码错误")
+    # 老账号的无盐 sha256 在这次成功登录时静默升级为 bcrypt
+    if is_legacy_hash(user.password):
+        user.password = hash_password(password)
+        db.commit()
 
     token = create_token(user.id, user.uid)
     return TokenResponse(access_token=token, user=UserSchema.model_validate(user))
@@ -199,8 +202,9 @@ def delete_my_comment(
 # ── Registration (legacy) ─────────────────────────────────────────────
 @router.post("/", response_model=TokenResponse)
 def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db)):
-    # 频率限制：同 IP 注册 3 次/小时，防批量造号
-    rate_limit("register", 3, 3600, ip=get_client_ip(request))
+    # 频率限制：同 IP 注册 10 次/小时，防批量造号。
+    # ponytail: 一个班/一所学校常共用出口 IP，3 次会把整校挡在门外，故放宽到 10。
+    rate_limit("register", 10, 3600, ip=get_client_ip(request))
     if body.username in ("founder",) or body.username.endswith("ambassador"):
         raise HTTPException(status_code=400, detail="该用户名不可用")
 
@@ -208,7 +212,9 @@ def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="用户名已存在")
 
     nickname = body.nickname or _gen_nick()
-    sid = body.school_id or "JSKS"
+    sid = body.school_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="请选择学校")
     # 学校白名单校验：仅允许种子库内的学校
     if not db.query(SchoolModel).filter(SchoolModel.code == sid).first():
         raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
@@ -226,7 +232,10 @@ def create_user(body: UserCreate, request: Request, db: Session = Depends(get_db
             raise HTTPException(status_code=400, detail="教师账号无需填写班级学号信息")
     else:
         approved = True
-        uid = _gen_uid(sid, body.enrollment_year or 2024, body.class_number or 1, body.student_number or 1)
+        # 不再静默兜底：缺字段就报错，否则第二个人会撞「该学号已被注册」
+        if not (body.enrollment_year and body.class_number and body.student_number):
+            raise HTTPException(status_code=400, detail="请填写入学年份、班级与学号")
+        uid = _gen_uid(sid, body.enrollment_year, body.class_number, body.student_number)
 
     if db.query(UserModel).filter(UserModel.uid == uid).first():
         raise HTTPException(status_code=400, detail="该学号已被注册")

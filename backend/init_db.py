@@ -82,7 +82,9 @@ try:
         # 只补齐角色相关字段；密码与昵称属于用户资产，绝不在初始化时覆盖
         founder.uid = "AAA00000000"
         founder.role = "founder"
-        founder.school_id = "JSKS"
+        # 站长不属于任何学校：此处绝不能回填 school_id（6354a24 只改了创建分支，
+        # 漏了这个分支，重跑 init_db 会把「昆中」塞回来）
+        founder.school_id = None
         db.commit()
         print("创始人账号已存在，仅校正角色字段（密码/昵称保持不变）")
 
@@ -112,6 +114,32 @@ try:
             print(f"大使已存在，仅校正角色字段: {amb_username}")
     db.commit()
 
+    # 预注册各学校官方账号（校方）：与大使同法，每校一个，免审。
+    # 校方负责本校教师审核，因此必须预先存在，否则教师申请会悬空。
+    for school in db.query(School).all():
+        so_uid = f"{school.code}OFFICIAL"
+        so = db.query(User).filter(User.uid == so_uid).first()
+        if not so:
+            so = User(
+                username=f"{school.code}official",
+                nickname=f"{school.short_name}校方",
+                uid=so_uid,
+                role="school_official",
+                school_id=school.code,
+                approved=True,
+                password=hash_password(f"{school.code}001"),
+                avatar=f"https://api.dicebear.com/7.x/avataaars/svg?seed={school.code}official",
+            )
+            db.add(so)
+            print(f"已预注册校方: {school.code}official / {school.code}001")
+        else:
+            # 同上：不覆盖已有密码
+            so.role = "school_official"
+            so.school_id = school.code
+            so.approved = True
+            print(f"校方账号已存在，仅校正角色字段: {school.code}official")
+    db.commit()
+
     # 种子板块（话题目录）：复用原 Post.category 的 key，故存量帖子无需迁移
     # 注意：板块名均为中性校园词，绝不含「表白」类词汇
     if db.query(Board).count() == 0:
@@ -136,4 +164,5 @@ finally:
 print("\n数据库初始化完成！")
 print("首次创建时的默认口令 —— 创始人: founder / 20100606")
 print("首次创建时的默认口令 —— 大使: [学校代码]ambassador / [学校代码]001")
+print("首次创建时的默认口令 —— 校方: [学校代码]official / [学校代码]001")
 print("提示：已存在的账号密码不会被本脚本覆盖")
