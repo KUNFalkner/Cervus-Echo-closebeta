@@ -455,16 +455,21 @@ const TarotExperience = () => {
   })()
 
   // AI 咨询师：把问题 + 三张牌（含正逆位与释义）发到后端，渲染星语解读
-  const fetchCounsel = (payload, signal) =>
-    fetch(`${API_BASE}/tarot/interpret`, {
+  const fetchCounsel = (payload, signal) => {
+    // 该接口需要登录（后端 require_user）——这里必须自己带 token：
+    // 本文件没导入 apiFetch（它会从 App.jsx 引起循环依赖），原来裸 fetch
+    // 不带 Authorization，接口加鉴权后每次解读都被 401 秒打回。
+    const tk = localStorage.getItem('token') || ''
+    return fetch(`${API_BASE}/tarot/interpret`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(tk ? { Authorization: 'Bearer ' + tk } : {}) },
       body: JSON.stringify(payload),
       signal,
     }).then((r) => {
-      if (!r.ok) throw new Error('status')
+      if (!r.ok) throw new Error('HTTP ' + r.status)   // 带上状态码，别再让错误无法定位
       return r.json()
     })
+  }
 
   const askCounsel = async () => {
     if (!drawn || interpreting) return
