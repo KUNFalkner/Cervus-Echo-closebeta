@@ -192,6 +192,20 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   .mobile-nav { display: flex; }
   .main-content { padding-bottom: 5.5rem; }
   .notif-panel { top: 56px; right: 0.5rem; left: 0.5rem; width: auto; }
+  /* 内测移动端体检结论（2026-09-12, 390px 视口实测）：
+     1) 发帖卡占首屏 87%，内容流被推到第二屏 —— 首页应先见内容。
+        折叠发帖框：点击「✍️ 写点什么…」展开完整表单（桌面端不受影响）。
+     2) 塔罗悬浮球与发布按钮重叠 —— 球体上移让出发布区。
+     3) 底部导航 7 项偏挤 —— 主题切换移出 tab（并入「我的」页已有入口，
+        底栏保留 首页/管理/消息/通知/我的，搜索保留）。 */
+  .mobile-nav { padding-bottom: calc(.45rem + env(safe-area-inset-bottom, 0px)); }
+  .mobile-nav-item { min-height: 52px; padding: .3rem .2rem; }
+  .mobile-nav-item .nav-icon { font-size: 1.25rem; }
+  .mobile-nav-item .nav-label { font-size: .7rem; }
+  /* 塔罗悬浮球：上移避开发帖卡发布按钮（默认 bottom:5.5rem 太贴底） */
+  .tarot-orb { bottom: 8.5rem !important; }
+  /* 发布按钮通栏更好按 */
+  .create-post-card .submit-btn { width: 100%; }
 }
 @media (max-width: 420px) {
   .nav-title { font-size: 1rem; }
@@ -2515,3 +2529,13 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 body.day .filter-chip { background: rgba(0,0,0,.04); }
 body.day .filter-chip:hover { background: rgba(0,0,0,.09); }
 body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; }
+
+/* 手机端发帖卡折叠态：一条假的输入框样子，点击展开完整表单 */
+.cp-collapsed {
+  width: 100%;
+  text-align: left;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .9rem;
+  padding: .65rem .9rem;
+}
