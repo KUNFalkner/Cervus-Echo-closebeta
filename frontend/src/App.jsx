@@ -1064,8 +1064,10 @@ const AdminPage = ({user}) => {
   const [userSchoolFilter,setUserSchoolFilter]=useState('')
   // 角色筛选：用户列表里教师/校方/学生混在一起，人多时根本看不清
   const [userRoleFilter,setUserRoleFilter]=useState('')
+  const [userSearch,setUserSearch]=useState('')
   const uFiltered = ulist.filter(u=>(!userSchoolFilter||u.school_id===userSchoolFilter)
-                                    &&(!userRoleFilter||u.role===userRoleFilter))
+                                    &&(!userRoleFilter||u.role===userRoleFilter)
+                                    &&(!userSearch.trim()||[u.username,u.nickname,u.uid].some(v=>String(v||'').toLowerCase().includes(userSearch.trim().toLowerCase()))))
   const canManage = (u)=> isAdminRole && u.role==='student' && (user.role==='founder' || u.school_id===user.school_id)
   const fmtMute = (iso)=> iso? new Date(iso).toLocaleString('zh-CN',{hour12:false}) : null
   const isMutedNow = (iso)=>{ if(!iso) return false; return new Date(iso).getTime() > Date.now() }
@@ -1137,6 +1139,9 @@ const AdminPage = ({user}) => {
         {SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
       </select>
       <span style={{fontSize:'.72rem',color:'var(--muted)'}}>共 {uFiltered.length} 人</span>
+    </div>
+    <div className="mute-bar">
+      <input className="glass-input" style={{width:'16rem'}} value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="搜索用户名 / 昵称 / UID"/>
     </div>
     <div className="mute-bar">禁言时长：
       <select className="glass-input" value={muteMins} onChange={e=>setMuteMins(Number(e.target.value))}>

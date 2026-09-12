@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, distinct
+from sqlalchemy import func, distinct, or_
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from collections import Counter
@@ -30,16 +30,29 @@ def _iso(dt):
 @router.get("/users")
 def admin_read_users(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,
+    role: Optional[str] = None,
+    q: Optional[str] = None,
     admin: UserModel = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    # 非 founder 只列本校用户（用户名单是最直接的身份暴露面）
-    q = db.query(UserModel)
+    """用户列表。默认最新在前、默认 500 条。
+
+    这里踩过坑：默认 limit=100 + id 升序，导致**最新注册的账号（含 init_db 预注册的
+    12 个校方）全被截断** —— 开通时提示"已开通"，列表里却看不到。故改为最新在前、
+    并把上限放宽；同时支持按角色与关键词（用户名/昵称/UID）筛选。
+    """
+    qry = db.query(UserModel)
     scope = view_scope(admin)
     if scope:
-        q = q.filter(UserModel.school_id == scope)
-    users = q.offset(skip).limit(limit).all()
+        qry = qry.filter(UserModel.school_id == scope)
+    if role:
+        qry = qry.filter(UserModel.role == role)
+    if q and q.strip():
+        kw = f"%{q.strip()}%"
+        qry = qry.filter(or_(UserModel.username.ilike(kw), UserModel.nickname.ilike(kw),
+                             UserModel.uid.ilike(kw)))
+    users = qry.order_by(UserModel.id.desc()).offset(skip).limit(min(limit, 2000)).all()
     return [{
         "id": u.id,
         "uid": u.uid,
