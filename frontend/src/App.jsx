@@ -1044,8 +1044,9 @@ const AdminPage = ({user}) => {
   useEffect(()=>{ if(tab==='teachers'&&canApproveTeachers) loadTApprovals() },[tab,loadTApprovals,canApproveTeachers])
   const approveT = async(id)=>{ try{ const r=await apiFetch(`/admin/teacher-approvals/${id}/approve`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); const d=await r.json(); toast.success(d.message||'已批准'); loadTApprovals() }catch(e){ toast.error(e.message) } }
   const rejectT = async(id)=>{ if(!confirm('确认驳回该教师申请？账号将被移除'))return; try{ const r=await apiFetch(`/admin/teacher-approvals/${id}/reject`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); toast.success('已驳回'); loadTApprovals() }catch(e){ toast.error(e.message) } }
-  const [soName,setSoName]=useState(''); const [soNick,setSoNick]=useState(''); const [soPw,setSoPw]=useState(''); const [soSchool,setSoSchool]=useState('JSKS')
-  const createSO = async()=>{ try{ const r=await apiFetch('/admin/school-officials',{method:'POST',body:JSON.stringify({username:soName.trim(),nickname:soNick.trim(),password:soPw,school_id:soSchool})}); if(!r.ok)throw new Error(await errMsg(r,'创建失败')); const d=await r.json(); toast.success(`${d.message}（UID ${d.uid}）`); setSoName('');setSoNick('');setSoPw('') }catch(e){ toast.error(e.message) } }
+  const [soSchool,setSoSchool]=useState('JSKS')
+  const [soResult,setSoResult]=useState(null)
+  const createSO = async()=>{ try{ const r=await apiFetch('/admin/school-officials',{method:'POST',body:JSON.stringify({school_id:soSchool})}); if(!r.ok)throw new Error(await errMsg(r,'开通失败')); const d=await r.json(); setSoResult(d); toast.success(d.message) }catch(e){ toast.error(e.message) } }
   const delPost = async(id)=>{ if(!confirm('确认删除该帖子？此操作不可恢复'))return; try{ const r=await apiFetch(`/posts/${id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setPlist(ps=>ps.filter(x=>x.id!==id)); toast.success('帖子已删除') }catch(e){toast.error(e.message)} }
   // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
   const isAdminRole = user.role==='founder'||user.role==='ambassador'
@@ -1065,15 +1066,13 @@ const AdminPage = ({user}) => {
     <h3 style={{margin:'0 0 .75rem'}}>👨‍🏫 教师身份审批{isFounder?'':'（仅限本校）'}</h3>
     {tApprovals.length===0?<Empty icon="✅" title="暂无待审教师" desc="教师注册申请会出现在这里"/>:<div className="t-approval-list">{tApprovals.map(t=><div key={t.id} className="t-approval-item" style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.5rem 0',borderBottom:'1px solid var(--card-bd)'}}><Avatar src={null} seed={t.nickname} className="nav-avatar"/><div style={{flex:1}}><div><b>{t.nickname}</b> <span style={{fontSize:'.74rem',color:'var(--muted)'}}>{t.username}</span></div><div style={{fontSize:'.72rem',color:'var(--muted)'}}>UID {t.uid} · 学校 {t.school_id}</div></div><button className="glass-button btn-primary" style={{padding:'.3rem .7rem',fontSize:'.8rem'}} onClick={()=>approveT(t.id)}>批准</button><button className="glass-button btn-danger" style={{padding:'.3rem .7rem',fontSize:'.8rem'}} onClick={()=>rejectT(t.id)}>驳回</button></div>)}</div>}
     {isFounder&&<>
-    <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 创建学校官方账号</h3>
+    <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 开通学校官方账号</h3>
     <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',alignItems:'center'}}>
       <select value={soSchool} onChange={e=>setSoSchool(e.target.value)} className="glass-input" style={{width:'auto'}}>{SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select>
-      <input value={soName} onChange={e=>setSoName(e.target.value)} className="glass-input" placeholder="用户名（登录用）" style={{flex:'1 1 130px'}}/>
-      <input value={soNick} onChange={e=>setSoNick(e.target.value)} className="glass-input" placeholder="显示名，如：昆山中学官方" style={{flex:'1 1 150px'}}/>
-      <input value={soPw} onChange={e=>setSoPw(e.target.value)} className="glass-input" type="password" placeholder="密码（≥8位字母数字）" style={{flex:'1 1 140px'}}/>
-      <button className="glass-button btn-primary" onClick={createSO} disabled={!soName.trim()||!soNick.trim()||soPw.length<8}>创建（UID=校码OFFICIAL）</button>
+      <button className="glass-button btn-primary" onClick={createSO}>一键开通（自动生成账号密码）</button>
     </div>
-    <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.5rem 0 0'}}>12 校官方账号已预注册（用户名：校码 official，密码：校码 001）。需要时可在此补建。</p>
+    {soResult&&<p style={{fontSize:'.8rem',color:'var(--fg)',margin:'.5rem 0 0'}}>已开通 —— 用户名 <b>{soResult.username}</b>　密码 <b>{soResult.password}</b>（请线下交给学校）</p>}
+    <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.5rem 0 0'}}>12 校已默认开通（用户名 校码official，密码 校码001）。以后新增学校，在此选校一键开通即可。</p>
     </>}
   </div>}
   {tab==='stats'&&stats&&<div className="admin-stats-wrap">
@@ -1333,6 +1332,8 @@ function App() {
   const [gsSeed,setGsSeed] = useState('')
   const [isRegister,setIsRegister] = useState(false)
   const [showRules,setShowRules] = useState(false)
+  // 新用户先看完开屏动画，再弹社区公约（否则公约盖住动画，看起来像「没有开屏动画」）
+  const [pendingRules,setPendingRules] = useState(false)
   const [showWelcome,setShowWelcome] = useState(false)
   const [activeSort,setActiveSort] = useState('latest')
   const [myStars,setMyStars] = useState({})
@@ -1375,6 +1376,10 @@ function App() {
   const [loadingMore,setLoadingMore] = useState(false)
   const [followingFeed,setFollowingFeed] = useState(false)
   const [chatTab,setChatTab] = useState('global')
+  // 教师/校方（无论是否已批准）都不进公共聊天室：隐藏标签 + 默认落到私信。
+  // 后端 can_join_room 是真正的闸门，这里只保证界面不给出错误入口。
+  const isStaffRole = user?.role==='teacher'||user?.role==='school_official'
+  useEffect(()=>{ if(isStaffRole&&chatTab==='global') setChatTab('dm') },[isStaffRole,chatTab])
   const [editPost,setEditPost] = useState(null)
   const [openConvId,setOpenConvId] = useState(null)
   const [dmUnread,setDmUnread] = useState(()=>{ try{ return parseInt(localStorage.getItem('cervus_dmunread')||'0',10)||0 }catch{ return 0 } })
@@ -1482,7 +1487,7 @@ function App() {
 
   const startDMFromProfile = async (peerId) => { try{ const r=await apiFetch('/dm/conversations',{method:'POST',body:JSON.stringify({peer_id:peerId})}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); const d=await r.json(); setOpenConvId(d.id); setChatTab('dm'); setCurPage('chat'); setProfileUserId(null) }catch(e){ toast.error(e.message) } }
 
-  const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setShowRules(true); setShowWelcome(true) }
+  const handleLogin = (data) => { localStorage.setItem('token',data.access_token); localStorage.setItem('user',JSON.stringify(data.user)); setUser(data.user); if(!localStorage.getItem('rules_accepted'))setPendingRules(true); setShowWelcome(true) }
 
   // 页面切换过渡：main 挂 key={curPage} 重挂载后做一次上浮淡入（GSAP；尊重 reduced-motion）
   useEffect(() => {
@@ -1521,7 +1526,7 @@ function App() {
   return <ToastProvider>
     <Starfield/>
     {showRules&&<RulesModal onClose={()=>{localStorage.setItem('rules_accepted','true');setShowRules(false)}}/>}
-    {showWelcome&&user&&<WelcomeHello nickname={user.nickname} onDone={()=>setShowWelcome(false)}/>}
+    {showWelcome&&user&&<WelcomeHello nickname={user.nickname} onDone={()=>{ setShowWelcome(false); if(pendingRules){ setShowRules(true); setPendingRules(false) } }}/>}
     {editPost&&<PostEditModal post={editPost} boards={boards} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
     {sessionExpired&&<div className="session-expired-banner">登录已过期，请重新登录</div>}
     {!user ? <LoginPage onLogin={handleLogin} onSwitchRegister={()=>setIsRegister(true)}/>
@@ -1546,7 +1551,7 @@ function App() {
           <PollsSection/>
           {loading?<SkeletonList/>:error?<ErrorBox msg={error} onRetry={fetchPosts}/>:posts.length===0?<Empty icon="📝" title="暂无帖子" desc="成为第一个发帖的人吧"/>: <><div className="posts-list">{posts.map((p,i)=><div key={p.id} data-post-id={p.id} data-post-author={p.user_id} className={`glass-card post-card ${p.is_announcement?'post-announcement':''}`} onClick={()=>setSelectedPost(p)}>{p.is_announcement&&<div className="announcement-badge">📢 公告</div>}<div className="post-card-header"><Avatar src={p.author_avatar} seed={p.display_name} className="post-author-avatar" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}/><span className="post-author-name-small" onClick={e=>{e.stopPropagation();setProfileUserId(p.user_id);setSelectedPost(null)}}>{p.display_name||'匿名用户'}</span>{canSeeUid(user,p)&&<span className="uid-badge">{p.user_uid}{p.hide_uid&&' (隐藏)'}</span>}<span className="post-forum-badge">{getSchoolName(p.forum)}</span><span className="post-category-mini">{p.category?p.category.split(',').map(c=>boards.find(x=>x.key===c)?.icon||'📝').join(' '):'📝'}</span></div><h4 className="post-title">{p.title}</h4><p className="post-preview">{p.content?.slice(0,100)}{p.content?.length>100?'...':''}</p>{p.images&&p.images.length>0&&<PostImages images={p.images}/>}<div className="post-footer"><span className="post-time">{fmtTime(p.created_at)}</span><div className="post-actions">{(user?.id===p.user_id||user?.role==='founder'||(user?.role==='ambassador'&&p.user_school===user.school_id))&&<><button onClick={e=>{e.stopPropagation();setEditPost(p)}} className="action-btn edit-btn" title="编辑">✏️</button><button onClick={e=>{e.stopPropagation();if(!confirm('确定删除？'))return;apiFetch(`/posts/${p.id}`,{method:'DELETE'}).then(fetchPosts)}} className="action-btn delete-btn">🗑️</button></>}<LikeButton post={p} liked={!!myLikes[p.id]} count={p.like_count} onToggle={toggleLike}/><StarButton post={p} starred={!!myStars[p.id]} count={p.star_count} onToggle={toggleStar}/><span className="action-text">💬 {p.comment_count}</span></div></div>{p.tags&&p.tags.split(',').filter(Boolean).length>0&&<div className="post-tags">{p.tags.split(',').filter(Boolean).map(t=><button key={t} className="post-tag-chip" onClick={e=>{e.stopPropagation();setTagDetail(t.trim())}}>#{t.trim()}</button>)}</div>}}</div>)}</div>{hasMore&&!loading&&<div className="load-more-wrap"><button className="load-more-btn" onClick={()=>fetchPosts('more')} disabled={loadingMore}>{loadingMore?'加载中…':'加载更多'}</button></div>}</>}
         </div>}
-        {curPage==='chat'&&<div className="chat-page"><div className="chat-tabs">{(user.role==='teacher'||user.role==='school_official')&&user.approved!==false?null:<button className={`chat-tab ${chatTab==='global'?'active':''}`} onClick={()=>setChatTab('global')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.6-.3-3.7-.8L3.5 21l1.4-4.2A8.5 8.5 0 1 1 21 12z"/></svg> 聊天室</button>}<button className={`chat-tab ${chatTab==='dm'?'active':''}`} onClick={()=>setChatTab('dm')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg> 私信</button><button className={`chat-tab ${chatTab==='group'?'active':''}`} onClick={()=>setChatTab('group')}><svg viewBox="0 0 24 24" fill="currentColor" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.6 3.3-5.5 6.5-5.5s5.8 1.9 6.5 5.5z"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 13.8c2.9.2 5.2 1.9 6 5.2h-5.1c-.2-2-1-3.7-2.3-4.8.5-.3 1-.4 1.4-.4z"/></svg> 群聊</button></div>{chatTab==='global'?<div className="glass-card chat-container"><ChatRoom/></div>:chatTab==='dm'?<DirectMessages user={user} openConvId={openConvId} onOpenConvChange={setOpenConvId} onOpenUser={setProfileUserId}/>:<GroupChat user={user} onOpenUser={setProfileUserId}/>}</div>}
+        {curPage==='chat'&&<div className="chat-page"><div className="chat-tabs">{isStaffRole?null:<button className={`chat-tab ${chatTab==='global'?'active':''}`} onClick={()=>setChatTab('global')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><path d="M21 12a8.5 8.5 0 0 1-8.5 8.5c-1.3 0-2.6-.3-3.7-.8L3.5 21l1.4-4.2A8.5 8.5 0 1 1 21 12z"/></svg> 聊天室</button>}<button className={`chat-tab ${chatTab==='dm'?'active':''}`} onClick={()=>setChatTab('dm')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg> 私信</button><button className={`chat-tab ${chatTab==='group'?'active':''}`} onClick={()=>setChatTab('group')}><svg viewBox="0 0 24 24" fill="currentColor" style={{width:'14px',height:'14px',verticalAlign:'-2px'}} aria-hidden="true"><circle cx="9" cy="8" r="3.4"/><path d="M2.5 19c.7-3.6 3.3-5.5 6.5-5.5s5.8 1.9 6.5 5.5z"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 13.8c2.9.2 5.2 1.9 6 5.2h-5.1c-.2-2-1-3.7-2.3-4.8.5-.3 1-.4 1.4-.4z"/></svg> 群聊</button></div>{chatTab==='global'&&!isStaffRole?<div className="glass-card chat-container"><ChatRoom/></div>:chatTab==='dm'?<DirectMessages user={user} openConvId={openConvId} onOpenConvChange={setOpenConvId} onOpenUser={setProfileUserId}/>:<GroupChat user={user} onOpenUser={setProfileUserId}/>}</div>}
         {curPage==='admin'&&(isAdmin||(user?.role==='school_official'&&user?.approved!==false))&&<AdminPage user={user}/>}
         {curPage==='profile'&&<ProfilePage user={user} setUser={setUser} onOpenPost={setSelectedPost} onOpenUser={setProfileUserId} setStoryOpen={setStoryOpen}/>}
       </main>

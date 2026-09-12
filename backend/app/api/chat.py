@@ -141,15 +141,24 @@ def load_sender_state(user_id: int):
 
 
 def can_join_room(user_id: int, room_id: str) -> bool:
-    """群聊房间 group/{gid} 仅成员可连；公共聊天室与其它房间放行。"""
-    if not room_id.startswith("group/"):
-        return True
-    try:
-        gid = int(room_id.split("/", 1)[1])
-    except (IndexError, ValueError):
-        return False
+    """群聊房间 group/{gid} 仅成员可连；公共聊天室教师/校方不可进。
+
+    注意：前端隐藏「聊天室」标签只是界面，真正的闸门在这里 —— 否则教师
+    可以直接连 WS 读发。私信（dm）不受此限，教师仍可私信学生。
+    """
     db = SessionLocal()
     try:
+        # 公共聊天室（chat/*）：教师/校方不可进
+        if room_id.startswith("chat/"):
+            u = db.query(User).filter(User.id == user_id).first()
+            return not (u and u.role in ("teacher", "school_official"))
+        # 私信（dm/*）不受限：教师仍可私信学生
+        if not room_id.startswith("group/"):
+            return True
+        try:
+            gid = int(room_id.split("/", 1)[1])
+        except (IndexError, ValueError):
+            return False
         g = db.query(ChatGroup).filter(ChatGroup.id == gid, ChatGroup.disbanded_at.is_(None)).first()
         if g is None:
             return False

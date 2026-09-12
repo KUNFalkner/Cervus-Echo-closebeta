@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, distinct
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from collections import Counter
 
@@ -407,32 +407,42 @@ from pydantic import BaseModel as _BM
 
 
 class _SchoolOfficialCreate(_BM):
-    username: str
-    password: str
-    nickname: str
+    """只需给学校代码；用户名/昵称/密码按统一规则自动派生（可显式覆盖）。"""
     school_id: str
+    username: Optional[str] = None
+    nickname: Optional[str] = None
+    password: Optional[str] = None
 
 
 @router.post("/school-officials")
 def create_school_official(body: _SchoolOfficialCreate, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
-    """founder 手动创建学校官方账号（UID = 校码+OFFICIAL，每校唯一），返回一次性登录 token"""
-    if db.query(UserModel).filter(UserModel.username == body.username).first():
-        raise HTTPException(status_code=400, detail="用户名已存在")
-    if not db.query(SchoolModel).filter(SchoolModel.code == body.school_id).first():
+    """为某校开通官方账号（UID=校码+OFFICIAL，每校唯一）。
+
+    新增学校后走这条：选学校 → 一键开通，凭据按统一规则生成并回显，线下交给学校。
+    已开通的学校返回 400，避免覆盖既有密码。
+    """
+    school = db.query(SchoolModel).filter(SchoolModel.code == body.school_id).first()
+    if not school:
         raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
-    uid = f"{body.school_id}OFFICIAL"
+    # 统一规则：用户名 校码official，密码 校码001，昵称 简称+校方
+    uname = body.username or f"{school.code}official"
+    nick = body.nickname or f"{school.short_name}校方"
+    pw = body.password or f"{school.code}001"
+    uid = f"{school.code}OFFICIAL"
     if db.query(UserModel).filter(UserModel.uid == uid).first():
-        raise HTTPException(status_code=400, detail="该校已存在官方账号（每校一个）")
+        raise HTTPException(status_code=400, detail="该校已开通官方账号（每校一个）")
+    if db.query(UserModel).filter(UserModel.username == uname).first():
+        raise HTTPException(status_code=400, detail="用户名已存在")
     user = UserModel(
-        username=body.username, nickname=body.nickname, uid=uid,
-        password=_hash_pw(body.password), school_id=body.school_id,
+        username=uname, nickname=nick, uid=uid,
+        password=_hash_pw(pw), school_id=school.code,
         role="school_official", approved=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    token = _create_token(user.id, user.uid)
-    return {"message": f"官方账号 {body.nickname} 已创建", "uid": uid, "access_token": token,
+    return {"message": f"已为「{school.name}」开通官方账号", "uid": uid,
+            "username": uname, "password": pw,
             "user": _UserSchema.model_validate(user).model_dump()}
 
 
