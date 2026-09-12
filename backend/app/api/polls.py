@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.auth import require_user, require_admin
+from app.auth import require_user, require_site_admin
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.poll import Poll, Vote
@@ -63,7 +63,7 @@ def list_polls(
 
 
 @router.post("", response_model=dict)
-def create_poll(payload: PollIn, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def create_poll(payload: PollIn, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     """仅创始人 / 大使可发起投票。"""
     if not payload.question.strip():
         raise HTTPException(status_code=400, detail="投票问题不能为空")
@@ -117,7 +117,7 @@ def retract_vote(poll_id: int, user: UserModel = Depends(require_user), db: Sess
 
 
 @router.put("/{poll_id}/close", response_model=dict)
-def close_poll(poll_id: int, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def close_poll(poll_id: int, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     """截止 / 重新开启投票（创始人 / 大使）。"""
     p = db.query(Poll).filter(Poll.id == poll_id).first()
     if not p:
@@ -128,7 +128,7 @@ def close_poll(poll_id: int, user: UserModel = Depends(require_admin), db: Sessi
 
 
 @router.delete("/{poll_id}", response_model=dict)
-def delete_poll(poll_id: int, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def delete_poll(poll_id: int, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     p = db.query(Poll).filter(Poll.id == poll_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="投票不存在")

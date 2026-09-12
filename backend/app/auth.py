@@ -83,6 +83,19 @@ def require_admin(
     return user
 
 
+def require_site_admin(
+    user: UserModel = Depends(require_user),
+) -> UserModel:
+    """站级管理（板块/投票这类全站结构）：仅创始人 + 大使。
+
+    教师/校方不进这一层 —— require_admin 会放他们进来，而他们的职责是
+    本校监督（举报箱只读 + 教师审核），从无站点结构的管理权。
+    """
+    if user.role not in ("founder", "ambassador"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅创始人或大使可操作")
+    return user
+
+
 def require_founder(
     user: UserModel = Depends(require_user),
 ) -> UserModel:

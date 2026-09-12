@@ -84,7 +84,9 @@ class PublicUser(BaseModel):
     nickname: str
     avatar: Optional[str] = None
     role: str = "student"
-    school_id: str = "ZC"
+    # founder 不属于任何学校 → school_id 必须可空；原 `str = "ZC"` 会在
+    # 结果里含 founder 时抛 ResponseValidationError，整个接口 500
+    school_id: Optional[str] = None
     profile_bg: str = ""
     karma: int = 0
     is_anonymous: bool = True

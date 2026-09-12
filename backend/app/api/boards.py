@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.auth import require_user, require_admin
+from app.auth import require_user, require_site_admin
 from app.models.database import get_db
 from app.models.user import User as UserModel
 from app.models.board import Board
@@ -41,7 +41,7 @@ def list_boards(all: bool = False, user: UserModel = Depends(require_user), db: 
 
 
 @router.post("", response_model=BoardOut)
-def create_board(payload: BoardIn, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def create_board(payload: BoardIn, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     key = (payload.key or "").strip()
     if not key or not key.replace("_", "").isalnum():
         raise HTTPException(status_code=400, detail="板块 key 只能为字母数字下划线")
@@ -55,7 +55,7 @@ def create_board(payload: BoardIn, user: UserModel = Depends(require_admin), db:
 
 
 @router.put("/{board_id}", response_model=BoardOut)
-def update_board(board_id: int, payload: BoardIn, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def update_board(board_id: int, payload: BoardIn, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     b = db.query(Board).filter(Board.id == board_id).first()
     if not b:
         raise HTTPException(status_code=404, detail="板块不存在")
@@ -76,7 +76,7 @@ def update_board(board_id: int, payload: BoardIn, user: UserModel = Depends(requ
 
 
 @router.delete("/{board_id}")
-def delete_board(board_id: int, user: UserModel = Depends(require_admin), db: Session = Depends(get_db)):
+def delete_board(board_id: int, user: UserModel = Depends(require_site_admin), db: Session = Depends(get_db)):
     b = db.query(Board).filter(Board.id == board_id).first()
     if not b:
         raise HTTPException(status_code=404, detail="板块不存在")

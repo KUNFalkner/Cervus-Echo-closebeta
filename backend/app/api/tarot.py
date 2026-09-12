@@ -255,7 +255,8 @@ def _builtin_interpret(req: InterpretRequest) -> str:
 
 
 @router.post("/interpret")
-async def interpret(req: InterpretRequest):
+async def interpret(req: InterpretRequest, viewer: UserModel = Depends(require_user)):
+    # 需登录：解读会驱动本地大模型（~16s 占显存），不能对未登录者开放
     if not req.cards:
         raise HTTPException(status_code=400, detail="缺少牌阵")
 
