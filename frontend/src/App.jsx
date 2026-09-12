@@ -1046,11 +1046,26 @@ const AdminPage = ({user}) => {
   const rejectT = async(id)=>{ if(!confirm('确认驳回该教师申请？账号将被移除'))return; try{ const r=await apiFetch(`/admin/teacher-approvals/${id}/reject`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'操作失败')); toast.success('已驳回'); loadTApprovals() }catch(e){ toast.error(e.message) } }
   const [soSchool,setSoSchool]=useState('JSKS')
   const [soResult,setSoResult]=useState(null)
+  // 新增学校（founder）：学校会陆续增加，必须能自助加，且加完立刻出现在各处下拉里
+  const [nsCode,setNsCode]=useState(''); const [nsName,setNsName]=useState('')
+  const [nsShort,setNsShort]=useState(''); const [sVer,setSVer]=useState(0)
+  const refreshSchools = async()=>{ try{ const r=await apiFetch('/schools/'); if(r.ok){ const list=await r.json()
+    if(Array.isArray(list)&&list.length){ SCHOOLS=list.map(s=>({code:s.code,name:s.name,short:s.short_name||s.short||s.name})); setSVer(v=>v+1) } } }catch{} }
+  const createSchool = async()=>{ try{
+    const r=await apiFetch('/schools/',{method:'POST',body:JSON.stringify({code:nsCode.trim().toUpperCase(),name:nsName.trim(),short_name:nsShort.trim()||nsName.trim()})})
+    if(!r.ok)throw new Error(await errMsg(r,'新增学校失败'))
+    toast.success('已新增学校，可在下方「开通学校官方账号」为它开通校方号')
+    setNsCode(''); setNsName(''); setNsShort(''); await refreshSchools()
+  }catch(e){toast.error(e.message)} }
   const createSO = async()=>{ try{ const r=await apiFetch('/admin/school-officials',{method:'POST',body:JSON.stringify({school_id:soSchool})}); if(!r.ok)throw new Error(await errMsg(r,'开通失败')); const d=await r.json(); setSoResult(d); toast.success(d.message) }catch(e){ toast.error(e.message) } }
   const delPost = async(id)=>{ if(!confirm('确认删除该帖子？此操作不可恢复'))return; try{ const r=await apiFetch(`/posts/${id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setPlist(ps=>ps.filter(x=>x.id!==id)); toast.success('帖子已删除') }catch(e){toast.error(e.message)} }
   // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
   const isAdminRole = user.role==='founder'||user.role==='ambassador'
   const [userSchoolFilter,setUserSchoolFilter]=useState('')
+  // 角色筛选：用户列表里教师/校方/学生混在一起，人多时根本看不清
+  const [userRoleFilter,setUserRoleFilter]=useState('')
+  const uFiltered = ulist.filter(u=>(!userSchoolFilter||u.school_id===userSchoolFilter)
+                                    &&(!userRoleFilter||u.role===userRoleFilter))
   const canManage = (u)=> isAdminRole && u.role==='student' && (user.role==='founder' || u.school_id===user.school_id)
   const fmtMute = (iso)=> iso? new Date(iso).toLocaleString('zh-CN',{hour12:false}) : null
   const isMutedNow = (iso)=>{ if(!iso) return false; return new Date(iso).getTime() > Date.now() }
@@ -1066,6 +1081,14 @@ const AdminPage = ({user}) => {
     <h3 style={{margin:'0 0 .75rem'}}>👨‍🏫 教师身份审批{isFounder?'':'（仅限本校）'}</h3>
     {tApprovals.length===0?<Empty icon="✅" title="暂无待审教师" desc="教师注册申请会出现在这里"/>:<div className="t-approval-list">{tApprovals.map(t=><div key={t.id} className="t-approval-item" style={{display:'flex',alignItems:'center',gap:'.6rem',padding:'.5rem 0',borderBottom:'1px solid var(--card-bd)'}}><Avatar src={null} seed={t.nickname} className="nav-avatar"/><div style={{flex:1}}><div><b>{t.nickname}</b> <span style={{fontSize:'.74rem',color:'var(--muted)'}}>{t.username}</span></div><div style={{fontSize:'.72rem',color:'var(--muted)'}}>UID {t.uid} · 学校 {t.school_id}</div></div><button className="glass-button btn-primary" style={{padding:'.3rem .7rem',fontSize:'.8rem'}} onClick={()=>approveT(t.id)}>批准</button><button className="glass-button btn-danger" style={{padding:'.3rem .7rem',fontSize:'.8rem'}} onClick={()=>rejectT(t.id)}>驳回</button></div>)}</div>}
     {isFounder&&<>
+    <h3 style={{margin:'1.25rem 0 .5rem'}}>➕ 新增学校</h3>
+    <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',alignItems:'center'}}>
+      <input value={nsCode} onChange={e=>setNsCode(e.target.value)} placeholder="学校代码（如 KSCQ）" className="glass-input" style={{width:'11rem'}} maxLength={8}/>
+      <input value={nsName} onChange={e=>setNsName(e.target.value)} placeholder="学校全称" className="glass-input" style={{width:'14rem'}} maxLength={40}/>
+      <input value={nsShort} onChange={e=>setNsShort(e.target.value)} placeholder="简称（选填）" className="glass-input" style={{width:'9rem'}} maxLength={12}/>
+      <button className="glass-button btn-primary" onClick={createSchool} disabled={!nsCode.trim()||!nsName.trim()}>新增学校</button>
+    </div>
+    <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.4rem 0 0'}}>学校代码是 UID 前缀（如 KSCQ20260130）。新增后各处学校下拉会自动出现该校，接着在下面为它开通校方账号即可。</p>
     <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 开通学校官方账号</h3>
     <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',alignItems:'center'}}>
       <select value={soSchool} onChange={e=>setSoSchool(e.target.value)} className="glass-input" style={{width:'auto'}}>{SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select>
@@ -1098,12 +1121,21 @@ const AdminPage = ({user}) => {
     </div>
   </div>}
   {tab==='users'&&<div className="admin-list">
-    <div className="mute-bar">学校筛选：
+    <div className="mute-bar">角色筛选：
+      <select className="glass-input" style={{width:'auto'}} value={userRoleFilter} onChange={e=>setUserRoleFilter(e.target.value)}>
+        <option value="">全部角色</option>
+        <option value="student">🎓 学生</option>
+        <option value="teacher">👨‍🏫 教师（含待审）</option>
+        <option value="school_official">🏫 学校官方</option>
+        <option value="ambassador">🛡️ 大使</option>
+        <option value="founder">👑 创始人</option>
+      </select>
+      学校筛选：
       <select className="glass-input" style={{width:'auto'}} value={userSchoolFilter} onChange={e=>setUserSchoolFilter(e.target.value)}>
         <option value="">全部学校</option>
         {SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
       </select>
-      <span style={{fontSize:'.72rem',color:'var(--muted)'}}>共 {ulist.filter(u=>!userSchoolFilter||u.school_id===userSchoolFilter).length} 人</span>
+      <span style={{fontSize:'.72rem',color:'var(--muted)'}}>共 {uFiltered.length} 人</span>
     </div>
     <div className="mute-bar">禁言时长：
       <select className="glass-input" value={muteMins} onChange={e=>setMuteMins(Number(e.target.value))}>
@@ -1116,7 +1148,7 @@ const AdminPage = ({user}) => {
       </select>
       <span className="mute-hint">仅可禁言{user.role==='founder'?'全部':'本校'}学生，不可禁言管理员</span>
     </div>
-    {ulist.filter(u=>!userSchoolFilter||u.school_id===userSchoolFilter).map(u=><div key={u.id} className="glass-card admin-user-card">
+    {uFiltered.map(u=><div key={u.id} className="glass-card admin-user-card">
       <div className="admin-user-info"><span className="uid-badge">{u.uid||'------'}</span><span className="admin-username">@{u.username}</span><span className="admin-nickname">{u.nickname}</span>{u.role==='founder'&&<span className="role-badge founder">创始人</span>}{u.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}{u.role==='teacher'&&u.approved!==false&&<span className="role-badge teacher">👨‍🏫 教师</span>}{u.role==='teacher'&&u.approved===false&&<span className="role-badge teacher">教师（审核中）</span>}{u.role==='school_official'&&<span className="role-badge school_official">🏫 学校官方</span>}{u.banned&&<span className="role-badge banned">已封禁</span>}<span className="admin-school">{getSchoolName(u.school_id)}</span></div>
       <div className="admin-user-meta"><span>匿名: {u.is_anonymous?'是':'否'}</span><span>注册: {u.created_at?new Date(u.created_at).toLocaleDateString('zh-CN'):'-'}</span></div>
       {isMutedNow(u.muted_until)&&<div className="mute-status">已禁言至 {fmtMute(u.muted_until)}</div>}
