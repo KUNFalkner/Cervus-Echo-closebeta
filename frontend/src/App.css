@@ -2489,3 +2489,29 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   .gs-score-bar { animation: none; }
   .gs-post-item::before { transition: none; }
 }
+
+/* 管理页筛选标签：替代原生 <select> —— 原生弹出列表是系统白底，在这个深色玻璃界面里
+   既突兀（"按钮出现是白的"）又要一条条滚动看选项。改成全部平铺、自动换行、随主题变色。 */
+.filter-row { flex-wrap: wrap; gap: .35rem; }
+.filter-chip {
+  padding: .22rem .7rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border, rgba(255,255,255,.18));
+  background: rgba(255,255,255,.05);
+  color: var(--fg);
+  font-size: .74rem;
+  font-family: inherit;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+.filter-chip:hover { background: rgba(255,255,255,.12); }
+.filter-chip.active {
+  background: var(--accent, #d9b45b);
+  color: #2a2415;
+  border-color: var(--accent, #d9b45b);
+  font-weight: 600;
+}
+body.day .filter-chip { background: rgba(0,0,0,.04); }
+body.day .filter-chip:hover { background: rgba(0,0,0,.09); }
+body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; }

@@ -562,7 +562,7 @@ const TarotExperience = () => {
       '',
       drawn.map((c, i) => `${POS[i] ? POS[i].name : (i + 1)}·${c.name}${c.reversed ? '（逆位）' : '（正位）'}`).join('　'),
       '',
-      counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）',
+      counsel ? counsel.text : '（尚未开启荣格密语，点「✦ 荣格密语」获取星语）',
       '',
       '—— 来自 鹿鸣回音',
     ].join('\n')
@@ -591,7 +591,7 @@ const TarotExperience = () => {
     const nameY = topY + cardH + 24
     const revY = nameY + 20
     const rowH = cardH + 60
-    const counselText = counsel ? counsel.text : '（尚未请 AI 解读，点「✦ AI 解读」获取星语）'
+    const counselText = counsel ? counsel.text : '（尚未开启荣格密语，点「✦ 荣格密语」获取星语）'
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')
     ctx.font = '16px sans-serif'
@@ -792,13 +792,13 @@ const TarotExperience = () => {
             <div className="tarot-counselor">
               <div className="tarot-counselor-q">
                 <button className="tarot-ask" onClick={askCounsel} disabled={interpreting || !drawn}>
-                  {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ AI 解读'}
+                  {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ 荣格密语'}
                 </button>
               </div>
               {interpreting && <CounselWait />}
               {counsel && (() => {
                 const isLlm = counsel.source === 'llm'
-                const title = isLlm ? '星语 · AI 解读'
+                const title = isLlm ? '星语 · 荣格密语'
                   : counsel.source === 'builtin-fallback' ? '星语 · 基础解读'
                   : '星语 · 牌阵自语'
                 const note = isLlm ? ''

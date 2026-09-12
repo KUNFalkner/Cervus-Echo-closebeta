@@ -1110,7 +1110,7 @@ const AdminPage = ({user}) => {
       <div className="glass-card stat-card"><span className="stat-number">{stats.new_users_30d}</span><span className="stat-desc">近30天新增用户</span></div>
       <div className="glass-card stat-card"><span className="stat-number">{stats.posts_30d}</span><span className="stat-desc">近30天发帖</span></div>
       <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.total_draws||0}</span><span className="stat-desc">塔罗总抽牌</span></div>
-      <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">AI 解读次数</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">荣格密语次数</span></div>
     </div>
     <div className="stat-charts">
       <div className="glass-card stat-chart-card"><h4>近 30 天塔罗抽牌</h4><StatLine data={stats.tarot?.daily||[]} /></div>
@@ -1120,26 +1120,12 @@ const AdminPage = ({user}) => {
     </div>
     <div className="stat-lists">
       <div className="glass-card stat-list-card"><h4>🔮 最常出现的牌 Top 10</h4>{(stats.tarot?.top_cards||[]).length===0?<p className="stat-empty">暂无抽牌记录</p>:<ol className="stat-top-list">{stats.tarot.top_cards.map(c=><li key={c.name}><span>{c.name}</span><span className="stat-top-count">{c.count}</span></li>)}</ol>}</div>
-      <div className="glass-card stat-list-card"><h4>🤖 解读来源</h4><div className="stat-src"><div><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">AI 解读</span></div><div><span className="stat-number">{stats.tarot?.builtin_count||0}</span><span className="stat-desc">内置解读</span></div></div></div>
+      <div className="glass-card stat-list-card"><h4>🤖 解读来源</h4><div className="stat-src"><div><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">荣格密语</span></div><div><span className="stat-number">{stats.tarot?.builtin_count||0}</span><span className="stat-desc">内置解读</span></div></div></div>
     </div>
   </div>}
   {tab==='users'&&<div className="admin-list">
-    <div className="mute-bar">角色筛选：
-      <select className="glass-input" style={{width:'auto'}} value={userRoleFilter} onChange={e=>setUserRoleFilter(e.target.value)}>
-        <option value="">全部角色</option>
-        <option value="student">🎓 学生</option>
-        <option value="teacher">👨‍🏫 教师（含待审）</option>
-        <option value="school_official">🏫 学校官方</option>
-        <option value="ambassador">🛡️ 大使</option>
-        <option value="founder">👑 创始人</option>
-      </select>
-      学校筛选：
-      <select className="glass-input" style={{width:'auto'}} value={userSchoolFilter} onChange={e=>setUserSchoolFilter(e.target.value)}>
-        <option value="">全部学校</option>
-        {SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}
-      </select>
-      <span style={{fontSize:'.72rem',color:'var(--muted)'}}>共 {uFiltered.length} 人</span>
-    </div>
+    <div className="mute-bar filter-row">角色：{[['','全部'],['ambassador','🛡️ 大使'],['school_official','🏫 官方账号'],['student','🎓 学生'],['teacher','👨‍🏫 教师'],['founder','👑 创始人']].map(([v,l])=><button key={v} className={`filter-chip ${userRoleFilter===v?'active':''}`} onClick={()=>setUserRoleFilter(v)}>{l}</button>)}</div>
+    <div className="mute-bar filter-row">学校：<button className={`filter-chip ${userSchoolFilter===''?'active':''}`} onClick={()=>setUserSchoolFilter('')}>全部</button>{SCHOOLS.map(s=><button key={s.code} className={`filter-chip ${userSchoolFilter===s.code?'active':''}`} onClick={()=>setUserSchoolFilter(s.code)}>{s.short_name||s.name}</button>)}<span style={{fontSize:'.72rem',color:'var(--muted)',marginLeft:'.3rem'}}>共 {uFiltered.length} 人</span></div>
     <div className="mute-bar">
       <input className="glass-input" style={{width:'16rem'}} value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="搜索用户名 / 昵称 / UID"/>
     </div>
