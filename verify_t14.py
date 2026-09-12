@@ -20,7 +20,7 @@ def http(m,p,b=None,t=None):
     except urllib.error.HTTPError as e: return e.code,json.loads(e.read().decode() or "{}")
 
 st,reg=http("POST","/users/",{"username":USERNAME,"password":"test1234","nickname":"验证同学",
-    "school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1, 55),"student_number":random.randint(1000, 9999)})
+    "school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1, 20),"student_number":random.randint(1, 55)})
 if st!=200: print("REG FAIL",st,reg); sys.exit(1)
 token=reg["access_token"]; user=reg["user"]
 print("registered",USERNAME)

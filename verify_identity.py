@@ -54,14 +54,27 @@ ok('学生缺学号 → 400 中文', st == 400 and '学号' in str(d.get('detail
 
 u3 = 'idt_' + rid()
 st, d = http('POST', '/users/', {'username': u3, 'password': 'test1234', 'role': 'student',
-                                 'enrollment_year': 2024, 'class_number': 3, 'student_number': 4242})
+                                 'enrollment_year': 2024, 'class_number': 3, 'student_number': 42})
 ok('缺学校 → 400 中文', st == 400 and '学校' in str(d.get('detail', '')), f'[{st}] {d.get("detail")}')
+
+# 边界：班级 >20 / 学号 >55 必须被拒（站长指出的不合理限制）
+u5 = 'idt_' + rid()
+st, d = http('POST', '/users/', {'username': u5, 'password': 'test1234', 'school_id': 'JSKS',
+                                 'role': 'student', 'enrollment_year': 2024,
+                                 'class_number': 21, 'student_number': 10})
+ok('班级>20 被拒 422', st == 422, f'[{st}]')
+
+u6 = 'idt_' + rid()
+st, d = http('POST', '/users/', {'username': u6, 'password': 'test1234', 'school_id': 'JSKS',
+                                 'role': 'student', 'enrollment_year': 2024,
+                                 'class_number': 3, 'student_number': 56})
+ok('学号>55 被拒 422', st == 422, f'[{st}]')
 
 # 正常学生：昵称留空应自动生成
 u4 = 'idt_' + rid()
 st, d = http('POST', '/users/', {'username': u4, 'password': 'test1234', 'school_id': 'JSKS',
                                  'role': 'student', 'enrollment_year': 2024,
-                                 'class_number': 3, 'student_number': random.randint(1000, 9999)})
+                                 'class_number': random.randint(1, 20), 'student_number': random.randint(1, 55)})
 nick = (d.get('user') or {}).get('nickname') if st == 200 else None
 stok = (d.get('access_token') if st == 200 else None)
 ok('昵称留空自动生成', st == 200 and bool(nick), f'[{st}] nick={nick}')

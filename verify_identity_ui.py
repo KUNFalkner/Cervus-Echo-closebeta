@@ -98,8 +98,8 @@ async def main():
           const set = (el, v) => { const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
             s.call(el, v); el.dispatchEvent(new Event('input',{bubbles:true})); };
           set(ins[0], '1'); set(ins[1], '1');
-          const sn = Array.from(ins).find(i => i.placeholder && i.placeholder.includes('4-10'));
-          if (sn) set(sn, '1234');
+          const sn = Array.from(ins).find(i => i.placeholder && i.placeholder.includes('1-55'));
+          if (sn) set(sn, '12');
         })()""")
         await asyncio.sleep(1)
         await js("document.querySelector('.login-btn,form button[type=submit]')?.click()")

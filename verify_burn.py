@@ -36,7 +36,7 @@ def reg(pfx):
     u = f"{pfx}{R}"
     st, r = http("POST", "/users/", {"username": u, "password": "test1234", "nickname": u,
         "school_id": "JSKS", "enrollment_year": 2024, "class_number": random.randint(1, 30),
-        "student_number": random.randint(1000, 9999)})
+        "student_number": random.randint(1, 55)})
     if st == 200:
         _used_names.add(u)
         return r["access_token"], r["user"], u

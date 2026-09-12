@@ -36,8 +36,8 @@ def http(method, path, body=None, token=None):
 st, reg = http("POST", "/users/", {
     "username": USERNAME, "password": "test1234",
     "nickname": "验证同学", "school_id": "JSKS",
-    "enrollment_year": 2024, "class_number": random.randint(1, 55),
-    "student_number": random.randint(1000, 9999),
+    "enrollment_year": 2024, "class_number": random.randint(1, 20),
+    "student_number": random.randint(1, 55),
 })
 if st != 200:
     print("REGISTER FAIL", st, reg); sys.exit(1)
