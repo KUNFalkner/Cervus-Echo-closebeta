@@ -1068,6 +1068,14 @@ const AdminPage = ({user}) => {
   const uFiltered = ulist.filter(u=>(!userSchoolFilter||u.school_id===userSchoolFilter)
                                     &&(!userRoleFilter||u.role===userRoleFilter)
                                     &&(!userSearch.trim()||[u.username,u.nickname,u.uid].some(v=>String(v||'').toLowerCase().includes(userSearch.trim().toLowerCase()))))
+    // 排序像正常社交软件：管理员（founder/大使/学校官方）置顶，其余按昵称拼音首字母
+    const ADMIN_ROLES = ['founder','ambassador','school_official']
+    const uSorted = [...uFiltered].sort((a,b)=>{
+      const aa = ADMIN_ROLES.includes(a.role)?0:1, bb = ADMIN_ROLES.includes(b.role)?0:1
+      if(aa!==bb) return aa-bb
+      if(aa===0 && a.role!==b.role) return ADMIN_ROLES.indexOf(a.role)-ADMIN_ROLES.indexOf(b.role)
+      return String(a.nickname||a.username||'').localeCompare(String(b.nickname||b.username||''),'zh-Hans-CN')
+    })
   const canManage = (u)=> isAdminRole && u.role==='student' && (user.role==='founder' || u.school_id===user.school_id)
   const fmtMute = (iso)=> iso? new Date(iso).toLocaleString('zh-CN',{hour12:false}) : null
   const isMutedNow = (iso)=>{ if(!iso) return false; return new Date(iso).getTime() > Date.now() }
@@ -1093,7 +1101,7 @@ const AdminPage = ({user}) => {
     <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.4rem 0 0'}}>学校代码是 UID 前缀（如 KSCQ20260130）。新增后各处学校下拉会自动出现该校，接着在下面为它开通校方账号即可。</p>
     <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 为学校开通账号（校方 / 大使）</h3>
     <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',alignItems:'center'}}>
-      <select value={soSchool} onChange={e=>setSoSchool(e.target.value)} className="glass-input" style={{width:'auto'}}>{SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select>
+      <select value={soSchool} onChange={e=>setSoSchool(e.target.value)} className="glass-input" style={{width:'auto',colorScheme:'dark'}}>{SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select>
       <button className="glass-button btn-primary" onClick={()=>createSO('school_official')}>开通校方账号</button>
       <button className="glass-button" onClick={()=>createSO('ambassador')}>开通大使账号</button>
     </div>
@@ -1129,18 +1137,10 @@ const AdminPage = ({user}) => {
     <div className="mute-bar">
       <input className="glass-input" style={{width:'16rem'}} value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="搜索用户名 / 昵称 / UID"/>
     </div>
-    <div className="mute-bar">禁言时长：
-      <select className="glass-input" value={muteMins} onChange={e=>setMuteMins(Number(e.target.value))}>
-        <option value={30}>30 分钟</option>
-        <option value={60}>1 小时</option>
-        <option value={360}>6 小时</option>
-        <option value={1440}>1 天</option>
-        <option value={4320}>3 天</option>
-        <option value={10080}>7 天</option>
-      </select>
+    <div className="mute-bar filter-row">禁言时长：{[[30,'30 分钟'],[60,'1 小时'],[360,'6 小时'],[1440,'1 天'],[4320,'3 天'],[10080,'7 天']].map(([v,l])=><button key={v} className={`filter-chip ${muteMins===v?'active':''}`} onClick={()=>setMuteMins(v)}>{l}</button>)}
       <span className="mute-hint">仅可禁言{user.role==='founder'?'全部':'本校'}学生，不可禁言管理员</span>
     </div>
-    {uFiltered.map(u=><div key={u.id} className="glass-card admin-user-card">
+    {uSorted.map(u=><div key={u.id} className="glass-card admin-user-card">
       <div className="admin-user-info"><span className="uid-badge">{u.uid||'------'}</span><span className="admin-username">@{u.username}</span><span className="admin-nickname">{u.nickname}</span>{u.role==='founder'&&<span className="role-badge founder">创始人</span>}{u.role==='ambassador'&&<span className="role-badge ambassador">大使</span>}{u.role==='teacher'&&u.approved!==false&&<span className="role-badge teacher">👨‍🏫 教师</span>}{u.role==='teacher'&&u.approved===false&&<span className="role-badge teacher">教师（审核中）</span>}{u.role==='school_official'&&<span className="role-badge school_official">🏫 学校官方</span>}{u.banned&&<span className="role-badge banned">已封禁</span>}<span className="admin-school">{getSchoolName(u.school_id)}</span></div>
       <div className="admin-user-meta"><span>匿名: {u.is_anonymous?'是':'否'}</span><span>注册: {u.created_at?new Date(u.created_at).toLocaleDateString('zh-CN'):'-'}</span></div>
       {isMutedNow(u.muted_until)&&<div className="mute-status">已禁言至 {fmtMute(u.muted_until)}</div>}
