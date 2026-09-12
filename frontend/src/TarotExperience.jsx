@@ -786,7 +786,7 @@ const TarotExperience = () => {
             {/* AI 咨询师：结合顶部问题 + 牌面，给出星语解读 */}
             <div className="tarot-counselor">
               <div className="tarot-counselor-q">
-                <button className="tarot-ask" onClick={askCounsel} disabled={interpreting}>
+                <button className="tarot-ask" onClick={askCounsel} disabled={interpreting || !drawn}>
                   {interpreting ? <span className="tarot-shuffle"><span className="dot" /> 星语汇聚中…</span> : '✦ AI 解读'}
                 </button>
               </div>
