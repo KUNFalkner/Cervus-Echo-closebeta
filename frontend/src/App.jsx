@@ -1417,6 +1417,15 @@ function App() {
     if(saved){ try{ const u=JSON.parse(saved); if(u&&typeof u.id==='number'){ setUser(u) } else { localStorage.removeItem('user'); localStorage.removeItem('token') } }catch{ localStorage.removeItem('user') } }
     refreshUser();
   },[refreshUser])
+  // 进入网站即播放 hello 开屏动画：登录后 / 注册后(reload) / 直接访问 / 刷新 都算「进入」。
+  // 每次页面加载只播一次；新用户（未接受公约）先看动画，动画结束再由 onDone 弹公约。
+  const welcomedRef = useRef(false)
+  useEffect(()=>{
+    if(!user || welcomedRef.current) return
+    welcomedRef.current = true
+    if(!localStorage.getItem('rules_accepted')) setPendingRules(true)
+    setShowWelcome(true)
+  },[user])
   // 切回标签页时再同步一次（手机改完，电脑切回来即更新）
   useEffect(()=>{ const onVis=()=>{ if(document.visibilityState==='visible') refreshUser() }; document.addEventListener('visibilitychange',onVis); return ()=>document.removeEventListener('visibilitychange',onVis) },[refreshUser])
 
