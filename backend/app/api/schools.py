@@ -31,10 +31,22 @@ def create_school(
     actor: UserModel = Depends(require_founder),
     db: Session = Depends(get_db)
 ):
-    """创建新学校"""
+    """创建新学校；若同代码学校此前被禁用，则重新启用并更新名称。
+
+    禁用是软删除（is_active=False），代码仍被占用。若不在这里复用，
+    该校就再也加不回来（界面没有"重新启用"入口），此前会直接 400 卡死。
+    """
     existing = db.query(SchoolModel).filter(SchoolModel.code == school.code).first()
     if existing:
-        raise HTTPException(status_code=400, detail="学校代码已存在")
+        if existing.is_active:
+            raise HTTPException(status_code=400, detail="学校代码已存在")
+        existing.is_active = True
+        existing.name = school.name
+        if school.short_name:
+            existing.short_name = school.short_name
+        db.commit()
+        db.refresh(existing)
+        return existing
     db_school = SchoolModel(**school.model_dump())
     db.add(db_school)
     db.commit()

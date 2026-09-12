@@ -407,8 +407,12 @@ from pydantic import BaseModel as _BM
 
 
 class _SchoolOfficialCreate(_BM):
-    """只需给学校代码；用户名/昵称/密码按统一规则自动派生（可显式覆盖）。"""
+    """只需给学校代码；用户名/昵称/密码按统一规则自动派生（可显式覆盖）。
+
+    role: school_official（默认）或 ambassador —— 新增学校后这两类账号都需要开通。
+    """
     school_id: str
+    role: Optional[str] = None
     username: Optional[str] = None
     nickname: Optional[str] = None
     password: Optional[str] = None
@@ -416,33 +420,45 @@ class _SchoolOfficialCreate(_BM):
 
 @router.post("/school-officials")
 def create_school_official(body: _SchoolOfficialCreate, db: Session = Depends(get_db), founder: UserModel = Depends(require_founder)):
-    """为某校开通官方账号（UID=校码+OFFICIAL，每校唯一）。
+    """为某校开通账号（校方 / 大使），每校各一个。
 
-    新增学校后走这条：选学校 → 一键开通，凭据按统一规则生成并回显，线下交给学校。
-    已开通的学校返回 400，避免覆盖既有密码。
+    新增学校后走这条：选学校 → 一键开通，凭据按统一规则生成并回显，线下交给本人。
+    已开通的返回 400，避免覆盖既有密码。
+      - 校方 school_official: UID 校码OFFICIAL / 用户名 校码official / 昵称 简称+校方
+      - 大使 ambassador:      UID 校码00000000 / 用户名 校码ambassador / 昵称 简称+大使
+    口令统一 校码001，与 init_db 的种子规则一致。
     """
     school = db.query(SchoolModel).filter(SchoolModel.code == body.school_id).first()
     if not school:
         raise HTTPException(status_code=400, detail="学校不存在或不在允许列表")
-    # 统一规则：用户名 校码official，密码 校码001，昵称 简称+校方
-    uname = body.username or f"{school.code}official"
-    nick = body.nickname or f"{school.short_name}校方"
+    role = body.role or "school_official"
+    if role == "ambassador":
+        uname = body.username or f"{school.code}ambassador"
+        nick = body.nickname or f"{school.short_name}大使"
+        uid = f"{school.code}00000000"
+        label = "大使"
+    elif role == "school_official":
+        uname = body.username or f"{school.code}official"
+        nick = body.nickname or f"{school.short_name}校方"
+        uid = f"{school.code}OFFICIAL"
+        label = "官方"
+    else:
+        raise HTTPException(status_code=400, detail="role 只能是 school_official 或 ambassador")
     pw = body.password or f"{school.code}001"
-    uid = f"{school.code}OFFICIAL"
     if db.query(UserModel).filter(UserModel.uid == uid).first():
-        raise HTTPException(status_code=400, detail="该校已开通官方账号（每校一个）")
+        raise HTTPException(status_code=400, detail=f"该校已开通{label}账号（每校一个）")
     if db.query(UserModel).filter(UserModel.username == uname).first():
         raise HTTPException(status_code=400, detail="用户名已存在")
     user = UserModel(
         username=uname, nickname=nick, uid=uid,
         password=_hash_pw(pw), school_id=school.code,
-        role="school_official", approved=True,
+        role=role, approved=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"message": f"已为「{school.name}」开通官方账号", "uid": uid,
-            "username": uname, "password": pw,
+    return {"message": f"已为「{school.name}」开通{label}账号", "uid": uid,
+            "username": uname, "password": pw, "role": role,
             "user": _UserSchema.model_validate(user).model_dump()}
 
 

@@ -56,6 +56,21 @@ ok('新校方号可审本校教师', st == 200, f'[{st}]')
 st, d = rq('POST', '/admin/school-officials', {'school_id': CODE}, ft)
 ok('重复开通被拒', st == 400, f'[{st}]')
 
+st, d = rq('POST', '/admin/school-officials', {'school_id': CODE, 'role': 'ambassador'}, ft)
+ok('一键开通大使账号', st == 200, f'[{st}] {str(d)[:60]}')
+apw = d.get('password') or (CODE + '001'); aun = d.get('username') or (CODE + 'ambassador')
+st, d = rq('POST', '/users/login', {'username': aun, 'password': apw})
+at = d.get('access_token')
+ok('新大使号可登录 role=ambassador', st == 200 and d.get('user', {}).get('role') == 'ambassador', f'[{st}] {aun}')
+st, d = rq('GET', '/admin/users?limit=5', t=at)
+ok('新大使号可进管理后台', st == 200, f'[{st}]')
+st, d = rq('POST', '/admin/school-officials', {'school_id': CODE, 'role': 'ambassador'}, ft)
+ok('大使账号重复开通被拒', st == 400, f'[{st}]')
+
+if at:
+    st, d = rq('DELETE', '/users/me', {'password': apw}, at)
+    ok('清理：大使号自行注销', st == 200, f'[{st}]')
+
 if ot:
     st, d = rq('DELETE', '/users/me', {'password': pw}, ot)
     ok('清理：校方号自行注销', st == 200, f'[{st}]')

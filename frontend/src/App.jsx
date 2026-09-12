@@ -1057,7 +1057,7 @@ const AdminPage = ({user}) => {
     toast.success('已新增学校，可在下方「开通学校官方账号」为它开通校方号')
     setNsCode(''); setNsName(''); setNsShort(''); await refreshSchools()
   }catch(e){toast.error(e.message)} }
-  const createSO = async()=>{ try{ const r=await apiFetch('/admin/school-officials',{method:'POST',body:JSON.stringify({school_id:soSchool})}); if(!r.ok)throw new Error(await errMsg(r,'开通失败')); const d=await r.json(); setSoResult(d); toast.success(d.message) }catch(e){ toast.error(e.message) } }
+  const createSO = async(role='school_official')=>{ try{ const r=await apiFetch('/admin/school-officials',{method:'POST',body:JSON.stringify({school_id:soSchool,role})}); if(!r.ok)throw new Error(await errMsg(r,'开通失败')); const d=await r.json(); setSoResult(d); toast.success(d.message) }catch(e){ toast.error(e.message) } }
   const delPost = async(id)=>{ if(!confirm('确认删除该帖子？此操作不可恢复'))return; try{ const r=await apiFetch(`/posts/${id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setPlist(ps=>ps.filter(x=>x.id!==id)); toast.success('帖子已删除') }catch(e){toast.error(e.message)} }
   // 管理范围：founder 管全部；大使只管本校；管理员（founder/ambassador）自身不可被操作
   const isAdminRole = user.role==='founder'||user.role==='ambassador'
@@ -1089,13 +1089,14 @@ const AdminPage = ({user}) => {
       <button className="glass-button btn-primary" onClick={createSchool} disabled={!nsCode.trim()||!nsName.trim()}>新增学校</button>
     </div>
     <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.4rem 0 0'}}>学校代码是 UID 前缀（如 KSCQ20260130）。新增后各处学校下拉会自动出现该校，接着在下面为它开通校方账号即可。</p>
-    <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 开通学校官方账号</h3>
+    <h3 style={{margin:'1.25rem 0 .5rem'}}>🏫 为学校开通账号（校方 / 大使）</h3>
     <div style={{display:'flex',flexWrap:'wrap',gap:'.4rem',alignItems:'center'}}>
       <select value={soSchool} onChange={e=>setSoSchool(e.target.value)} className="glass-input" style={{width:'auto'}}>{SCHOOLS.map(s=><option key={s.code} value={s.code}>{s.name}</option>)}</select>
-      <button className="glass-button btn-primary" onClick={createSO}>一键开通（自动生成账号密码）</button>
+      <button className="glass-button btn-primary" onClick={()=>createSO('school_official')}>开通校方账号</button>
+      <button className="glass-button" onClick={()=>createSO('ambassador')}>开通大使账号</button>
     </div>
-    {soResult&&<p style={{fontSize:'.8rem',color:'var(--fg)',margin:'.5rem 0 0'}}>已开通 —— 用户名 <b>{soResult.username}</b>　密码 <b>{soResult.password}</b>（请线下交给学校）</p>}
-    <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.5rem 0 0'}}>12 校已默认开通（用户名 校码official，密码 校码001）。以后新增学校，在此选校一键开通即可。</p>
+    {soResult&&<p style={{fontSize:'.8rem',color:'var(--fg)',margin:'.5rem 0 0'}}>已开通 —— 用户名 <b>{soResult.username}</b>　密码 <b>{soResult.password}</b>（UID {soResult.uid}，请线下交给本人）</p>}
+    <p style={{fontSize:'.72rem',color:'var(--muted)',margin:'.5rem 0 0'}}>规则：用户名 校码official / 校码ambassador，口令统一 校码001。每校各一个，已开通的会提示"每校一个"，不会覆盖既有密码。</p>
     </>}
   </div>}
   {tab==='stats'&&stats&&<div className="admin-stats-wrap">
