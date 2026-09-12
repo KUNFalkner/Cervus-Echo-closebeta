@@ -77,7 +77,7 @@ st, d = http('POST', '/users/', {'username': u4, 'password': 'test1234', 'school
                                  'class_number': random.randint(1, 20), 'student_number': random.randint(1, 55)})
 nick = (d.get('user') or {}).get('nickname') if st == 200 else None
 stok = (d.get('access_token') if st == 200 else None)
-ok('昵称留空自动生成', st == 200 and bool(nick), f'[{st}] nick={nick}')
+ok('昵称留空自动生成', st == 200 and bool(nick), f'[{st}] nick={nick} detail={str(d)[:90]}')
 uid_ok = bool((d.get('user') or {}).get('uid', '').startswith('JSKS2024'))
 ok('学生 UID = 校码+年+班+号', uid_ok, f'uid={(d.get("user") or {}).get("uid")}')
 

@@ -90,15 +90,19 @@ st,_,_=req("POST","/users/",{"username":uname("nodig"),"password":"Abcdefgh","ni
 if st in (422,400): ok("REG_PW_NO_DIGIT", f"st={st}")
 else: bad("REG_PW_NO_DIGIT", f"st={st}")
 
-# 5) 同 IP 注册限流：3/小时 -> 第4个 429（固定唯一 XFF，配合重启后端保证桶为空）
+# 5) 同 IP 注册限流：现为 10/小时 -> 第 11 次 429（固定唯一 XFF，配合重启后端保证桶为空）
+#    注：2026-09-11 起额度从 3 提到 10（一所学校共用出口 IP，3 次会挡住整校）；
+#    断言只要求「最终被限流」且「有成功的」，以免学号偶发撞车（400）把计数带偏。
 created_uids=[]
-for i in range(4):
-    st,reg,_=req("POST","/users/",{"username":uname("rl%d"%i),"password":"Abcd1234","nickname":"限流","school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,9),"student_number":random.randint(1, 55)},xff="198.51.100.23")
+st=None
+for i in range(12):
+    st,reg,_=req("POST","/users/",{"username":uname("rl%d"%i),"password":"Abcd1234","nickname":"限流","school_id":"JSKS","enrollment_year":2024,"class_number":random.randint(1,20),"student_number":random.randint(1, 55)},xff="198.51.100.23")
+    if st==429: break
     if st==200: created_uids.append(reg["user"]["id"])
-if len(created_uids)==3 and st==429:
-    ok("REG_IP_RATE_LIMIT", f"created={len(created_uids)} 4th={st}")
+if st==429 and len(created_uids)>0:
+    ok("REG_IP_RATE_LIMIT", f"成功={len(created_uids)} 之后被限流(429)")
 else:
-    bad("REG_IP_RATE_LIMIT", f"created={len(created_uids)} last_st={st}")
+    bad("REG_IP_RATE_LIMIT", f"成功={len(created_uids)} last_st={st}")
 
 # 清理：删除测试用户及其数据
 uids=[uid]+created_uids

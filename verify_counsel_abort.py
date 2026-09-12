@@ -69,10 +69,21 @@ time.sleep(4)
 ok1 = js("!!document.querySelector('.tarot-card')")
 print("发牌完成:", ok1)
 
-# 点 AI 解读（进行中）
-js("[...document.querySelectorAll('.tarot-ask')].find(b=>!b.disabled)?.click()")
-time.sleep(2)
-busy = js("!!document.querySelector('.tarot-counsel-wait')")
+# 点 AI 解读（进行中）：按钮启用有动画竞态，点空就重试；再轮询等等待环
+busy = False
+for attempt in range(3):
+    for _ in range(40):
+        if js("[...document.querySelectorAll('.tarot-ask')].some(b=>!b.disabled)"):
+            break
+        time.sleep(0.5)
+    js("[...document.querySelectorAll('.tarot-ask')].find(b=>!b.disabled)?.click()")
+    for _ in range(20):
+        if js("!!document.querySelector('.tarot-counsel-wait')"):
+            busy = True
+            break
+        time.sleep(0.5)
+    if busy:
+        break
 print("解读进行中(等待环出现):", busy)
 
 # 解读进行中点「重新洗牌」
@@ -90,12 +101,29 @@ print("旧解读未写入新牌面:", no_old_counsel)
 
 # 新一抽的 AI 解读应能正常工作：先回到抽牌前（已在重抽后），再抽一次，然后发起新解读
 js("document.querySelector('.tarot-start')?.click()")
-time.sleep(4.5)
+# 等「询问」按钮真正可用再点（发牌/翻牌动画结束前它是 disabled，盲点会点空）
+for _ in range(40):
+    if js("[...document.querySelectorAll('.tarot-ask')].some(b=>!b.disabled)"):
+        break
+    time.sleep(0.5)
 dealt2 = js("!!document.querySelector('.tarot-card')")
 print("新抽牌发牌完成:", dealt2)
 js("[...document.querySelectorAll('.tarot-ask')].find(b=>!b.disabled)?.click()")
-time.sleep(2)
-new_wait = js("!!document.querySelector('.tarot-counsel-wait')")
+# 等待环是异步渲染的；且上一次被取消的请求可能仍在 Ollama 端生成（串行），故重试 + 放宽到 60s
+new_wait = False
+for attempt in range(3):
+    for _ in range(60):
+        if js("[...document.querySelectorAll('.tarot-ask')].some(b=>!b.disabled)"):
+            break
+        time.sleep(0.5)
+    js("[...document.querySelectorAll('.tarot-ask')].find(b=>!b.disabled)?.click()")
+    for _ in range(40):
+        if js("!!document.querySelector('.tarot-counsel-wait')"):
+            new_wait = True
+            break
+        time.sleep(0.5)
+    if new_wait:
+        break
 print("新抽牌可正常发起解读(等待环重现):", new_wait)
 # 清理：作废这次测试解读，不留后台请求
 js("document.querySelector('.tarot-redraw')?.click()")
