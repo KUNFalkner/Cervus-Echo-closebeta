@@ -11,6 +11,9 @@ class User(Base):
     nickname = Column(String)
     avatar = Column(String)
     password = Column(String, nullable=True)
+    # 匿名是学生专属属性（站长规则）：只有 student 可为 True。
+    # 创始人/大使/教师/校方恒为 False —— 发帖层 create_post 已强转，
+    # 账号属性层也必须一致，否则管理列表会显示"匿名: 是"（2026-09-12 站长指出）。
     is_anonymous = Column(Boolean, default=True)
     role = Column(String, default="student")
     # 特权角色审核：student 恒为 True；teacher 注册后默认 False（待 founder 批准，

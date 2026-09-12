@@ -292,6 +292,10 @@ def update_user(
     if update.avatar is not None:
         target.avatar = update.avatar
     if update.is_anonymous is not None:
+        # 匿名是学生专属（站长规则）：非学生账号一律无法开启匿名，
+        # 无论本人改还是管理员改——与 create_post 的发帖层强转配套。
+        if update.is_anonymous and current.role != "student":
+            raise HTTPException(status_code=403, detail="匿名仅对学生开放")
         target.is_anonymous = update.is_anonymous
     if update.profile_bg is not None:
         target.profile_bg = update.profile_bg
