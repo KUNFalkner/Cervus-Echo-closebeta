@@ -58,3 +58,5 @@ backend/uv_*.out
 bench_models.txt
 demo_*.html
 probe_*.py
+# 项目介绍 PPT / deck 素材（16MB 二进制，不入库；文件保留在磁盘）
+intro/
