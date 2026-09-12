@@ -39,6 +39,8 @@ def recv():
             if isinstance(d, dict) and "id" in d: pend[d["id"]] = d
         except Exception:
             continue   # 容忍非 JSON 帧，不退出
+import threading
+threading.Thread(target=recv, daemon=True).start()   # 原来漏了这行：没人读回包，send() 只能干等超时
 send_ok = [True]
 def send(method, params=None, timeout=25):
     global mid; mid += 1; i = mid
