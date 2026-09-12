@@ -151,8 +151,9 @@ def create_post(
     if post.is_announcement and not can_post_announcement(user, post.forum):
         raise HTTPException(status_code=403, detail="无权发布公告")
 
-    # 教师/校方（已批准）：不允许匿名发布，is_anonymous 强制 False
-    if user.role in ("teacher", "school_official") and user.approved:
+    # 只有学生可匿名：教师/校方/大使/创始人都带身份，一律强制实名。
+    # 顺带堵住漏洞——原来只对「已批准」教师强转，注册成教师但未批准者仍可匿名。
+    if user.role != "student":
         post.is_anonymous = False
 
     # 敏感词过滤

@@ -85,4 +85,28 @@ if bid:
     st, _ = req('DELETE', f'/boards/{bid}', None, ftok)
     ok('创始人可删板块（清理）', st == 200, f'[{st}]')
 
+# ── 5. 匿名只属于学生：大使/founder/教师 请求匿名也必须被强转实名 ──
+def post_anon(token, name):
+    st, d = req('POST', '/posts/', {'title': name + rid(), 'content': 'anon-check',
+                                    'forum': 'main', 'category': 'general', 'tags': '',
+                                    'is_anonymous': True}, token)
+    pid = d.get('id') if isinstance(d, dict) else None
+    anon = d.get('is_anonymous') if isinstance(d, dict) else None
+    if pid:
+        req('DELETE', f'/posts/{pid}', None, ftok)
+    return st, anon
+
+
+st, d = req('POST', '/users/login', {'username': 'JSKSambassador', 'password': 'test1234'})
+atok = d.get('access_token') if isinstance(d, dict) else None
+ok('大使登录', bool(atok))
+st, anon = post_anon(atok, '大使匿名尝试')
+ok('大使匿名被强转实名', st == 200 and anon is False, f'[{st}] is_anonymous={anon}')
+
+st, anon = post_anon(ftok, 'founder匿名尝试')
+ok('founder 匿名被强转实名', st == 200 and anon is False, f'[{st}] is_anonymous={anon}')
+
+st, anon = post_anon(ttok, '教师匿名尝试')
+ok('教师匿名被强转实名', st == 200 and anon is False, f'[{st}] is_anonymous={anon}')
+
 print(f'\n=== PASS {P} / {P + F} ===')
