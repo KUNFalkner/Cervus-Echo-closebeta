@@ -3,7 +3,7 @@
 """
 import json, os, sqlite3, sys, urllib.request, urllib.error
 
-BASE = "http://localhost:8001/api"
+BASE = "http://localhost:8000/api"
 DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend", "cervus.db")
 passed = []; failed = []
 
@@ -43,7 +43,7 @@ def login_old(order="DESC", except_usernames=[]):
     return r["access_token"], r["user"]
 
 # founder（种子账号）
-st, r = http("POST", "/users/login", {"username": "founder", "password": "20100606"})
+st, r = http("POST", "/users/login", {"username": "founder", "password": "201006"})
 if st != 200:
     print("FOUNDER LOGIN FAIL", st, r); sys.exit(1)
 FT = r["access_token"]
@@ -86,7 +86,7 @@ if st == 200:
     ok("焚毁消息计数>=1", r.get("burn_msg", {}).get("count", 0) >= 1)
     ok("note 字段存在", "note" in r)
 # ambassador 403
-st, r = http("POST", "/users/login", {"username": "KSPLambassador", "password": "20100606"})
+st, r = http("POST", "/users/login", {"username": "KSPLambassador", "password": "201006"})
 if st == 200:
     st2, r2 = http("GET", "/admin/privacy-stats", None, r["access_token"])
     ok("ambassador 拉 privacy-stats 403", st2 == 403)
@@ -96,7 +96,7 @@ else:
     row = con.execute("SELECT username FROM users WHERE role='ambassador' LIMIT 1").fetchone()
     con.close()
     if row:
-        st, r = http("POST", "/users/login", {"username": row[0], "password": "20100606"})
+        st, r = http("POST", "/users/login", {"username": row[0], "password": "201006"})
         if st == 200:
             st2, r2 = http("GET", "/admin/privacy-stats", None, r["access_token"])
             ok("ambassador 拉 privacy-stats 403", st2 == 403)
