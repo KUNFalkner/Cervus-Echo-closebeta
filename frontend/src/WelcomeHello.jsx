@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import { animate } from 'animejs'
-import '@fontsource/caveat/700.css'
 
 /**
  * 登录欢迎遮罩：手写 "hello" 整词描出 → 昵称与品牌落款依次浮现。
@@ -33,7 +32,11 @@ export default function WelcomeHello({ nickname, onDone }) {
       try { document.fonts.check('700 20px Caveat') ? setFontReady(true) : setFontFailed(true) } catch { setFontFailed(true) }
     }, 3000)
     if (document.fonts && document.fonts.load) {
-      document.fonts.load('700 100px Caveat').then(() => settle(true)).catch(() => {
+      // 带采样文本 'hello'：FontFaceSet.load 只下载该文本命中的子集（latin），
+      // 不会再被 cyrillic 等无关子集的网络失败连坐
+      document.fonts.load('700 100px Caveat', 'hello').then((faces) => {
+        settle(faces && faces.length > 0)
+      }).catch(() => {
         if (dead) return
         try { document.fonts.check('700 20px Caveat') ? settle(true) : settle(false) } catch { settle(false) }
       })

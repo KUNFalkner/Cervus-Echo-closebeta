@@ -2338,7 +2338,17 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 
 /* ── WelcomeHello v2：真字形描边 + 降级 ── */
 .welcome-loading { color: var(--accent, #e3c478); font-size: 2rem; animation: orb-breath 1.6s ease-in-out infinite; }
-.welcome-hello-css { font-family: 'Segoe Script', 'Comic Sans MS', cursive; font-size: 3.6rem; color: var(--accent, #e3c478); filter: drop-shadow(0 0 12px rgba(232,196,138,.5)); }
+/* 降级分支：fontFailed 时渲染此节点。字体栈必须仍以自托管 Caveat 打头 ——
+   即使 fonts.load 判定失败，同一份自托管 woff2 也常能渲染（只是晚到），
+   font-display:swap 会让它加载完成后自动换装；Segoe Script/Comic Sans MS 是
+   Windows 独有，手机上不存在，落到系统 cursive 就不是手写体了（站长截图实证） */
+.welcome-hello-css {
+  font-family: 'Caveat', 'Segoe Script', cursive;
+  font-weight: 700;
+  font-size: 3.6rem;
+  color: var(--accent, #e3c478);
+  filter: drop-shadow(0 0 12px rgba(232,196,138,.5));
+}
 
 /* ── WelcomeHello v3：Caveat 真字体描边（v4：整词连笔 + 加粗 + 高不透明度）── */
 /* Caveat 同样自托管（曾因本地获取失败降级运行时加载，9cec8a1 同类问题根治） */
