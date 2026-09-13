@@ -21,24 +21,44 @@ export default function WelcomeHello({ nickname, onDone }) {
   const doneRef = useRef(onDone)
   doneRef.current = onDone  // 永远指向最新回调，但不触发 effect 重跑
 
-  // 等 Caveat 真字体加载（3s 超时降级）
+  // 等 Caveat 真字体加载（3s 超时降级）。
+  // 注意 fonts.load 对多 unicode-range 子集：任一子集网络失败会整体 reject，
+  // 但**已加载成功的子集仍可用**（latin 子集就够画 "hello"）——所以 reject 不算失败，
+  // 只要 check() 探测到可用字形即视为就绪；两者皆无才降级。
   useEffect(() => {
     let dead = false
-    const t = setTimeout(() => { if (!dead) setFontFailed(true) }, 3000)
+    const settle = (ok) => { if (!dead) { clearTimeout(t); ok ? setFontReady(true) : setFontFailed(true) } }
+    const t = setTimeout(() => {
+      // 兜底：再探一次，可用就绪，否则降级
+      try { document.fonts.check('700 20px Caveat') ? setFontReady(true) : setFontFailed(true) } catch { setFontFailed(true) }
+    }, 3000)
     if (document.fonts && document.fonts.load) {
-      document.fonts.load('700 100px Caveat').then(() => {
+      document.fonts.load('700 100px Caveat').then(() => settle(true)).catch(() => {
         if (dead) return
-        clearTimeout(t); setFontReady(true)
-      }).catch(() => { if (!dead) { clearTimeout(t); setFontFailed(true) } })
+        try { document.fonts.check('700 20px Caveat') ? settle(true) : settle(false) } catch { settle(false) }
+      })
     } else {
-      clearTimeout(t); setFontFailed(true)
+      settle(false)
     }
     return () => { dead = true; clearTimeout(t) }
   }, [])
 
   // 主动画序列：等字体+量长度 → 描边 → 昵称 → 品牌落款 → 淡出 → onDone
   useEffect(() => {
-    if (fontFailed) return  // 走降级渲染，无动画
+    // 降级渲染（字体不可用）：静态成品 → 短暂停留 → 淡出 → onDone。
+    // 绝不能 return 了事 —— 否则 onDone 永不触发，遮罩关不掉，用户被锁死在欢迎层。
+    if (fontFailed) {
+      const timers = [
+        setTimeout(() => setPhase('name'), 300),
+        setTimeout(() => setPhase('brand'), 900),
+        setTimeout(() => setPhase('fade'), 2000),
+        setTimeout(() => doneRef.current && doneRef.current(), 2700),
+      ]
+      const root = rootRef.current
+      const skip = () => { timers.forEach(clearTimeout); doneRef.current && doneRef.current() }
+      root && root.addEventListener('click', skip)
+      return () => { timers.forEach(clearTimeout); root && root.removeEventListener('click', skip) }
+    }
     if (!fontReady) return  // 字体没好，先不启动
     const root = rootRef.current
     const textEl = textRef.current
