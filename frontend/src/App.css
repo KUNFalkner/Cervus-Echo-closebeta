@@ -1179,9 +1179,19 @@ body[data-time="day"] .login-input:focus {
   font-size: 3rem;
   line-height: 1.1;
 }
+/* 哥特标题字体自托管：手机（iOS/Android）没有 Windows 的 Old English Text MT，
+   原来一路 fallback 到 serif 变"普通英文"（站长手机实测）。woff2 仅 26KB，
+   随站点分发，桌面/手机一致；display:swap 保证加载期间先用回退字体不白屏。 */
+@font-face {
+  font-family: 'UnifrakturMaguntia';
+  src: url('/fonts/unifrakturmaguntia.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
 /* 哥特标题：暗金古铜渐变 + 暗描边提对比 + 冷调微光（去奶白高光，避免发憨/可爱） */
 .tarot-gothic-title {
-  font-family: 'UnifrakturMaguntia', 'UnifrakturCook', 'Cinzel Decorative', 'Old English Text MT', 'Cloister Black', serif;
+  font-family: 'UnifrakturMaguntia', 'Old English Text MT', serif;
   font-weight: 400;
   background: linear-gradient(180deg, #e3c483 0%, #b78f3c 55%, #7e5d27 100%);
   -webkit-background-clip: text;
