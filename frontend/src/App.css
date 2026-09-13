@@ -2341,6 +2341,14 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 .welcome-hello-css { font-family: 'Segoe Script', 'Comic Sans MS', cursive; font-size: 3.6rem; color: var(--accent, #e3c478); filter: drop-shadow(0 0 12px rgba(232,196,138,.5)); }
 
 /* ── WelcomeHello v3：Caveat 真字体描边（v4：整词连笔 + 加粗 + 高不透明度）── */
+/* Caveat 同样自托管（曾因本地获取失败降级运行时加载，9cec8a1 同类问题根治） */
+@font-face {
+  font-family: 'Caveat';
+  src: url('/fonts/caveat-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 .welcome-hello-text {
   font-family: 'Caveat', 'Segoe Script', cursive;
   font-weight: 700; font-size: 104px;
