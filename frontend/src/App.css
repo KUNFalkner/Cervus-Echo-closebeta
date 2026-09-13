@@ -2567,3 +2567,36 @@ body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; 
   font-size: .9rem;
   padding: .65rem .9rem;
 }
+
+/* ── 手机端下拉刷新指示器（仅移动端显示）── */
+.ptr-indicator {
+  display: none;
+  position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+  z-index: 3000;
+  align-items: center; gap: .45rem;
+  margin-top: .55rem;
+  padding: .34rem .85rem;
+  border-radius: 99px;
+  background: rgba(18, 15, 32, .92);
+  border: 1px solid rgba(227,196,120,.35);
+  color: #e3c478;
+  font-size: .78rem;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+  pointer-events: none;
+  transition: transform .12s ease, opacity .15s ease;
+  opacity: .92;
+}
+.ptr-indicator.ready { border-color: rgba(227,196,120,.85); opacity: 1; }
+.ptr-spinner {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid rgba(227,196,120,.25);
+  border-top-color: #e3c478;
+}
+.ptr-indicator.pulling .ptr-spinner, .ptr-indicator.ready .ptr-spinner { transform: rotate(calc(var(--p,0)*1deg)); }
+.ptr-indicator.refreshing .ptr-spinner { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg) } }
+@media (max-width: 640px) {
+  .ptr-indicator { display: flex; }
+  /* 关掉 Chrome 安卓在页面顶部的原生「下拉=整页 reload」，让位给应用内刷新 */
+  body { overscroll-behavior-y: contain; }
+}

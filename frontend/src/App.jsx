@@ -1477,6 +1477,29 @@ function App() {
   useEffect(()=>{ if(!user){setDmUnread(0);return} fetchDmUnread(); const t=setInterval(fetchDmUnread,20000); return ()=>clearInterval(t) },[user,fetchDmUnread])
   // 切回标签页时即时刷新未读，避免红点滞后（依赖已声明的 fetchUnread/fetchDmUnread）
   useEffect(()=>{ const onVis=()=>{ if(document.visibilityState==='visible'){ fetchUnread(); fetchDmUnread() } }; document.addEventListener('visibilitychange',onVis); return ()=>document.removeEventListener('visibilitychange',onVis) },[fetchUnread,fetchDmUnread])
+  // ── 手机端下拉刷新（站长要求）：页面在顶部时下拉，过阈值后释放触发。
+  // Chrome 安卓的原生下拉=整页 reload，已用 overscroll-behavior-y:contain 关掉，让位给这个应用内刷新。
+  const [ptrState,setPtrState]=useState('idle')
+  const [ptrPull,setPtrPull]=useState(0)
+  const ptrRef=useRef({state:'idle',pull:0})
+  const setPtr=(state,pull=0)=>{ ptrRef.current={state,pull}; setPtrState(state); setPtrPull(pull) }
+  const doPtrRefresh=useCallback(async()=>{ setPtr('refreshing',14); try{ await Promise.all([fetchPosts(),fetchUnread(),fetchDmUnread()]) }catch{} refreshUser(); setPtr('idle',0) },[fetchPosts,fetchUnread,fetchDmUnread,refreshUser])
+  useEffect(()=>{
+    if(!user) return
+    let startY=0,startX=0,armed=false,engaged=false
+    const REL=64,MAX=104,DAMP=.55
+    const atTop=()=>{ const mc=document.querySelector('.main-content'); return (window.scrollY||0)<=0&&(!mc||mc.scrollTop<=0) }
+    const ts=e=>{ if(e.touches.length!==1||ptrRef.current.state==='refreshing')return; if(atTop()){ startY=e.touches[0].clientY; startX=e.touches[0].clientX; armed=true; engaged=false } }
+    const tm=e=>{ if(!armed||ptrRef.current.state==='refreshing')return
+      const dy=e.touches[0].clientY-startY, dx=e.touches[0].clientX-startX
+      if(!engaged){ if(dy<6)return; if(Math.abs(dx)>Math.abs(dy)){armed=false;return} engaged=true }
+      if(dy>0){ const d=Math.min(MAX,Math.round(dy*DAMP)); setPtr(d>=REL?'ready':'pulling',d); if(e.cancelable)e.preventDefault() } else setPtr('pulling',0) }
+    const te=()=>{ if(!armed)return; armed=false; engaged=false; if(ptrRef.current.state==='ready')doPtrRefresh(); else setPtr('idle',0) }
+    document.addEventListener('touchstart',ts,{passive:true})
+    document.addEventListener('touchmove',tm,{passive:false})
+    document.addEventListener('touchend',te); document.addEventListener('touchcancel',te)
+    return ()=>{ document.removeEventListener('touchstart',ts); document.removeEventListener('touchmove',tm); document.removeEventListener('touchend',te); document.removeEventListener('touchcancel',te) }
+  },[user,doPtrRefresh])
   // 未读持久化「做到不用改动为止」：任意来源（乐观标记/轮询/切端同步）导致 unread/dmUnread 变化时即时写回 localStorage，
   // 保证刷新或切端后红点与显示完全一致，不会因轮询间隔出现旧值回弹。
   useEffect(()=>{ try{ localStorage.setItem('cervus_unread', String(unread)) }catch{} },[unread])
@@ -1560,6 +1583,8 @@ function App() {
 
   return <ToastProvider>
     <Starfield/>
+    {(user&&ptrState!=='idle')&&<div className={`ptr-indicator ${ptrState}`} style={{transform:`translateY(${Math.min(ptrPull,28)}px)`}}>
+      <span className="ptr-spinner"/>{ptrState==='refreshing'?'刷新中…':ptrState==='ready'?'松开刷新':'下拉刷新'}</div>}
     {showRules&&<RulesModal onClose={()=>{localStorage.setItem('rules_accepted','true');setShowRules(false)}}/>}
     {showWelcome&&user&&<WelcomeHello nickname={user.nickname} onDone={()=>{ setShowWelcome(false); if(pendingRules){ setShowRules(true); setPendingRules(false) } }}/>}
     {editPost&&<PostEditModal post={editPost} boards={boards} onClose={()=>setEditPost(null)} onSaved={(p)=>{ setPosts(prev=>prev.map(x=>x.id===p.id?p:x)); setEditPost(null); fetchPosts() }}/>}
