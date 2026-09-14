@@ -98,6 +98,10 @@ export default function WelcomeHello({ nickname, onDone }) {
         // 写完最后一笔才加到整词（视觉上光晕随最后一笔点亮，反而更有"点睛"感）。
         const letters = Array.from(textEl.querySelectorAll('tspan'))
         if (!letters.length || !textEl.animate) throw new Error('no tspans/WAAPI')
+        // text 容器的 opacity:0 是入场前的初始态（避免字体未就绪时闪现整词），
+        // v6 只点亮了 tspan 自己——text 容器还是 0 → 整体不可见（站长报"hello 没了"的根因）。
+        // 这里必须把容器也点亮；tspan 各自的 dash 接力不受影响。
+        textEl.style.opacity = '1'
         const seq = []
         for (const ch of letters) {
           const w = ch.getComputedTextLength()
