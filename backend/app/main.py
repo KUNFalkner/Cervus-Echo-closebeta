@@ -22,9 +22,24 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from app.api import posts, users, chat, reports, admin, schools, notifications, uploads, tarot, social, dm, boards, polls, burn, groups
 
+# ── asyncio 连接噪音过滤器（后端反复僵死的根治，2026-09-13）──────────────────
+# 症状：Windows Proactor 事件循环被海量 ConnectionResetError [WinError 10054] 回调
+# 淹死（12 分钟 2782 条），进程活着但不再服务 → nginx 502。来源是客户端（手机轮询/
+# WS 断线重连/nginx 连接池）掐断连接——这在 TCP 世界是常态噪音，本身无害。
+# 处理：在事件循环层吞掉这类异常，不让它们进入"未处理回调异常"路径堆积。
+import asyncio as _asyncio
+
+
+def _quiet_exception_handler(loop, context):
+    exc = context.get("exception")
+    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError)):
+        return  # 客户端断开是正常现象，静默丢弃
+    # 其余异常保持默认行为（打印到 stderr）
+    loop.default_exception_handler(context)
+
 app = FastAPI(
     title="鹿鸣回音社区 API",
-    description="鹿鸣回音社区后端API - Beta v0.1.8",
+    description="鹿鸣回音社区API - Beta v0.1.8",
     version="0.1.8"
 )
 
@@ -220,12 +235,29 @@ app.mount("/backgrounds", StaticFiles(directory=str(_BG_DIR)), name="backgrounds
 if _DIST.exists():
     _assets = _DIST / "assets"
     _tarot = _DIST / "tarot"
+    _fonts = _DIST / "fonts"
     if _assets.exists():
         app.mount("/assets", StaticFiles(directory=str(_assets)), name="assets")
     if _tarot.exists():
         app.mount("/tarot", StaticFiles(directory=str(_tarot)), name="tarot")
+    # 自托管字体（Caveat 手写体 / UnifrakturMaguntia 哥特体）。
+    # 缺了这个挂载，生产请求 /fonts/*.woff2 会落到 SPA 兜底返回 index.html——
+    # HTML 冒充字体 → 字体解析失败 → 前端走降级分支（电脑端 hello 直接跳出无动画、
+    # 手机端全部退化普通字体，2026-09-13 站长截图实证）。
+    if _fonts.exists():
+        app.mount("/fonts", StaticFiles(directory=str(_fonts)), name="fonts")
 
     @app.get("/{full_path:path}")
     async def _spa(full_path: str):
         # /api、/ws、/docs、/health、/avatars 等已由上方路由优先匹配，这里兜底返回 SPA
         return FileResponse(str(_DIST / "index.html"))
+
+# ── 在事件循环上安装噪音过滤器（uvicorn 创建 loop 后生效）──────────────────
+@app.on_event("startup")
+async def _install_quiet_loop():
+    try:
+        loop = _asyncio.get_running_loop()
+        loop.set_exception_handler(_quiet_exception_handler)
+        print("[asyncio] 连接噪音过滤器已安装（吞 ConnectionReset/Aborted）")
+    except Exception as _e:
+        print(f"[asyncio] 过滤器安装失败（不影响服务）: {_e}")

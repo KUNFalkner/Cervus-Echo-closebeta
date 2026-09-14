@@ -88,20 +88,43 @@ export default function WelcomeHello({ nickname, onDone }) {
       phaseTimers.push(setTimeout(finish, 2200))
     } else {
       try {
-        // 连笔整词：先无描边隐藏，量真实笔画长度，再一道写出
+        // 连笔整词：先无描边隐藏，量真实笔画长度，再一道写出。
+        // v5 修复「动画不播、成品直接跳出」：animejs v4 对 SVG text 的
+        // strokeDashoffset 走 attribute 写入，与 inline style 是两条独立通道——
+        // 先手 style.strokeDashoffset=full 时，attribute 通道仍是默认值 0，
+        // 动画把 attribute 从 len 动到 0 时 CSS 的 inline style（优先级更高）始终盖着它
+        // → 视觉上毫无变化，等 1.5s 后 tail() 直接显示成品 = 「直接跳出来」。
+        // 修法：两条通道都用同一份值——animate 的 from 值落在 attribute 上没用，
+        // 必须让 inline style 从 full 出发被动画覆盖。最稳的做法是不用 animejs 写
+        // SVG 属性，改用 WAAPI（element.animate）直接动 inline style 通道。
         const len = textEl.getComputedTextLength() * 5.5 + 260  // 周长近似，冗余量保证画满
         textEl.style.strokeDasharray = String(len)
         textEl.style.strokeDashoffset = String(len)
         textEl.style.opacity = '1'
-        const anim = animate(textEl, {
-          strokeDashoffset: [len, 0],
-          duration: 1500,
-          delay: 250,
-          ease: 'inOutQuad',
-        })
-        const chain = (anim && typeof anim.then === 'function') ? anim.then.bind(anim) : null
-        if (chain) chain(tail)
-        else phaseTimers.push(setTimeout(tail, 2100))
+        let animDone = null
+        try {
+          if (textEl.animate) {
+            const wa = textEl.animate(
+              [{ strokeDashoffset: String(len) }, { strokeDashoffset: '0' }],
+              { duration: 1500, delay: 250, easing: 'ease-in-out', fill: 'forwards' }
+            )
+            wa.onfinish = () => { animDone = 'waapi' }
+            wa.commitStyles?.()
+          } else {
+            throw new Error('no WAAPI')
+          }
+        } catch (_wa) {
+          // WAAPI 不可用（老浏览器）：退回 animejs，但把起点留给它自己写
+          try {
+            const anim = animate(textEl, { strokeDashoffset: [len, 0], duration: 1500, delay: 250, ease: 'inOutQuad' })
+            if (anim && typeof anim.then === 'function') anim.then(() => { animDone = 'anime' })
+          } catch (err) {
+            console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
+          }
+        }
+        // 无论动画通道成败，阶段推进用自己的定时器兜底（动画失败也能走到淡出+onDone）
+        phaseTimers.push(setTimeout(() => { if (!animDone && textEl) textEl.style.strokeDashoffset = '0' }, 2000))
+        phaseTimers.push(setTimeout(tail, 2100))
       } catch (err) {
         console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
         textEl.style.strokeDasharray = 'none'
