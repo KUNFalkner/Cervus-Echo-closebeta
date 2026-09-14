@@ -13,7 +13,7 @@ import { animate } from 'animejs'
  */
 export default function WelcomeHello({ nickname, onDone }) {
   const rootRef = useRef(null)
-  const textRef = useRef(null)
+  const pathRef = useRef(null)
   const [phase, setPhase] = useState('drawing')
   const [fontReady, setFontReady] = useState(false)
   const [fontFailed, setFontFailed] = useState(false)
@@ -64,7 +64,7 @@ export default function WelcomeHello({ nickname, onDone }) {
     }
     if (!fontReady) return  // 字体没好，先不启动
     const root = rootRef.current
-    const textEl = textRef.current
+    const textEl = pathRef.current
     if (!root || !textEl) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let phaseTimers = []
@@ -88,46 +88,25 @@ export default function WelcomeHello({ nickname, onDone }) {
       phaseTimers.push(setTimeout(finish, 2200))
     } else {
       try {
-        // v6「Apple 式一笔写」：按字母接力描边，不是五支笔同时描。
-        // 原理：SVG <text> 整词一条 dash 动画时，浏览器把每个字母轮廓同时描
-        // （等效五个字母各一支笔齐写 = 站长说的"好几个笔各自写一个字母"）。
-        // 改成逐字母 <text> 元素（h→e→l→l→o），每个字母独立 dash 动画，
-        // 后一个字母在前一个写到 ~65% 时起笔（接力重叠，像连续手写）。
-        // 时长 2.6s（原 1.5s 站长说"急促"），ease-in-out 有起笔收笔的呼吸感。
-        // 卡顿根因：drop-shadow 光晕滤镜每帧全字重绘——描边期间挂在父级、
-        // 写完最后一笔才加到整词（视觉上光晕随最后一笔点亮，反而更有"点睛"感）。
-        const letters = Array.from(textEl.querySelectorAll('tspan'))
-        if (!letters.length || !textEl.animate) throw new Error('no tspans/WAAPI')
-        // text 容器的 opacity:0 是入场前的初始态（避免字体未就绪时闪现整词），
-        // v6 只点亮了 tspan 自己——text 容器还是 0 → 整体不可见（站长报"hello 没了"的根因）。
-        // 这里必须把容器也点亮；tspan 各自的 dash 接力不受影响。
+        // v7「真·一笔写」：手工连笔 path，整条 dash 动画从 0 到 100%。
+        // 一条 path = 一支笔，数学上保证"一笔写出"，没有"每字母各一支笔"。
+        // 时长 2.8s + ease-in-out（起笔收笔呼吸感）；drop-shadow 仍在描边期间
+        // 摘除（每帧重绘卡顿），写完 .hello-glow 点亮。
+        const total = 2800
+        textEl.style.strokeDasharray = 'none'
+        const len = textEl.getTotalLength()
+        textEl.style.strokeDasharray = String(len)
+        textEl.style.strokeDashoffset = String(len)
         textEl.style.opacity = '1'
-        const seq = []
-        for (const ch of letters) {
-          const w = ch.getComputedTextLength()
-          const dash = w * 5.5 + 80  // 周长近似 + 冗余，保证描满
-          ch.style.strokeDasharray = String(dash)
-          ch.style.strokeDashoffset = String(dash)
-          ch.style.opacity = '1'
-          seq.push({ el: ch, dash })
-        }
         const svgRoot = textEl.closest('svg')
-        const total = 2600           // 全词总时长
-        const overlap = 0.65         // 接力点：前一个字母完成 65% 时下一个起笔
-        const n = seq.length
-        // 每字母时长 = 总时长 / (1 + (n-1)*overlap)，保证最后一个字母恰好收尾
-        const per = total / (1 + (n - 1) * overlap)
-        seq.forEach((s, i) => {
-          const start = i * per * overlap
-          const wa = s.el.animate(
-            [{ strokeDashoffset: String(s.dash) }, { strokeDashoffset: '0' }],
-            { duration: per, delay: start, easing: 'ease-in-out', fill: 'forwards' }
-          )
-          wa.commitStyles?.()
-        })
-        // 最后一笔落定 → 点亮光晕 + 推进后续阶段
-        phaseTimers.push(setTimeout(() => { svgRoot && svgRoot.classList.add('hello-glow') }, total + 80))
-        phaseTimers.push(setTimeout(tail, total + 120))
+        const wa = textEl.animate(
+          [{ strokeDashoffset: String(len) }, { strokeDashoffset: '0' }],
+          { duration: total, delay: 150, easing: 'ease-in-out', fill: 'forwards' }
+        )
+        wa.commitStyles?.()
+        // 最后一笔落定 → 光晕点亮 + 推进阶段（定时器兜底，动画异常也能走到 onDone）
+        phaseTimers.push(setTimeout(() => { svgRoot && svgRoot.classList.add('hello-glow') }, total + 200))
+        phaseTimers.push(setTimeout(tail, total + 260))
       } catch (err) {
         console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
         textEl.style.strokeDasharray = 'none'
@@ -147,11 +126,50 @@ export default function WelcomeHello({ nickname, onDone }) {
     ? <div className="welcome-hello-css">hello</div>
     : (
       <svg viewBox="0 0 300 130" className="welcome-hello-svg" aria-label="hello">
-        {/* v6：逐字母 tspan —— 每个字母独立描边动画，按序接力（Apple 式一笔写） */}
-        <text ref={textRef} x="150" y="92" textAnchor="middle" className="welcome-hello-text"
-          style={{ opacity: 0 }}>
-          {'hello'.split('').map((c, i) => <tspan key={i}>{c}</tspan>)}
-        </text>
+        {/* v7「真·一笔写」：手工连笔 path——h-e-l-l-o 五个字母一条贝塞尔曲线，
+            数学上就是一条 path，dash 动画从 0% 跑到 100% 就是「一笔写出」，
+            不存在"每个字母各一支笔"。电脑/手机同一条 path 同一份代码，天然一致。
+            路径数据按 300x130 视框手调：起笔 h 竖→拱→连 e 圈→两道 l 环→收尾 o 圈，
+            单线圆滑（stroke-linecap:round 加持），Caveat 字体只用于下方欢迎语。 */}
+        <path ref={pathRef} d="M 38 96
+              C 36 64, 34 44, 33 30
+              C 33 24, 38 22, 40 28
+              C 42 34, 42 58, 44 74
+              C 45 84, 48 88, 54 86
+              C 62 84, 66 76, 64 68
+              C 62 62, 54 62, 50 68
+              C 45 76, 47 88, 58 88
+              C 64 88, 69 84, 73 76
+              C 76 70, 80 46, 82 34
+              C 83 28, 88 26, 90 32
+              C 92 38, 90 62, 92 76
+              C 93 84, 96 88, 102 86
+              C 108 84, 112 78, 111 72
+              C 110 66, 103 66, 100 72
+              C 96 80, 99 90, 109 89
+              C 115 88, 119 82, 121 74
+              C 123 66, 125 48, 126 36
+              C 127 30, 132 28, 134 34
+              C 136 40, 134 62, 136 76
+              C 137 84, 141 88, 147 86
+              C 153 84, 157 78, 156 72
+              C 155 66, 148 66, 145 72
+              C 141 80, 144 90, 154 89
+              C 160 88, 164 82, 166 74
+              C 168 66, 170 48, 171 36
+              C 172 30, 177 28, 179 34
+              C 181 40, 179 62, 181 76
+              C 182 84, 186 88, 192 86
+              C 200 84, 205 76, 204 68
+              C 203 62, 195 62, 191 68
+              C 186 76, 188 88, 200 89
+              C 210 90, 218 84, 222 74
+              C 226 64, 232 58, 240 58
+              C 250 58, 256 66, 254 76
+              C 252 86, 242 92, 234 88
+              C 228 85, 228 76, 234 72"
+          fill="none" stroke="currentColor" strokeWidth="4"
+          strokeLinecap="round" strokeLinejoin="round" opacity="0" />
       </svg>
     )
 
