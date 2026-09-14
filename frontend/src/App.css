@@ -2323,7 +2323,7 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
 /* ── 登录欢迎遮罩（手写 hello 描边）── */
 .welcome-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: rgba(10, 8, 20, .88); backdrop-filter: blur(6px); cursor: pointer; }
 .welcome-inner { display: flex; flex-direction: column; align-items: center; gap: 1rem; text-align: center; padding: 1rem; }
-.welcome-hello-svg { width: min(320px, 70vw); height: auto; color: var(--accent, #e0a458); filter: drop-shadow(0 0 12px rgba(224, 164, 88, .45)); }
+.welcome-hello-svg { width: min(320px, 70vw); height: auto; color: var(--accent, #e0a458); }
 .welcome-hello-stroke { stroke: currentColor; }
 .welcome-name { font-size: 1.35rem; color: var(--ink); opacity: 0; transform: translateY(10px); transition: opacity .7s ease, transform .7s ease; }
 .welcome-name.on { opacity: 1; transform: translateY(0); }
@@ -2366,7 +2366,10 @@ body, .glass-card, .glass-nav, .glass-input, .glass-textarea, .glass-button, .na
   stroke-linecap: round; stroke-linejoin: round;
   paint-order: stroke;
 }
+/* v6 逐字母接力描边：drop-shadow 光晕每帧全字重绘是"卡顿"元凶——
+   描边期间不挂滤镜，动画完成后 .hello-glow 一次性点亮（点睛效果） */
 .welcome-hello-svg { color: #efe7d2; opacity: 1; }
+.welcome-hello-svg.hello-glow { filter: drop-shadow(0 0 12px rgba(224, 164, 88, .45)); transition: filter .5s ease; }
 .welcome-hello-wrap { min-height: 130px; display: flex; align-items: center; justify-content: center; }
 
 

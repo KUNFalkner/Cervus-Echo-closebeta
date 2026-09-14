@@ -88,43 +88,42 @@ export default function WelcomeHello({ nickname, onDone }) {
       phaseTimers.push(setTimeout(finish, 2200))
     } else {
       try {
-        // 连笔整词：先无描边隐藏，量真实笔画长度，再一道写出。
-        // v5 修复「动画不播、成品直接跳出」：animejs v4 对 SVG text 的
-        // strokeDashoffset 走 attribute 写入，与 inline style 是两条独立通道——
-        // 先手 style.strokeDashoffset=full 时，attribute 通道仍是默认值 0，
-        // 动画把 attribute 从 len 动到 0 时 CSS 的 inline style（优先级更高）始终盖着它
-        // → 视觉上毫无变化，等 1.5s 后 tail() 直接显示成品 = 「直接跳出来」。
-        // 修法：两条通道都用同一份值——animate 的 from 值落在 attribute 上没用，
-        // 必须让 inline style 从 full 出发被动画覆盖。最稳的做法是不用 animejs 写
-        // SVG 属性，改用 WAAPI（element.animate）直接动 inline style 通道。
-        const len = textEl.getComputedTextLength() * 5.5 + 260  // 周长近似，冗余量保证画满
-        textEl.style.strokeDasharray = String(len)
-        textEl.style.strokeDashoffset = String(len)
-        textEl.style.opacity = '1'
-        let animDone = null
-        try {
-          if (textEl.animate) {
-            const wa = textEl.animate(
-              [{ strokeDashoffset: String(len) }, { strokeDashoffset: '0' }],
-              { duration: 1500, delay: 250, easing: 'ease-in-out', fill: 'forwards' }
-            )
-            wa.onfinish = () => { animDone = 'waapi' }
-            wa.commitStyles?.()
-          } else {
-            throw new Error('no WAAPI')
-          }
-        } catch (_wa) {
-          // WAAPI 不可用（老浏览器）：退回 animejs，但把起点留给它自己写
-          try {
-            const anim = animate(textEl, { strokeDashoffset: [len, 0], duration: 1500, delay: 250, ease: 'inOutQuad' })
-            if (anim && typeof anim.then === 'function') anim.then(() => { animDone = 'anime' })
-          } catch (err) {
-            console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
-          }
+        // v6「Apple 式一笔写」：按字母接力描边，不是五支笔同时描。
+        // 原理：SVG <text> 整词一条 dash 动画时，浏览器把每个字母轮廓同时描
+        // （等效五个字母各一支笔齐写 = 站长说的"好几个笔各自写一个字母"）。
+        // 改成逐字母 <text> 元素（h→e→l→l→o），每个字母独立 dash 动画，
+        // 后一个字母在前一个写到 ~65% 时起笔（接力重叠，像连续手写）。
+        // 时长 2.6s（原 1.5s 站长说"急促"），ease-in-out 有起笔收笔的呼吸感。
+        // 卡顿根因：drop-shadow 光晕滤镜每帧全字重绘——描边期间挂在父级、
+        // 写完最后一笔才加到整词（视觉上光晕随最后一笔点亮，反而更有"点睛"感）。
+        const letters = Array.from(textEl.querySelectorAll('tspan'))
+        if (!letters.length || !textEl.animate) throw new Error('no tspans/WAAPI')
+        const seq = []
+        for (const ch of letters) {
+          const w = ch.getComputedTextLength()
+          const dash = w * 5.5 + 80  // 周长近似 + 冗余，保证描满
+          ch.style.strokeDasharray = String(dash)
+          ch.style.strokeDashoffset = String(dash)
+          ch.style.opacity = '1'
+          seq.push({ el: ch, dash })
         }
-        // 无论动画通道成败，阶段推进用自己的定时器兜底（动画失败也能走到淡出+onDone）
-        phaseTimers.push(setTimeout(() => { if (!animDone && textEl) textEl.style.strokeDashoffset = '0' }, 2000))
-        phaseTimers.push(setTimeout(tail, 2100))
+        const svgRoot = textEl.closest('svg')
+        const total = 2600           // 全词总时长
+        const overlap = 0.65         // 接力点：前一个字母完成 65% 时下一个起笔
+        const n = seq.length
+        // 每字母时长 = 总时长 / (1 + (n-1)*overlap)，保证最后一个字母恰好收尾
+        const per = total / (1 + (n - 1) * overlap)
+        seq.forEach((s, i) => {
+          const start = i * per * overlap
+          const wa = s.el.animate(
+            [{ strokeDashoffset: String(s.dash) }, { strokeDashoffset: '0' }],
+            { duration: per, delay: start, easing: 'ease-in-out', fill: 'forwards' }
+          )
+          wa.commitStyles?.()
+        })
+        // 最后一笔落定 → 点亮光晕 + 推进后续阶段
+        phaseTimers.push(setTimeout(() => { svgRoot && svgRoot.classList.add('hello-glow') }, total + 80))
+        phaseTimers.push(setTimeout(tail, total + 120))
       } catch (err) {
         console.warn('[WelcomeHello] 描边动画失败，降级静态', err)
         textEl.style.strokeDasharray = 'none'
@@ -144,8 +143,11 @@ export default function WelcomeHello({ nickname, onDone }) {
     ? <div className="welcome-hello-css">hello</div>
     : (
       <svg viewBox="0 0 300 130" className="welcome-hello-svg" aria-label="hello">
+        {/* v6：逐字母 tspan —— 每个字母独立描边动画，按序接力（Apple 式一笔写） */}
         <text ref={textRef} x="150" y="92" textAnchor="middle" className="welcome-hello-text"
-          style={{ opacity: 0 }}>hello</text>
+          style={{ opacity: 0 }}>
+          {'hello'.split('').map((c, i) => <tspan key={i}>{c}</tspan>)}
+        </text>
       </svg>
     )
 
