@@ -245,12 +245,19 @@ def read_posts(
         )
 
     # 热度分 = 点赞*2 + 评论*3 + 收藏*2（评论权重更高，鼓励讨论）；
-    # 公告恒定置顶，发布时间作为同分兜底。
+    # 排序：公告 > 论坛置顶(is_pinned=2) > 个人主页置顶(is_pinned=1，user_id 筛选时生效) > 普通；
+    # 发布时间作为同分兜底。
     _hot = (PostModel.like_count * 2 + PostModel.comment_count * 3 + PostModel.star_count * 2)
-    if sort == "hot":
-        query = query.order_by(PostModel.is_announcement.desc(), _hot.desc(), PostModel.created_at.desc())
+    if user_id:
+        # 主页/我的帖子流：个人置顶(is_pinned>=1)优先
+        if sort == "hot":
+            query = query.order_by((PostModel.is_pinned >= 1).desc(), _hot.desc(), PostModel.created_at.desc())
+        else:
+            query = query.order_by((PostModel.is_pinned >= 1).desc(), PostModel.created_at.desc())
+    elif sort == "hot":
+        query = query.order_by(PostModel.is_announcement.desc(), (PostModel.is_pinned == 2).desc(), _hot.desc(), PostModel.created_at.desc())
     else:
-        query = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc())
+        query = query.order_by(PostModel.is_announcement.desc(), (PostModel.is_pinned == 2).desc(), PostModel.created_at.desc())
     posts = query.offset(skip).limit(limit).all()
     avatar_map = _avatar_map(db, [p.user_id for p in posts])
     return [_mask_post(p, current_user, avatar_map.get(p.user_id)) for p in posts]
@@ -418,9 +425,9 @@ def tag_detail(
     )
     _hot = (PostModel.like_count * 2 + PostModel.comment_count * 3 + PostModel.star_count * 2)
     if sort == "hot":
-        query = query.order_by(PostModel.is_announcement.desc(), _hot.desc(), PostModel.created_at.desc())
+        query = query.order_by(PostModel.is_announcement.desc(), (PostModel.is_pinned == 2).desc(), _hot.desc(), PostModel.created_at.desc())
     else:
-        query = query.order_by(PostModel.is_announcement.desc(), PostModel.created_at.desc())
+        query = query.order_by(PostModel.is_announcement.desc(), (PostModel.is_pinned == 2).desc(), PostModel.created_at.desc())
     posts = query.limit(limit).all()
     post_count = len(posts)
     # 参与人（去重）+ 头像
@@ -530,6 +537,53 @@ def update_post(
         print(f"[FTS] 重索引帖子失败: {_e}")
     # 语义向量同步重算（后台异步，内容变了旧向量就失效了）
     index_post_async(post.id)
+    author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
+    return _mask_post(post, user, author.avatar if author else None)
+
+@router.put("/{post_id}/pin", response_model=PostSchema)
+def pin_post(
+    post_id: int,
+    body: dict,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """置顶/取消置顶。
+
+    scope:
+      - "profile": 个人主页置顶——仅帖子作者本人（任何角色都可置顶自己的帖子）
+      - "forum":   论坛置顶——founder 可置顶任意论坛；校方/大使仅可置顶自己学校分论坛
+                   （校方/大使只能置顶【自己的帖子】——站长裁定论坛置顶与公告职责重叠，
+                   收敛为官方身份运营自己的内容，不去顶学生的帖子）
+    is_pinned: 0=无 1=个人主页置顶 2=论坛置顶
+    """
+    post = db.query(PostModel).filter(PostModel.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="帖子不存在")
+    scope = body.get("scope", "profile")
+    pinned = bool(body.get("pinned", True))
+
+    if scope == "profile":
+        if post.user_id != user.id:
+            raise HTTPException(status_code=403, detail="只能置顶自己的帖子")
+        new_val = 1 if pinned else 0
+    elif scope == "forum":
+        if user.role == "founder":
+            pass  # founder 全域
+        elif user.role in ("school_official", "ambassador"):
+            if post.user_id != user.id:
+                raise HTTPException(status_code=403, detail="官方身份只能置顶自己发布的帖子")
+            if post.forum == "main" or post.forum != user.school_id:
+                raise HTTPException(status_code=403, detail="只能置顶自己学校论坛的帖子")
+        else:
+            raise HTTPException(status_code=403, detail="无论坛置顶权限")
+        new_val = 2 if pinned else 0
+    else:
+        raise HTTPException(status_code=400, detail="scope 只支持 profile / forum")
+
+    # 同作用域互斥：论坛置顶时清掉个人置顶位，反之亦然
+    post.is_pinned = new_val
+    db.commit()
+    db.refresh(post)
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
     return _mask_post(post, user, author.avatar if author else None)
 

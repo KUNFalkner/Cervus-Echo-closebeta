@@ -158,6 +158,14 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
   cursor: pointer; font-family: inherit; transition: background 0.15s, color 0.15s;
 }
 .nav-links button.active, .nav-links button:hover { background: var(--chip-active-bg); color: var(--nav-fg-strong); }
+/* v9 顶栏重排：搜索/主题图标化，与用户信息合成右侧区（站长要求：搜索右上角、"我的"昵称最右） */
+.nav-icon-btn { padding: 0.4rem 0.5rem !important; display: flex; align-items: center; }
+.nav-right-user { margin-left: 0.35rem; padding-left: 0.6rem; border-left: 1px solid var(--nav-bd); }
+/* v9 置顶功能：徽章 + 卡片描边 + 按钮 */
+.pin-badge { display: inline-block; font-size: .68rem; padding: .14rem .5rem; border-radius: 999px; background: rgba(96,165,250,.16); color: #7db4f5; border: 1px solid rgba(96,165,250,.4); margin-bottom: .3rem; width: fit-content; }
+.post-pinned { border-color: rgba(96,165,250,.45) !important; }
+.pin-btn.pinned-active { color: #7db4f5; }
+.my-item-actions { display: inline-flex; gap: .2rem; margin-left: auto; }
 .user-info { display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.9rem; }
 
 /* Mobile nav */

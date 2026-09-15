@@ -27,6 +27,7 @@ class Post(PostBase):
     user_school: Optional[str] = None
     hide_uid: bool = False
     is_anonymous: bool = False
+    is_pinned: int = 0  # 0=无 1=个人主页置顶 2=论坛置顶
     author_avatar: Optional[str] = None
     like_count: int = 0
     star_count: int = 0
@@ -38,6 +39,11 @@ class Post(PostBase):
     @classmethod
     def _default_false(cls, v):
         return False if v is None else v
+
+    @field_validator("is_pinned", mode="before")
+    @classmethod
+    def _default_pinned(cls, v):
+        return 0 if v is None else v
 
     @field_validator("like_count", "star_count", "comment_count", mode="before")
     @classmethod
