@@ -1,4 +1,4 @@
-﻿# 鹿鸣回音后端看门狗（2026-09-13）
+﻿﻿# 鹿鸣回音后端看门狗（2026-09-13）
 # 每 30s 探 /health；连续 3 次失败（约 90s）→ 杀掉全部 uvicorn 并重启一个。
 # 由 Hermes 终端 background=true 拉起，长期驻留。日志追加到 watchdog.log。
 
@@ -37,7 +37,21 @@ while ($true) {
                 Log ("  kill PID " + $_.ProcessId)
                 Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
             }
-        Start-Sleep -Seconds 4
+        # v2：等端口真正释放（Windows TIME_WAIT 残留会让新进程 bind 失败，
+        # 旧版在这里只 sleep 4s 就启动 → 连续十几轮"重启后仍不健康"）
+        $portReady = $false
+        for ($i = 0; $i -lt 10; $i++) {
+            Start-Sleep -Seconds 2
+            $conn = netstat -ano | Select-String ":8000\s.*LISTENING"
+            if (-not $conn) { $portReady = $true; break }
+            # 端口仍被占：按 PID 精确补刀
+            $conn.ToString() -match '\s(\d+)$' | Out-Null
+            if ($Matches[1]) {
+                Log ("  端口仍被占，补刀 PID " + $Matches[1])
+                Stop-Process -Id $Matches[1] -Force -ErrorAction SilentlyContinue
+            }
+        }
+        Log ("  端口释放: " + $(if ($portReady) {"OK"} else {"超时（仍尝试启动）"}))
         # 起一个新后端（独立进程，脱离本脚本生命周期）
         Start-Process -FilePath $py `
             -ArgumentList "-m","uvicorn","app.main:app","--host","127.0.0.1","--port","8000" `
