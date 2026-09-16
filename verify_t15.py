@@ -76,7 +76,7 @@ ok("APP_RENDER")
 
 # go to profile
 ev("""[...document.querySelectorAll('.glass-nav .nav-links button')].find(b=>b.textContent.indexOf('我的')>=0).click()""")
-if not wait_for("document.querySelector('.profile-bg-picker')!=null",15): bad("PROFILE_OPEN"); sys.exit(1)
+if not wait_for("document.querySelector('.profile-bg-row')!=null",15): bad("PROFILE_OPEN"); sys.exit(1)
 ok("PROFILE_OPEN")
 
 # B: settings sits directly under intro (profile-card -> settings-card -> my-stuff-card)

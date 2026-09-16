@@ -1,0 +1,139 @@
+import { useState, useEffect, useRef } from "react";
+import { animate } from "animejs";
+import "@fontsource/caveat/700.css";
+export default function WelcomeHello({ nickname, onDone }) {
+  const rootRef = useRef(null);
+  const textRef = useRef(null);
+  const [phase, setPhase] = useState("drawing");
+  const [fontReady, setFontReady] = useState(false);
+  const [fontFailed, setFontFailed] = useState(false);
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+  useEffect(() => {
+    let dead = false;
+    const settle = (ok) => {
+      if (!dead) {
+        clearTimeout(t);
+        ok ? setFontReady(true) : setFontFailed(true);
+      }
+    };
+    const t = setTimeout(() => {
+      try {
+        document.fonts.check("700 20px Caveat") ? setFontReady(true) : setFontFailed(true);
+      } catch {
+        setFontFailed(true);
+      }
+    }, 3e3);
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load("700 100px Caveat").then(() => settle(true)).catch(() => {
+        if (dead) return;
+        try {
+          document.fonts.check("700 20px Caveat") ? settle(true) : settle(false);
+        } catch {
+          settle(false);
+        }
+      });
+    } else {
+      settle(false);
+    }
+    return () => {
+      dead = true;
+      clearTimeout(t);
+    };
+  }, []);
+  useEffect(() => {
+    if (fontFailed) {
+      const timers = [
+        setTimeout(() => setPhase("name"), 300),
+        setTimeout(() => setPhase("brand"), 900),
+        setTimeout(() => setPhase("fade"), 2e3),
+        setTimeout(() => doneRef.current && doneRef.current(), 2700)
+      ];
+      const root2 = rootRef.current;
+      const skip2 = () => {
+        timers.forEach(clearTimeout);
+        doneRef.current && doneRef.current();
+      };
+      root2 && root2.addEventListener("click", skip2);
+      return () => {
+        timers.forEach(clearTimeout);
+        root2 && root2.removeEventListener("click", skip2);
+      };
+    }
+    if (!fontReady) return;
+    const root = rootRef.current;
+    const textEl = textRef.current;
+    if (!root || !textEl) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let phaseTimers = [];
+    let cancelled = false;
+    const finish = () => {
+      if (!cancelled) doneRef.current && doneRef.current();
+    };
+    const skip = () => {
+      phaseTimers.forEach(clearTimeout);
+      finish();
+    };
+    root.addEventListener("click", skip);
+    const keySkip = (e) => {
+      if (["Enter", "Escape", " "].includes(e.key)) {
+        e.preventDefault();
+        skip();
+      }
+    };
+    window.addEventListener("keydown", keySkip);
+    const tail = () => {
+      if (cancelled) return;
+      setPhase("name");
+      phaseTimers.push(setTimeout(() => setPhase("brand"), 700));
+      phaseTimers.push(setTimeout(() => setPhase("fade"), 2300));
+      phaseTimers.push(setTimeout(finish, 3100));
+    };
+    if (reduce) {
+      setPhase("name");
+      setPhase("brand");
+      phaseTimers.push(setTimeout(() => setPhase("fade"), 1400));
+      phaseTimers.push(setTimeout(finish, 2200));
+    } else {
+      try {
+        const len = textEl.getComputedTextLength() * 5.5 + 260;
+        textEl.style.strokeDasharray = String(len);
+        textEl.style.strokeDashoffset = String(len);
+        textEl.style.opacity = "1";
+        const anim = animate(textEl, {
+          strokeDashoffset: [len, 0],
+          duration: 1500,
+          delay: 250,
+          ease: "inOutQuad"
+        });
+        const chain = anim && typeof anim.then === "function" ? anim.then.bind(anim) : null;
+        if (chain) chain(tail);
+        else phaseTimers.push(setTimeout(tail, 2100));
+      } catch (err) {
+        console.warn("[WelcomeHello] \u63CF\u8FB9\u52A8\u753B\u5931\u8D25\uFF0C\u964D\u7EA7\u9759\u6001", err);
+        textEl.style.strokeDasharray = "none";
+        textEl.style.opacity = "1";
+        tail();
+      }
+    }
+    return () => {
+      cancelled = true;
+      root.removeEventListener("click", skip);
+      window.removeEventListener("keydown", keySkip);
+      phaseTimers.forEach(clearTimeout);
+    };
+  }, [fontReady, fontFailed]);
+  const helloNode = fontFailed ? /* @__PURE__ */ React.createElement("div", { className: "welcome-hello-css" }, "hello") : /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 300 130", className: "welcome-hello-svg", "aria-label": "hello" }, /* @__PURE__ */ React.createElement(
+    "text",
+    {
+      ref: textRef,
+      x: "150",
+      y: "92",
+      textAnchor: "middle",
+      className: "welcome-hello-text",
+      style: { opacity: 0 }
+    },
+    "hello"
+  ));
+  return /* @__PURE__ */ React.createElement("div", { ref: rootRef, className: `welcome-overlay ${phase === "fade" ? "welcome-fade" : ""}`, role: "dialog", "aria-label": "\u6B22\u8FCE" }, /* @__PURE__ */ React.createElement("div", { className: "welcome-inner" }, /* @__PURE__ */ React.createElement("div", { className: "welcome-hello-wrap" }, helloNode), /* @__PURE__ */ React.createElement("div", { className: `welcome-name ${phase === "name" || phase === "brand" || phase === "fade" ? "on" : ""}` }, nickname ? `\u6B22\u8FCE\uFF0C${nickname}` : "\u6B22\u8FCE\u56DE\u6765"), /* @__PURE__ */ React.createElement("div", { className: `welcome-brand ${phase === "brand" || phase === "fade" ? "on" : ""}` }, "\u9E7F\u9E23\u56DE\u97F3 \xB7 Cervus Echo"), /* @__PURE__ */ React.createElement("div", { className: "welcome-skip-hint" }, "\u70B9\u51FB\u6216\u6309\u4EFB\u610F\u952E\u8DF3\u8FC7")));
+}
