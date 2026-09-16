@@ -57,6 +57,8 @@ class UserUpdate(BaseModel):
     is_anonymous: Optional[bool] = None
     real_name: Optional[str] = None
     profile_bg: Optional[str] = None
+    # 他人主页公开开关（站长裁定 2026-09-16：默认关，用户自开）
+    profile_public: Optional[bool] = None
 
 class User(UserBase):
     id: int
@@ -65,6 +67,8 @@ class User(UserBase):
     real_name: Optional[str] = None
     role: str = "student"
     approved: bool = True
+    # 主页公开开关（默认关）：随登录响应下发，前端设置页渲染开关初值
+    profile_public: bool = False
     enrollment_year: Optional[int] = None
     class_number: Optional[int] = None
     student_number: Optional[int] = None
@@ -90,6 +94,7 @@ class PublicUser(BaseModel):
     profile_bg: str = ""
     karma: int = 0
     is_anonymous: bool = True
+    profile_public: bool = False
 
     class Config:
         from_attributes = True

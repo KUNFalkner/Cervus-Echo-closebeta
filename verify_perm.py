@@ -47,7 +47,7 @@ sotok = rso['access_token']
 stu = None
 con = sqlite3.connect(r'E:/mimo code 树洞设计/backend/cervus.db')
 stu = con.execute("SELECT username FROM users WHERE role='student' AND password IS NOT NULL "
-                  "AND (username LIKE 'grp%' OR username LIKE 'burn%' OR username LIKE 'chk%') LIMIT 1").fetchone()[0]
+                  "AND (username LIKE 'grp%' OR username LIKE 'burn%' OR username LIKE 'chk%' OR username LIKE 'grpaudit%') LIMIT 1").fetchone()[0]
 con.close()
 st, rs = http('POST', '/users/login', {'username': stu, 'password': 'test1234'}); stok = rs['access_token']
 

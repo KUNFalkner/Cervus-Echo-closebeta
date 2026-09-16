@@ -149,9 +149,22 @@ def user_directory(
 
 @router.get("/{user_id}", response_model=PublicUser)
 def get_user(user_id: int, viewer: UserModel = Depends(require_user), db: Session = Depends(get_db)):
-    """他人主页公开信息（不暴露 uid / 真实姓名）。"""
+    """他人主页公开信息（不暴露 uid / 真实姓名）。
+
+    【匿名保护 2026-09-16，站长裁定】主页默认关闭（profile_public=0）：
+    - 未开启者一律 404「用户不存在」——匿名社区里"能被搜到主页"本身就是信息泄露
+    - founder 不受限（唯一最高权限，治理暴力/违禁需要）；大使/校方与普通用户同权
+    - 本人查看自己不受限
+    """
     target = db.query(UserModel).filter(UserModel.id == user_id).first()
     if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    allowed = (
+        viewer.id == user_id
+        or viewer.role == "founder"
+        or bool(target.profile_public)
+    )
+    if not allowed:
         raise HTTPException(status_code=404, detail="用户不存在")
     return target
 
@@ -299,6 +312,8 @@ def update_user(
         target.is_anonymous = update.is_anonymous
     if update.profile_bg is not None:
         target.profile_bg = update.profile_bg
+    if update.profile_public is not None:
+        target.profile_public = update.profile_public
 
     db.commit()
     db.refresh(target)

@@ -20,7 +20,8 @@ class PostCreate(PostBase):
 
 class Post(PostBase):
     id: int
-    user_id: int
+    # 匿名帖对外抹成 None（2026-09-16 核心修复：user_id 明文=去匿名化链条）
+    user_id: Optional[int] = None
     username: Optional[str] = None
     display_name: Optional[str] = None
     user_uid: Optional[str] = None
@@ -28,6 +29,8 @@ class Post(PostBase):
     hide_uid: bool = False
     is_anonymous: bool = False
     is_pinned: int = 0  # 0=无 1=个人主页置顶 2=论坛置顶
+    # 匿名帖的属主标记：user_id 抹除后前端靠它显示 编辑/删除 按钮（仅属主本人为 True）
+    is_own: bool = False
     author_avatar: Optional[str] = None
     like_count: int = 0
     star_count: int = 0

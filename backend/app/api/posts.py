@@ -107,11 +107,19 @@ def _visible_posts_query(query, current_user):
 
 def _mask_post(post: PostModel, viewer: Optional[UserModel], author_avatar: Optional[str] = None):
     """UID 是学生的真实身份，不能无条件下发——按可见性规则在服务端抹掉。
-    头像同理：匿名帖（hide_uid）一律不下发真实头像，避免去匿名化。"""
+    头像同理：匿名帖（hide_uid）一律不下发真实头像，避免去匿名化。
+    【核心修复 2026-09-16，站长要求】匿名帖 user_id 一律抹成 None：
+    此前 feed 明文下发真实数据库主键 → GET /users/{id} 拿到昵称学校 → 去匿名化链条。
+    属主判断不受影响：前端"编辑/删除"按钮改由后端 response 的 is_own 标记驱动，
+    服务端仍在接口层用 token 实比对（post.user_id == current_user.id）。"""
     data = PostSchema.model_validate(post)
     if not can_see_uid(viewer, bool(post.hide_uid), post.user_school):
         data.user_uid = None
     data.author_avatar = author_avatar if not post.hide_uid else None
+    # 匿名帖：真实 user_id 不出门。founder 除外（唯一最高权限，仅用于治理暴力/违禁内容）。
+    if post.is_anonymous and not (viewer and viewer.role == "founder"):
+        data.user_id = None
+        data.is_own = (viewer is not None and viewer.id == post.user_id)
     return data
 
 
@@ -212,6 +220,10 @@ def read_posts(
         query = query.filter(PostModel.forum == forum)
     if user_id:
         query = query.filter(PostModel.user_id == user_id)
+        # 【匿名保护 2026-09-16】主页流只展示实名内容——匿名帖不进任何人的主页，
+        # 防"匿名帖与实名帖同页交叉印证身份"。本人看自己的主页时仍可见（is_own 由 _mask_post 标）。
+        if not (current_user and current_user.id == user_id):
+            query = query.filter((~PostModel.is_anonymous) | (PostModel.is_anonymous.is_(None)))
     # 关注流：只看我关注的用户发的帖
     if following and current_user:
         fids = [r[0] for r in db.query(Follow.followee_id).filter(Follow.follower_id == current_user.id).all()]
