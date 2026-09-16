@@ -246,6 +246,11 @@ if _DIST.exists():
     # 手机端全部退化普通字体，2026-09-13 站长截图实证）。
     if _fonts.exists():
         app.mount("/fonts", StaticFiles(directory=str(_fonts)), name="fonts")
+    # public/ 根级文件 vite 会拷到 dist 根（sponsor-qr.jpg 等）。缺了对应挂载
+    # 就被 SPA 兜底吞掉返回 index.html（/fonts 的老坑在根级文件上复发）。
+    _sponsor_qr = _DIST / "sponsor-qr.jpg"
+    if _sponsor_qr.exists():
+        app.mount("/sponsor", StaticFiles(directory=str(_DIST)), name="sponsor")
 
     @app.get("/{full_path:path}")
     async def _spa(full_path: str):
