@@ -173,6 +173,8 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 .sponsor-qr { max-width: 200px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
 .sponsor-fallback { font-size: .75rem; color: rgba(242,232,216,.4); }
 .sponsor-thanks { text-align: center; font-size: .88rem; color: rgba(227,196,120,.8); margin: .6rem 0 0; }
+/* beta 标识：标题旁小徽章（站长 2026-09-16：beta 阶段全程可见） */
+.beta-badge { display: inline-block; vertical-align: middle; margin-left: .45rem; padding: .1rem .4rem; border-radius: 6px; font-size: .58rem; letter-spacing: .12em; font-weight: 700; color: #e3c478; background: rgba(227,196,120,.12); border: 1px solid rgba(227,196,120,.45); }
 .user-info { display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.9rem; }
 
 /* Mobile nav */
