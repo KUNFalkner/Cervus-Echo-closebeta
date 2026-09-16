@@ -166,13 +166,21 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
 .post-pinned { border-color: rgba(96,165,250,.45) !important; }
 .pin-btn.pinned-active { color: #7db4f5; }
 .my-item-actions { display: inline-flex; gap: .2rem; margin-left: auto; }
-/* beta 赞助入口：低调、自愿、不解锁任何东西（站长 2026-09-16） */
+/* beta 赞助入口：低调、自愿、不解锁任何东西（站长 2026-09-16）
+   对比度修复：文字色跟主题走（站长截图实证白天模式下夜色字压浅底看不清） */
 .sponsor-modal h3 { margin-top: 0; }
-.sponsor-lead { font-size: .92rem; line-height: 1.9; color: rgba(242,232,216,.85); margin: .4rem 0; }
+.sponsor-lead { font-size: .92rem; line-height: 1.9; margin: .4rem 0; }
 .sponsor-qr-wrap { text-align: center; padding: .8rem 0 .2rem; }
 .sponsor-qr { max-width: 200px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.35); }
-.sponsor-fallback { font-size: .75rem; color: rgba(242,232,216,.4); }
-.sponsor-thanks { text-align: center; font-size: .88rem; color: rgba(227,196,120,.8); margin: .6rem 0 0; }
+.sponsor-fallback { font-size: .78rem; margin-top: .4rem; opacity: .6; }
+.sponsor-thanks { text-align: center; font-size: .9rem; font-weight: 600; margin: .6rem 0 0; }
+/* 白天模式：深色字压浅底（高对比）；夜间模式：米色字压深底 */
+body[data-time="day"] .sponsor-lead,
+body[data-time="day"] .sponsor-fallback { color: #3a2e20; }
+body[data-time="day"] .sponsor-thanks { color: #8a6d2f; }
+body:not([data-time="day"]) .sponsor-lead { color: rgba(242,232,216,.92); }
+body:not([data-time="day"]) .sponsor-fallback { color: rgba(242,232,216,.65); }
+body:not([data-time="day"]) .sponsor-thanks { color: #e3c478; }
 /* beta 标识：标题旁小徽章（站长 2026-09-16：beta 阶段全程可见） */
 .beta-badge { display: inline-block; vertical-align: middle; margin-left: .45rem; padding: .1rem .4rem; border-radius: 6px; font-size: .58rem; letter-spacing: .12em; font-weight: 700; color: #e3c478; background: rgba(227,196,120,.12); border: 1px solid rgba(227,196,120,.45); }
 .user-info { display: flex; align-items: center; gap: 0.25rem; cursor: pointer; font-size: 0.9rem; }
