@@ -170,6 +170,9 @@ button, .tarot-card, .tarot-orb { touch-action: manipulation; }
    对比度修复：文字色跟主题走（站长截图实证白天模式下夜色字压浅底看不清） */
 .announce-option .checkbox-label span { color: #c9a24b; font-weight: 600; }
 .students-only-label span { color: #7db4f5 !important; }
+/* 上传进度条（头像/背景/发帖图，站长 2026-09-17） */
+.upload-progress-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); overflow: hidden; }
+.upload-progress-bar > i { display: block; height: 100%; background: var(--accent, #e0a458); transition: width .2s ease; }
 .sponsor-modal h3 { margin-top: 0; }
 .sponsor-lead { font-size: .92rem; line-height: 1.9; margin: .4rem 0; }
 .sponsor-qr-wrap { text-align: center; padding: .8rem 0 .2rem; }
