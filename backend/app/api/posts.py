@@ -563,8 +563,11 @@ def update_post(
         post.category = body.category
     if body.tags is not None:
         post.tags = body.tags
-    if body.hide_uid is not None:
-        post.hide_uid = body.hide_uid
+    # 【隐私 v2.1 无人认领原则，站长 2026-09-17】匿名印记是发帖时刻的快照，
+    # 编辑永不改写：hide_uid 禁止通过编辑变更（PostUpdate 无 is_anonymous 字段，
+    # 此处显式拒绝 hide_uid，防"实名帖改匿名/匿名帖改实名"双向破坏）。
+    if body.hide_uid is not None and body.hide_uid != post.hide_uid:
+        raise HTTPException(status_code=400, detail="发布时的匿名状态不可修改")
     db.commit()
     db.refresh(post)
     # 重新索引（标题/正文可能被改）

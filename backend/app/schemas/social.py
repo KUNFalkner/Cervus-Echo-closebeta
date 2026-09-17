@@ -17,7 +17,11 @@ class SendMessage(BaseModel):
 
 
 class PostUpdate(BaseModel):
-    """作者编辑自己的帖子，字段均可选，只更新提供的字段。"""
+    """作者编辑自己的帖子，字段均可选，只更新提供的字段。
+
+    【隐私 v2.1】不含 is_anonymous（匿名印记不可编辑）；hide_uid 若与
+    落库值不同会被 update_post 400 拒绝——匿名印记是发帖时刻的快照。
+    """
     title: Optional[str] = None
     content: Optional[str] = None
     category: Optional[str] = None
