@@ -259,6 +259,49 @@ def admin_unban_user(
     db.commit()
     return {"id": target.id, "nickname": target.nickname, "banned": False, "message": "已解封该用户"}
 
+@router.delete("/users/{target_id}")
+def admin_delete_user(
+    target_id: int,
+    admin: UserModel = Depends(require_founder),
+    db: Session = Depends(get_db)
+):
+    """founder 强制注销任意账号（站长 2026-09-17）：连同其帖子/评论/消息一并清除。
+    不可用于 founder/大使/校方（官方体系账号另行走 reset_beta）。"""
+    target = db.query(UserModel).filter(UserModel.id == target_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if target.role in ("founder", "ambassador", "school_official"):
+        raise HTTPException(status_code=403, detail="官方体系账号不可强制注销")
+    from sqlalchemy import text
+    from app.models.audit import AuditLog
+    db.add(AuditLog(actor_id=admin.id, action="force_delete_user",
+                    detail=f"deleted user_id={target.id} username={target.username}"))
+    post_ids = [r[0] for r in db.query(PostModel.id).filter(PostModel.user_id == target.id).all()]
+    if post_ids:
+        pids = ",".join(map(str, post_ids))
+        for t in ["comments", "user_likes", "user_stars", "post_vectors"]:
+            db.execute(text(f"DELETE FROM {t} WHERE post_id IN ({pids})"))
+        # notifications 主键列是 recipient_id，按 actor_id 清；reports 按 reporter_id 清
+        db.execute(text(f"DELETE FROM notifications WHERE actor_id = {target.id}"))
+        db.execute(text(f"DELETE FROM reports WHERE reporter_id = {target.id}"))
+    ids = str(target.id)
+    for t, cols_needed in [("comments", ("user_id",)), ("user_likes", ("user_id",)),
+                           ("user_stars", ("user_id",)), ("follows", ("follower_id", "followee_id")),
+                           ("message_reads", ("user_id",)), ("direct_messages", ("sender_id",)),
+                           ("messages", ("user_id",)), ("conversations", ("user_a", "user_b")),
+                           ("tarot_history", ("user_id",)), ("votes", ("user_id",)),
+                           ("chat_group_members", ("user_id",)), ("post_vectors", ()),
+                           ("notifications", ("recipient_id", "actor_id")),
+                           ("reports", ("reporter_id",))]:
+        for col in cols_needed:
+            db.execute(text(f"DELETE FROM {t} WHERE {col} IN ({ids})"))
+    if post_ids:
+        pids = ",".join(map(str, post_ids))
+        db.execute(text(f"DELETE FROM posts WHERE id IN ({pids})"))
+    db.delete(target)
+    db.commit()
+    return {"id": target_id, "message": f"已强制注销 {target.username}，其内容一并清除"}
+
 @router.get("/stats")
 def admin_stats(
     admin: UserModel = Depends(require_admin),
