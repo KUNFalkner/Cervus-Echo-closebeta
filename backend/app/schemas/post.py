@@ -10,6 +10,8 @@ class PostBase(BaseModel):
     is_announcement: bool = False
     tags: Optional[str] = None
     images: Optional[List[str]] = None  # 图片 URL 列表
+    # 公告受众（founder 特权，2026-09-17）：'all' / 'students_only'；非 founder 服务端强制 all
+    audience: str = "all"
 
 class PostCreate(PostBase):
     # user_id / user_uid / user_school 不再由客户端提供，一律取自 JWT 认证结果
@@ -29,6 +31,8 @@ class Post(PostBase):
     hide_uid: bool = False
     is_anonymous: bool = False
     is_pinned: int = 0  # 0=无 1=个人主页置顶 2=论坛置顶
+    # 公告受众：'all' / 'students_only'（founder 特权，仅公告帖有意义）
+    audience: str = "all"
     # 匿名帖的属主标记：user_id 抹除后前端靠它显示 编辑/删除 按钮（仅属主本人为 True）
     is_own: bool = False
     author_avatar: Optional[str] = None

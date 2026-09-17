@@ -21,6 +21,9 @@ class Post(Base):
     hide_uid = Column(Boolean, default=False)
     # 匿名发帖的服务端落库标记（匿名统计的唯一数据源；历史数据不回填）
     is_anonymous = Column(Boolean, default=False, index=True)
+    # 公告受众（隐私体系外独立维度，站长 2026-09-17）：'all'=所有人，'students_only'=仅学生可见
+    # founder 特权字段——非 founder 发帖时服务端强制 all
+    audience = Column(String(16), default="all")
     is_pinned = Column(Integer, default=0)  # 0=否 1=个人主页置顶 2=论坛置顶（权限见 pin_post）
     like_count = Column(Integer, default=0)
     star_count = Column(Integer, default=0)

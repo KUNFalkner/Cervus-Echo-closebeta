@@ -102,6 +102,17 @@ def _visible_posts_query(query, current_user):
         query = query.filter(
             (~PostModel.is_anonymous) | (PostModel.user_id == current_user.id)
         )
+    # 【站长 2026-09-17】仅学生可见公告：audience='students_only' 的帖子
+    # 只有 student 和 founder 可见（教师/校方/大使/未登录一律过滤）
+    if current_user:
+        if current_user.role not in ("student", "founder"):
+            query = query.filter(
+                (PostModel.audience.is_(None)) | (PostModel.audience != "students_only")
+            )
+    else:
+        query = query.filter(
+            (PostModel.audience.is_(None)) | (PostModel.audience != "students_only")
+        )
     return query
 
 
@@ -170,6 +181,10 @@ def create_post(
     # 检查公告权限
     if post.is_announcement and not can_post_announcement(user, post.forum):
         raise HTTPException(status_code=403, detail="无权发布公告")
+
+    # 【站长 2026-09-17】仅学生可见 = founder 特权：非 founder 强制 all
+    if (post.audience or "all") == "students_only" and user.role != "founder":
+        raise HTTPException(status_code=403, detail="仅学生可见为创始人特权")
 
     # 只有学生可匿名：教师/校方/大使/创始人都带身份，一律强制实名。
     # 顺带堵住漏洞——原来只对「已批准」教师强转，注册成教师但未批准者仍可匿名。
@@ -518,6 +533,10 @@ def read_post(
     post = db.query(PostModel).filter(PostModel.id == post_id).first()
     if post is None:
         raise HTTPException(status_code=404, detail="帖子不存在")
+    # 【站长 2026-09-17】仅学生可见：详情页同样按角色拦（与 _visible_posts_query 同规则）
+    if (post.audience or "all") == "students_only":
+        if not current_user or current_user.role not in ("student", "founder"):
+            raise HTTPException(status_code=404, detail="帖子不存在")
     # 教师/校方：匿名帖不可读（自己发的除外）；未批准教师按学生权限
     if (current_user and current_user.role in ("teacher", "school_official")
             and current_user.approved and post.is_anonymous and post.user_id != current_user.id):
