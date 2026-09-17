@@ -66,7 +66,7 @@ def load_history(room_id: str):
     db = SessionLocal()
     try:
         rows = (
-            db.query(Message, User.nickname, User.avatar)
+            db.query(Message, User.nickname, User.avatar, User.is_anonymous)
             .outerjoin(User, User.id == Message.user_id)
             .filter(Message.room_id == room_id)
             .order_by(Message.created_at.desc(), Message.id.desc())
@@ -79,12 +79,13 @@ def load_history(room_id: str):
                 "id": msg.id,
                 "room_id": msg.room_id,
                 "user_id": msg.user_id,
-                "nickname": nickname or "匿名用户",
-                "avatar": avatar,
+                # 【隐私 v2.2】账号匿名 → 历史消息也显示「匿名用户」+ 无头像
+                "nickname": ("匿名用户" if anon else (nickname or "匿名用户")),
+                "avatar": (None if anon else avatar),
                 "content": msg.content,
                 "timestamp": iso_utc(msg.created_at),
             }
-            for msg, nickname, avatar in reversed(rows)
+            for msg, nickname, avatar, anon in reversed(rows)
         ]
     except Exception:
         logger.exception("加载聊天历史失败 room_id=%s", room_id)
@@ -135,6 +136,9 @@ def load_sender_state(user_id: int):
             return None, None, None, False
         muted = mute_message(sender) if is_muted(sender) else None
         banned = getattr(sender, "banned", False)
+        # 【隐私 v2.2 站长 2026-09-17】账号匿名 → 聊天室也匿名（匿名用户+灰头像）
+        if getattr(sender, "is_anonymous", False):
+            return muted, "匿名用户", None, banned
         return muted, sender.nickname, sender.avatar, banned
     finally:
         db.close()
