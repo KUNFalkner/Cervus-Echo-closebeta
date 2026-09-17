@@ -82,7 +82,9 @@ def load_history(room_id: str):
                 # 【隐私 v2.2】账号匿名 → 历史消息也显示「匿名用户」+ 无头像
                 "nickname": ("匿名用户" if anon else (nickname or "匿名用户")),
                 "avatar": (None if anon else avatar),
-                "content": msg.content,
+                # 撤回的消息：content 不下发，前端渲染「消息已撤回」
+                "content": ("" if getattr(msg, "recalled", False) else msg.content),
+                "recalled": bool(getattr(msg, "recalled", False)),
                 "timestamp": iso_utc(msg.created_at),
             }
             for msg, nickname, avatar, anon in reversed(rows)
@@ -90,6 +92,26 @@ def load_history(room_id: str):
     except Exception:
         logger.exception("加载聊天历史失败 room_id=%s", room_id)
         return []
+    finally:
+        db.close()
+
+
+def recall_message(room_id: str, message_id: int, user_id: int) -> bool:
+    """撤回：仅发送者本人可撤回自己在此房间的消息（软删除——recalled=1，
+    内容保留但对外永远渲染「消息已撤回」）。返回是否成功。"""
+    db = SessionLocal()
+    try:
+        row = db.query(Message).filter(
+            Message.id == message_id, Message.room_id == room_id).first()
+        if row is None or row.user_id != user_id or row.recalled:
+            return False
+        row.recalled = True
+        db.commit()
+        return True
+    except Exception:
+        db.rollback()
+        logger.exception("撤回消息失败 room_id=%s id=%s", room_id, message_id)
+        return False
     finally:
         db.close()
 
@@ -222,6 +244,17 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
                     "type": msg_type,
                     "sender_id": user_id,
                 }, ensure_ascii=False))
+                continue
+
+            # 撤回：仅发送者本人可撤回自己的消息（founder 治理权走管理端，不在此处理）
+            if msg_type == "recall":
+                mid = message.get("id")
+                if mid is not None and recall_message(room_id, mid, user_id):
+                    await manager.broadcast(room_id, json.dumps({
+                        "type": "recall",
+                        "id": mid,
+                        "room_id": room_id,
+                    }, ensure_ascii=False))
                 continue
 
             if is_group_room:

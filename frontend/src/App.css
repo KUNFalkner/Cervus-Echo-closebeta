@@ -2637,3 +2637,7 @@ body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; 
   /* 关掉 Chrome 安卓在页面顶部的原生「下拉=整页 reload」，让位给应用内刷新 */
   body { overscroll-behavior-y: contain; }
 }
+
+
+/* ── 消息撤回（2026-09-17）：占位样式 ── */
+.msg-recalled { font-size: .82rem; color: var(--muted, #9a8f7d); font-style: italic; opacity: .85; }

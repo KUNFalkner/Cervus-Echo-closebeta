@@ -182,6 +182,8 @@ async def list_messages(
         }
         r = burn_svc.render_for(db, "dm", m, user.id, now)
         item.update(r)  # burn_mode / content / burned / state
+        if getattr(m, "recalled", False):
+            item.update({"recalled": True, "content": None, "burn_mode": None})
         out.append(item)
     return out
 
@@ -266,3 +268,33 @@ async def send_message(
         "read": False,
         "created_at": _iso(msg.created_at),
     }
+
+
+@router.delete("/conversations/{conv_id}/messages/{mid}")
+async def recall_dm_message(
+    conv_id: int,
+    mid: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """撤回私信：仅发送者本人（站长 2026-09-17）。软删除 + WS 通知对方。"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if not (conv.user_a == user.id or conv.user_b == user.id):
+        raise HTTPException(status_code=403, detail="无权访问该会话")
+    m = db.query(DirectMessage).filter(
+        DirectMessage.id == mid, DirectMessage.conversation_id == conv_id).first()
+    if not m or m.sender_id != user.id:
+        raise HTTPException(status_code=403, detail="只能撤回自己发送的消息")
+    if getattr(m, "recalled", False):
+        raise HTTPException(status_code=400, detail="消息已撤回")
+    m.recalled = True
+    db.commit()
+    try:
+        await ws_manager.broadcast(f"dm/{conv_id}", json.dumps({
+            "type": "recall", "conversation_id": conv_id, "id": mid,
+        }, ensure_ascii=False))
+    except Exception:
+        logging.getLogger(__name__).exception("DM recall broadcast failed")
+    return {"id": mid, "recalled": True}

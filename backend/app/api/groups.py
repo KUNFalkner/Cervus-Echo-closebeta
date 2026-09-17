@@ -408,12 +408,23 @@ def group_messages(
     out = []
     for m in msgs:
         u = users.get(m.user_id)
+        if getattr(m, "recalled", False):
+            out.append({
+                "id": m.id,
+                "user_id": m.user_id,
+                "nickname": "已注销用户",
+                "avatar": None,
+                "created_at": _iso(m.created_at),
+                "recalled": True,
+                "content": None,
+            })
+            continue
         r = burn_svc.render_for(db, "group", m, user.id, now)
         out.append({
             "id": m.id,
             "user_id": m.user_id,
-            "nickname": (u.nickname if u else "已注销用户"),
-            "avatar": (u.avatar if u else None),
+            "nickname": (("匿名用户" if getattr(u, "is_anonymous", False) else u.nickname) if u else "已注销用户"),
+            "avatar": (None if getattr(u, "is_anonymous", False) else (u.avatar if u else None)),
             "created_at": _iso(m.created_at),
             **r,
         })
@@ -481,8 +492,8 @@ async def send_group_message(
         "id": msg.id,
         "room_id": _room(gid),
         "user_id": user.id,
-        "nickname": (u.nickname if u else "匿名用户"),
-        "avatar": (u.avatar if u else None),
+        "nickname": (("匿名用户" if getattr(u, "is_anonymous", False) else u.nickname) if u else "匿名用户"),
+        "avatar": (None if getattr(u, "is_anonymous", False) else (u.avatar if u else None)),
         "content": None if burn_mode else content,
         "burn_mode": burn_mode,
         "state": r.get("state", "pending") if burn_mode else "permanent",
@@ -496,3 +507,23 @@ async def send_group_message(
         "burn_mode": burn_mode,
         "created_at": _iso(msg.created_at),
     }
+
+
+@router.delete("/{gid}/messages/{mid}")
+async def recall_group_message(
+    gid: int,
+    mid: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """撤回群消息：仅发送者本人（站长 2026-09-17）。软删除+广播 recall 帧。"""
+    _require_member(db, gid, user.id)
+    msg = db.query(Message).filter(Message.id == mid, Message.room_id == _room(gid)).first()
+    if msg is None or msg.user_id != user.id:
+        raise HTTPException(status_code=403, detail="只能撤回自己发送的消息")
+    if getattr(msg, "recalled", False):
+        raise HTTPException(status_code=400, detail="消息已撤回")
+    msg.recalled = True
+    db.commit()
+    await _broadcast_group(gid, {"type": "recall", "id": mid, "room_id": _room(gid)})
+    return {"id": mid, "recalled": True}

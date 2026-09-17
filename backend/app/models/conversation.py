@@ -39,3 +39,5 @@ class DirectMessage(Base):
     content_enc = Column(Text, nullable=True)
     burned_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
+    # 撤回（2026-09-17）：软删除，仅发送者本人可撤；对外只渲染「消息已撤回」
+    recalled = Column(Boolean, default=False)
