@@ -1117,6 +1117,7 @@ const AdminPage = ({user}) => {
   const unmuteUser = async(u)=>{ try{ const r=await apiFetch(`/admin/users/${u.id}/unmute`,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'解禁失败')); setMuted(u.id,null); toast.success('已解除禁言') }catch(e){toast.error(e.message)} }
   const banUser = async(u)=>{ if(!confirm(`确认封禁 ${u.nickname}？该用户将无法再登录`))return; try{ const r=await apiFetch(`/admin/users/${u.id}/ban`,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'封禁失败')); const d=await r.json(); setUlist(us=>us.map(x=>x.id===u.id?{...x,banned:d.banned}:x)); toast.success('已封禁该用户') }catch(e){toast.error(e.message)} }
   const unbanUser = async(u)=>{ try{ const r=await apiFetch(`/admin/users/${u.id}/unban`,{method:'PUT'}); if(!r.ok)throw new Error(await errMsg(r,'解封失败')); const d=await r.json(); setUlist(us=>us.map(x=>x.id===u.id?{...x,banned:d.banned}:x)); toast.success('已解封') }catch(e){toast.error(e.message)} }
+  const forceDeleteUser = async(u)=>{ if(!confirm(`⚠️ 强制注销 ${u.nickname}（@${u.username}）？\n\n该账号及其全部帖子/评论/私信将被永久删除，不可恢复！`))return; try{ const r=await apiFetch(`/admin/users/${u.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'注销失败')); setUlist(us=>us.filter(x=>x.id!==u.id)); toast.success(`已强制注销 ${u.nickname}`) }catch(e){toast.error(e.message)} }
   if(loading) return <Spinner/>
   return <div className="admin-page"><h2 className="admin-title">管理后台</h2>
   <div className="admin-tabs">{canApproveTeachers&&<button className={`admin-tab ${tab==='teachers'?'active':''}`} onClick={()=>setTab('teachers')}>教师审批 ({tApprovals.length})</button>}<button className={`admin-tab ${tab==='stats'?'active':''}`} onClick={()=>setTab('stats')}>数据</button><button className={`admin-tab ${tab==='users'?'active':''}`} onClick={()=>setTab('users')}>用户</button><button className={`admin-tab ${tab==='reports'?'active':''}`} onClick={()=>setTab('reports')}>举报 ({reports.filter(r=>r.status==='pending').length})</button><button className={`admin-tab ${tab==='content'?'active':''}`} onClick={()=>setTab('content')}>内容 ({plist.length})</button>{isAdminRole&&<><button className={`admin-tab ${tab==='boards'?'active':''}`} onClick={()=>setTab('boards')}>板块</button><button className={`admin-tab ${tab==='polls'?'active':''}`} onClick={()=>setTab('polls')}>投票</button></>}</div>
@@ -1187,6 +1188,7 @@ const AdminPage = ({user}) => {
         {u.banned
           ? <button className="save-btn" onClick={()=>unbanUser(u)}>解封</button>
           : <button className="danger-btn" onClick={()=>banUser(u)}>封禁</button>}
+        {user.role==='founder'&&<button className="danger-btn" onClick={()=>forceDeleteUser(u)}>强制注销</button>}
       </div>}
     </div>)}
   </div>}
@@ -1243,6 +1245,7 @@ const AdminPage = ({user}) => {
 
 // ── UserProfile（他人/自己主页：公开信息 + TA 的帖子）──
 const UserProfile = ({userId, user, onBack, onOpenPost, onOpenUser, onStartDM}) => {
+
   const toast=useToast(); const [info,setInfo]=useState(null); const [posts,setPosts]=useState([]); const [loading,setLoading]=useState(true); const [err,setErr]=useState(null); const [tick,setTick]=useState(0)
   const [followState,setFollowState]=useState(false); const [followBusy,setFollowBusy]=useState(false)
   const [socialStats,setSocialStats]=useState({followers:0,following:0}); const [showFollow,setShowFollow]=useState(null)
