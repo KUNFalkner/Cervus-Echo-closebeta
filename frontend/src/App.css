@@ -285,6 +285,10 @@ body:not([data-time="day"]) .sponsor-thanks { color: #e3c478; }
   font-size: 0.82rem; font-family: inherit; cursor: pointer; transition: all 0.15s;
 }
 .category-option.active { background: var(--cat-active-bg); color: var(--chip-active-fg); border-color: var(--cat-active-bd); }
+/* 【站长 2026-09-17】话题选中/未选中色差太小 → 选中态加金色描边+加粗+对勾，一眼可辨 */
+.category-option.active { border-width: 2px; font-weight: 700; box-shadow: 0 0 0 1px rgba(227,196,120,.35); }
+.category-option.active::after { content: " ✓"; color: #e3c478; font-weight: 700; }
+body[data-time="day"] .category-option.active { background: rgba(227,196,120,.28); border-color: rgba(180,140,50,.75); }
 
 .post-options { display: flex; gap: 1rem; }
 .checkbox-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
