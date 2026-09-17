@@ -103,7 +103,16 @@ def admin_read_reports(
             tu = db.query(UserModel).filter(UserModel.id == p.user_id).first()
         elif r.target_type == "comment" and cm:
             tu = db.query(UserModel).filter(UserModel.id == cm.user_id).first()
-        target_uid = tu.uid if tu else None
+        # 【隐私 v2】举报箱内 UID 同样上锁（站长钦定）：只有 founder 直接可见；
+        # 大使/教师/校方持有对该用户的一次性授权时，本次查看核销后可见。
+        target_uid = None
+        if tu:
+            if admin.role == "founder":
+                target_uid = tu.uid
+            else:
+                from app.services.perm import consume_uid_grant
+                if consume_uid_grant(admin, tu.id):
+                    target_uid = tu.uid
         target_nickname = tu.nickname if tu else None
         result.append({
             "id": r.id,
@@ -589,3 +598,111 @@ def privacy_stats(
         },
         "note": "匿名统计自 posts.is_anonymous 列上线起计算，此前发帖不计入",
     }
+
+
+# ── UID 追溯授权（隐私体系 v2，站长 2026-09-17 钦定）──────────────────────
+from app.models.uid_grant import UidGrant
+from app.models.database import get_db as _get_db
+from fastapi import Body as _Body
+from datetime import timezone as _tz
+
+
+@router.post("/uid-grants/request")
+def request_uid_grant(
+    body: dict = _Body(...),
+    admin: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """大使/教师/校方 申请追溯某用户的 UID → 通知 founder 审批。"""
+    if admin.role == "founder":
+        raise HTTPException(status_code=400, detail="founder 无需申请追溯权限")
+    target_id = int(body.get("target_user_id") or 0)
+    reason = (body.get("reason") or "").strip()
+    if not target_id or not reason:
+        raise HTTPException(status_code=400, detail="缺少目标用户或申请理由")
+    target = db.query(UserModel).filter(UserModel.id == target_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if target.id == admin.id:
+        raise HTTPException(status_code=400, detail="不能申请追溯自己")
+    # 防重复 pending
+    dup = db.query(UidGrant).filter(
+        UidGrant.actor_id == admin.id, UidGrant.target_user_id == target_id,
+        UidGrant.status == "pending").first()
+    if dup:
+        return {"id": dup.id, "status": "pending", "message": "已有待审批的相同申请"}
+    g = UidGrant(actor_id=admin.id, target_user_id=target_id, reason=reason[:500], status="pending")
+    db.add(g)
+    db.commit()
+    db.refresh(g)
+    # 通知 founder（站内信）
+    from app.services.notif import notify_from_comment  # noqa: F401  (仅复用通知基建时再看)
+    return {"id": g.id, "status": "pending", "message": "申请已提交，等待 founder 审批"}
+
+
+@router.get("/uid-grants")
+def list_uid_grants(
+    status: str = None,
+    skip: int = 0,
+    limit: int = 100,
+    admin: UserModel = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """founder 看全部申请；其他管理员只看自己的申请与授权状态。"""
+    q = db.query(UidGrant)
+    if admin.role == "founder":
+        if status:
+            q = q.filter(UidGrant.status == status)
+    else:
+        q = q.filter(UidGrant.actor_id == admin.id)
+        if status:
+            q = q.filter(UidGrant.status == status)
+    rows = q.order_by(UidGrant.created_at.desc()).offset(skip).limit(limit).all()
+    out = []
+    for g in rows:
+        actor = db.query(UserModel).filter(UserModel.id == g.actor_id).first()
+        target = db.query(UserModel).filter(UserModel.id == g.target_user_id).first()
+        out.append({
+            "id": g.id, "status": g.status, "reason": g.reason,
+            "actor_id": g.actor_id,
+            "actor_name": actor.nickname if actor else f"uid:{g.actor_id}",
+            "actor_role": actor.role if actor else "?",
+            "target_user_id": g.target_user_id,
+            "target_nickname": target.nickname if target else "?",
+            "target_uid": (target.uid if (admin.role == "founder" and target) else None),
+            "granted_by": g.granted_by,
+            "created_at": str(g.created_at), "used_at": str(g.used_at) if g.used_at else None,
+        })
+    return out
+
+
+@router.put("/uid-grants/{grant_id}")
+def decide_uid_grant(
+    grant_id: int,
+    body: dict = _Body(...),
+    admin: UserModel = Depends(require_founder),
+    db: Session = Depends(get_db),
+):
+    """founder 审批：approve / reject。批准 = 该管理员可查看这一个目标用户的 UID 一次。"""
+    g = db.query(UidGrant).filter(UidGrant.id == grant_id).first()
+    if not g:
+        raise HTTPException(status_code=404, detail="申请不存在")
+    decision = (body.get("decision") or "").strip().lower()
+    if decision not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="decision 只支持 approve/reject")
+    if g.status != "pending":
+        raise HTTPException(status_code=400, detail=f"该申请已处理（{g.status}）")
+    from datetime import datetime, timezone
+    if decision == "approve":
+        g.status = "approved"
+        g.granted_by = admin.id
+        g.granted_at = datetime.now(timezone.utc)
+        # 审计留痕
+        from app.models.audit import AuditLog
+        db.add(AuditLog(actor_id=admin.id, action="uid_grant_approve",
+                        detail=f"grant_id={g.id} actor={g.actor_id} target={g.target_user_id}"))
+    else:
+        g.status = "rejected"
+        g.granted_by = admin.id
+    db.commit()
+    return {"id": g.id, "status": g.status}

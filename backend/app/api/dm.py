@@ -205,7 +205,10 @@ async def send_message(
     content = (body.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="消息不能为空")
-    content = sensitive_filter.filter_text(content)[:MAX_DM_LEN]
+    hits = sensitive_filter.find_hits(content)
+    if hits:
+        raise HTTPException(status_code=400, detail=f"消息包含违规词语（{hits[0]}…），请修改后重试")
+    content = content[:MAX_DM_LEN]
     burn_mode = (body.burn_mode or "").strip() or None
     if burn_mode and burn_mode not in burn_svc.BURN_MODES:
         raise HTTPException(status_code=400, detail="无效的焚毁模式")

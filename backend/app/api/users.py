@@ -115,19 +115,28 @@ def search_users(
     viewer: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    """全局搜索：按昵称或用户名模糊匹配（不暴露 uid / 真实姓名，排除已封禁）。"""
+    """全局搜索：按昵称或用户名模糊匹配（不暴露 uid / 真实姓名，排除已封禁）。
+
+    【隐私体系 v2 2026-09-17 站长钦定】开了账号级匿名的用户：
+    搜索账户名/UID/昵称一律搜不到——founder 除外（唯一治理通道）。
+    账户名（@username）对所有非本人结果一并隐藏（登录凭证的一半）。
+    """
     like = f"%{q}%"
-    users = (
-        db.query(UserModel)
-        .filter(
-            UserModel.banned == False,
-            (UserModel.nickname.ilike(like)) | (UserModel.username.ilike(like)),
-        )
-        .order_by(UserModel.karma.desc())
-        .limit(20)
-        .all()
+    query = db.query(UserModel).filter(
+        UserModel.banned == False,
+        (UserModel.nickname.ilike(like)) | (UserModel.username.ilike(like)),
     )
-    return users
+    # 匿名账号对非 founder 完全隐身
+    if viewer.role != "founder":
+        query = query.filter(UserModel.is_anonymous == False)
+    users = query.order_by(UserModel.karma.desc()).limit(20).all()
+    out = []
+    for u in users:
+        pu = PublicUser.model_validate(u)
+        if u.id != viewer.id:
+            pu.username = None  # 账户名不露出
+        out.append(pu)
+    return out
 
 
 @router.get("/directory", response_model=List[PublicUser])
@@ -138,13 +147,24 @@ def user_directory(
     viewer: UserModel = Depends(require_user),
     db: Session = Depends(get_db),
 ):
-    """用户名录：建群选人用。默认直接列出（按 karma），可选过滤，排除封禁号。"""
+    """用户名录：建群选人用。默认直接列出（按 karma），可选过滤，排除封禁号。
+
+    【隐私 v2】匿名账号不出现在名录（非 founder）；账户名一律隐藏。
+    """
     query = db.query(UserModel).filter(UserModel.banned == False)
+    if viewer.role != "founder":
+        query = query.filter(UserModel.is_anonymous == False)
     if q.strip():
         like = f"%{q.strip()}%"
         query = query.filter((UserModel.nickname.ilike(like)) | (UserModel.username.ilike(like)))
     users = query.order_by(UserModel.karma.desc()).offset(skip).limit(limit).all()
-    return users
+    out = []
+    for u in users:
+        pu = PublicUser.model_validate(u)
+        if u.id != viewer.id:
+            pu.username = None
+        out.append(pu)
+    return out
 
 
 @router.get("/{user_id}", response_model=PublicUser)

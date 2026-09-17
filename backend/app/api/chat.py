@@ -232,8 +232,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str, token: Optional
             if not content:
                 continue
             content = content[:MAX_CONTENT_LEN]
-            # 私信同样过敏感词过滤（与帖子/评论一致：命中词打码为 *）
-            content = sensitive_filter.filter_text(content)
+            # 违禁词：命中直接拦截——只向发送者回错误帧，消息不落库不广播（站长 2026-09-17）
+            hits = sensitive_filter.find_hits(content)
+            if hits:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": f"消息包含违规词语（{hits[0]}…），请修改后重试",
+                }, ensure_ascii=False))
+                continue
 
             # 身份只认握手时认证出来的那个人，客户端帧里的 user_id / nickname 一律忽略
             # 封禁 / 禁言拦截：仅向发送者回送错误帧，不影响房间其他人

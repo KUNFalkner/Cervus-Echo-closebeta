@@ -95,6 +95,9 @@ class PublicUser(BaseModel):
     karma: int = 0
     is_anonymous: bool = True
     profile_public: bool = False
+    # 账户名（@username）：登录凭证的一半，站长裁定不对外露出——
+    # search/directory 的非本人结果一律抹成 None
+    username: Optional[str] = None
 
     class Config:
         from_attributes = True

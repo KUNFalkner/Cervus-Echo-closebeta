@@ -111,15 +111,27 @@ def _mask_post(post: PostModel, viewer: Optional[UserModel], author_avatar: Opti
     【核心修复 2026-09-16，站长要求】匿名帖 user_id 一律抹成 None：
     此前 feed 明文下发真实数据库主键 → GET /users/{id} 拿到昵称学校 → 去匿名化链条。
     属主判断不受影响：前端"编辑/删除"按钮改由后端 response 的 is_own 标记驱动，
-    服务端仍在接口层用 token 实比对（post.user_id == current_user.id）。"""
+    服务端仍在接口层用 token 实比对（post.user_id == current_user.id）。
+    【隐私体系 v2 2026-09-17】UID 可见性收紧为 founder-only + 一次性授权；
+    匿名帖 username 一并抹除（站长：匿名发帖不露账户名）。"""
     data = PostSchema.model_validate(post)
-    if not can_see_uid(viewer, bool(post.hide_uid), post.user_school):
+    # 授权核销只发生在"单帖详情"这类明确单目标的调用；列表调用不带核销（见 read_posts 的 granular 参数）
+    consume = getattr(post, "_consume_grant", False)
+    if consume and viewer is not None and post.user_id:
+        from app.services.perm import consume_uid_grant
+        allowed = consume_uid_grant(viewer, post.user_id)
+    else:
+        allowed = can_see_uid(viewer, bool(post.hide_uid), post.user_school, target_user_id=post.user_id)
+    if not allowed:
         data.user_uid = None
     data.author_avatar = author_avatar if not post.hide_uid else None
     # 匿名帖：真实 user_id 不出门。founder 除外（唯一最高权限，仅用于治理暴力/违禁内容）。
     if post.is_anonymous and not (viewer and viewer.role == "founder"):
         data.user_id = None
         data.is_own = (viewer is not None and viewer.id == post.user_id)
+    # 【隐私 v2】匿名帖不露账户名（username 是登录凭证的一半，站长裁定不露出）
+    if post.is_anonymous and not (viewer and viewer.role == "founder"):
+        data.username = None
     return data
 
 
@@ -164,9 +176,10 @@ def create_post(
     if user.role != "student":
         post.is_anonymous = False
 
-    # 敏感词过滤
-    post.title = sensitive_filter.filter_text(post.title)
-    post.content = sensitive_filter.filter_text(post.content)
+    # 敏感词：命中直接拦截（站长 2026-09-17 要求"直接系统拦截"，不再打码放行）
+    hits = sensitive_filter.find_hits(post.title) + sensitive_filter.find_hits(post.content)
+    if hits:
+        raise HTTPException(status_code=400, detail=f"内容包含违规词语（{hits[0]}…），请修改后重试")
 
     # 身份字段一律以服务端认证结果为准，不接受客户端自报
     post_data = post.model_dump()
@@ -510,6 +523,13 @@ def read_post(
             and current_user.approved and post.is_anonymous and post.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="帖子不存在")
     author = db.query(UserModel).filter(UserModel.id == post.user_id).first()
+    # 【隐私 v2】单帖详情是"明确单目标"调用：若查看者对该作者持有 approved 授权，
+    # 本次查看核销授权（一次性，看完即锁）。
+    post._consume_grant = bool(
+        current_user is not None
+        and current_user.role in ("ambassador", "teacher", "school_official")
+        and post.user_id != current_user.id
+    )
     return _mask_post(post, current_user, author.avatar if author else None)
 
 @router.put("/{post_id}", response_model=PostSchema)
@@ -530,9 +550,15 @@ def update_post(
         assert_can_moderate(user, post.user_school)
 
     if body.title is not None:
-        post.title = sensitive_filter.filter_text(body.title)
+        hits = sensitive_filter.find_hits(body.title)
+        if hits:
+            raise HTTPException(status_code=400, detail=f"标题包含违规词语（{hits[0]}…），请修改后重试")
+        post.title = body.title
     if body.content is not None:
-        post.content = sensitive_filter.filter_text(body.content)
+        hits = sensitive_filter.find_hits(body.content)
+        if hits:
+            raise HTTPException(status_code=400, detail=f"内容包含违规词语（{hits[0]}…），请修改后重试")
+        post.content = body.content
     if body.category is not None:
         post.category = body.category
     if body.tags is not None:
@@ -752,7 +778,9 @@ def create_comment(
             seen.add(cur.id)
             depth += 1
 
-    comment.content = sensitive_filter.filter_text(comment.content)
+    hits = sensitive_filter.find_hits(comment.content)
+    if hits:
+        raise HTTPException(status_code=400, detail=f"评论包含违规词语（{hits[0]}…），请修改后重试")
     data = comment.model_dump()
     data["post_id"] = post_id
     data["user_id"] = user.id
@@ -863,7 +891,9 @@ def update_comment(
     is_admin = user.role in ["founder", "ambassador"]
     if not is_admin and comment.user_id != user.id:
         raise HTTPException(status_code=403, detail="无权编辑此评论")
-    body.content = sensitive_filter.filter_text(body.content)
+    hits = sensitive_filter.find_hits(body.content)
+    if hits:
+        raise HTTPException(status_code=400, detail=f"评论包含违规词语（{hits[0]}…），请修改后重试")
     if not body.content.strip():
         raise HTTPException(status_code=400, detail="评论内容不能为空")
     comment.content = body.content
