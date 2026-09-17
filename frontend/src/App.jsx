@@ -1124,6 +1124,8 @@ const AdminPage = ({user}) => {
       <div className="glass-card stat-card"><span className="stat-number">{stats.posts_30d}</span><span className="stat-desc">近30天发帖</span></div>
       <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.total_draws||0}</span><span className="stat-desc">塔罗总抽牌</span></div>
       <div className="glass-card stat-card"><span className="stat-number">{stats.tarot?.ai_count||0}</span><span className="stat-desc">荣格密语次数</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.burn?.dm_total||0}</span><span className="stat-desc">阅后即焚私信</span></div>
+      <div className="glass-card stat-card"><span className="stat-number">{stats.burn?.group_total||0}</span><span className="stat-desc">阅后即焚群聊</span></div>
     </div>
     <div className="stat-charts">
       <div className="glass-card stat-chart-card"><h4>近 30 天塔罗抽牌</h4><StatLine data={stats.tarot?.daily||[]} /></div>

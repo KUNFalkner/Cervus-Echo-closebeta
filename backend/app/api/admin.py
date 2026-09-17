@@ -301,6 +301,22 @@ def admin_stats(
         "daily": tarot_daily,
     }
 
+    # ── 阅后即焚使用频率（聚合计数，无任何内容——焚毁消息库里本无明文）──
+    # DM = direct_messages；群聊 = messages。burn_mode 非空即焚毁消息。
+    dm_burn_total = db.query(DirectMessage).filter(DirectMessage.burn_mode.isnot(None)).count()
+    dm_burn_burned = db.query(DirectMessage).filter(DirectMessage.burn_mode.isnot(None), DirectMessage.burned_at.isnot(None)).count()
+    grp_burn_total = db.query(Message).filter(Message.burn_mode.isnot(None)).count()
+    grp_burn_burned = db.query(Message).filter(Message.burn_mode.isnot(None), Message.burned_at.isnot(None)).count()
+    burn_30d = db.query(DirectMessage).filter(
+        DirectMessage.burn_mode.isnot(None), DirectMessage.created_at >= since).count()
+    burn = {
+        "dm_total": dm_burn_total,
+        "dm_burned": dm_burn_burned,
+        "group_total": grp_burn_total,
+        "group_burned": grp_burn_burned,
+        "dm_30d": burn_30d,
+    }
+
     # ── 近 30 天发帖 / 评论活跃 ──
     posts_rows = db.query(PostModel.created_at).filter(PostModel.created_at >= since).all()
     comments_rows = db.query(CommentModel.created_at).filter(CommentModel.created_at >= since).all()
@@ -328,6 +344,7 @@ def admin_stats(
         "new_users_30d": new_users_30d,
         "posts_30d": posts_30d,
         "tarot": tarot,
+        "burn": burn,
         "activity_daily": activity_daily,
         "board_dist": board_dist,
     }
