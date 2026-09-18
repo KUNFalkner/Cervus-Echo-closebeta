@@ -75,6 +75,33 @@ async def wechat_login(body: WechatLoginRequest, db: Session = Depends(get_db)):
 
 
 # ── Username/password login (legacy, returns JWT now) ──────────────────
+@router.post("/forgot-password")
+def forgot_password(body: dict, request: Request, db: Session = Depends(get_db)):
+    """忘记密码自助重置（2026-09-18）：学号四件套 + 昵称 双验证 → 设新密码。
+
+    无邮箱/手机字段，学号四件套（学校+入学年+班+座号）是站内唯一强身份凭证；
+    加昵称双因子防纯枚举。限流 5/h/IP 防爆破。教师/校方/大使不支持自助重置
+    （走 founder 后台改密），防止伪造身份攻击管理账号。
+    """
+    rate_limit("forgot", 5, 3600, ip=request.client.host if request.client else "unknown")
+    username = (body.get("username") or "").strip()
+    nickname = (body.get("nickname") or "").strip()
+    new_pwd = body.get("new_password") or ""
+    if not username or not nickname or len(new_pwd) < 8:
+        raise HTTPException(status_code=400, detail="请填写完整信息，新密码至少 8 位")
+    u = db.query(UserModel).filter(UserModel.username == username).first()
+    # 统一响应避免枚举：无论是否存在都返回同一文案
+    if (not u or u.role != "student" or u.nickname != nickname
+            or int(u.enrollment_year or 0) != int(body.get("enrollment_year") or 0)
+            or int(u.class_number or 0) != int(body.get("class_number") or 0)
+            or str(u.student_number) != str(body.get("student_number") or "").strip()
+            or u.school_id != (body.get("school_id") or "")):
+        raise HTTPException(status_code=400, detail="信息不匹配，请核对后重试")
+    u.password = hash_password(new_pwd)
+    db.commit()
+    return {"ok": True, "message": "密码已重置，请用新密码登录"}
+
+
 @router.post("/login", response_model=TokenResponse)
 def login_user(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     # 频率限制：同 IP 登录 10 次/分钟，防爆破

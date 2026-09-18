@@ -2647,3 +2647,10 @@ body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; 
 .msg-menu-item { display: block; width: 100%; padding: .6rem 1rem; background: none; border: none; text-align: left; font-size: .88rem; color: var(--fg, #f2e8d8); cursor: pointer; }
 .msg-menu-item:hover { background: rgba(255,255,255,.08); }
 .msg-menu-item.danger { color: #e57373; }
+
+
+/* ── 忘记密码弹窗（2026-09-18）── */
+.forgot-overlay { position: fixed; inset: 0; z-index: 200; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+.forgot-card { width: 100%; max-width: 380px; max-height: 86vh; overflow-y: auto; padding: 1.25rem; display: flex; flex-direction: column; gap: .6rem; }
+.forgot-card h3 { margin: 0; }
+.forgot-hint { font-size: .8rem; opacity: .75; line-height: 1.6; margin: 0; }

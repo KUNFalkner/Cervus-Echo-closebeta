@@ -293,6 +293,10 @@ const Starfield = () => {
 // ── LoginPage ──
 const LoginPage = ({onLogin,onSwitchRegister}) => {
   const toast=useToast(); const nameRef=useRef(null); const passRef=useRef(null); const pageRef=useRef(null); const [loading,setLoading]=useState(false);
+  const [showForgot,setShowForgot]=useState(false); const [fgBusy,setFgBusy]=useState(false);
+  const [fg,setFg]=useState({username:'',nickname:'',enrollment_year:'',class_number:'',student_number:'',school_id:'JSKS',new_password:''});
+  const [schools,setSchools]=useState([]);
+  useEffect(()=>{ apiFetch('/schools/').then(r=>r.ok?r.json():[]).then(d=>setSchools(Array.isArray(d)?d:[])).catch(()=>{}) },[]);
   useGSAP(() => {
     const mm = gsap.matchMedia()
     mm.add('(prefers-reduced-motion: no-preference)', () => {
@@ -310,7 +314,35 @@ const LoginPage = ({onLogin,onSwitchRegister}) => {
   }, { scope: pageRef })
   const submit=async(e)=>{e.preventDefault();const u=nameRef.current?.value?.trim(),p=passRef.current?.value||'';if(!u)return;setLoading(true);
     try{const r=await apiFetch(`/users/login`,{method:'POST',body:JSON.stringify({username:u,password:p})});if(!r.ok)throw new Error(await errMsg(r,'登录失败'));onLogin(await r.json())}catch(e){toast.error(e.message)}finally{setLoading(false)}}
-  return <div className="login-page" ref={pageRef}><div className="login-card-glass"><div className="login-header"><h1 className="brand-title">鹿鸣回音</h1><span className="brand-subtitle-en">Cervus Echo</span><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码" className="login-input" required/><button type="submit" className="login-btn ihb-btn" disabled={loading}><span className="ihb-dot"></span><span className="ihb-t1">{loading?'进入中…':'进入社区'}{!loading&&<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>}</span><span className="ihb-t2"><span className="ihb-t2-arrow">✦</span>开启你的树洞</span></button></form><p className="switch-link">没有账号？<button onClick={onSwitchRegister}>去注册</button></p></div></div>
+  return <div className="login-page" ref={pageRef}><div className="login-card-glass"><div className="login-header"><h1 className="brand-title">鹿鸣回音</h1><span className="brand-subtitle-en">Cervus Echo</span><p>匿名表达，自由交流</p></div><form onSubmit={submit} className="login-form"><input ref={nameRef} type="text" placeholder="用户名" className="login-input" required/><input ref={passRef} type="password" placeholder="密码" className="login-input" required/><button type="submit" className="login-btn ihb-btn" disabled={loading}><span className="ihb-dot"></span><span className="ihb-t1">{loading?'进入中…':'进入社区'}{!loading&&<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>}</span><span className="ihb-t2"><span className="ihb-t2-arrow">✦</span>开启你的树洞</span></button></form><p className="switch-link"><button onClick={()=>setShowForgot(true)}>忘记密码？</button> · 没有账号？<button onClick={onSwitchRegister}>去注册</button></p>
+  {showForgot&&<div className="forgot-overlay" onClick={e=>{if(e.target===e.currentTarget)setShowForgot(false)}}>
+    <div className="forgot-card glass-card">
+      <h3>重置密码</h3>
+      <p className="forgot-hint">填写注册时信息验证身份，通过后设置新密码。教师/校方/大使请联系创始人重置。</p>
+      <input placeholder="用户名" className="login-input" value={fg.username} onChange={e=>setFg({...fg,username:e.target.value})}/>
+      <input placeholder="昵称（注册时的昵称）" className="login-input" value={fg.nickname} onChange={e=>setFg({...fg,nickname:e.target.value})}/>
+      <div style={{display:'flex',gap:'.5rem'}}>
+        <input placeholder="入学年份(如2025)" type="number" className="login-input" value={fg.enrollment_year} onChange={e=>setFg({...fg,enrollment_year:e.target.value})}/>
+        <input placeholder="班级" type="number" className="login-input" value={fg.class_number} onChange={e=>setFg({...fg,class_number:e.target.value})}/>
+      </div>
+      <div style={{display:'flex',gap:'.5rem'}}>
+        <input placeholder="学号(座号)" type="number" className="login-input" value={fg.student_number} onChange={e=>setFg({...fg,student_number:e.target.value})}/>
+        <select className="login-input" value={fg.school_id} onChange={e=>setFg({...fg,school_id:e.target.value})} style={{colorScheme:'dark'}}>
+          {schools.map(sc=><option key={sc.code} value={sc.code}>{sc.name}</option>)}
+        </select>
+      </div>
+      <input placeholder="新密码（至少8位）" type="password" className="login-input" value={fg.new_password} onChange={e=>setFg({...fg,new_password:e.target.value})}/>
+      <button className="login-btn" disabled={fgBusy} onClick={async()=>{
+        setFgBusy(true)
+        try{ const r=await apiFetch('/users/forgot-password',{method:'POST',body:JSON.stringify({...fg,enrollment_year:parseInt(fg.enrollment_year)||0,class_number:parseInt(fg.class_number)||0})})
+          if(!r.ok)throw new Error(await errMsg(r,'重置失败'))
+          const d=await r.json(); toast.success(d.message||'密码已重置'); setShowForgot(false)
+        }catch(e){toast.error(e.message)}finally{setFgBusy(false)}
+      }}>{fgBusy?'提交中…':'重置密码'}</button>
+      <button type="button" className="login-btn" style={{background:'rgba(255,255,255,.08)'}} onClick={()=>setShowForgot(false)}>返回登录</button>
+    </div>
+  </div>}
+</div></div>
 }
 
 // ── RegisterForm ──
