@@ -2641,3 +2641,9 @@ body.day .filter-chip.active { background: var(--accent, #b8912f); color: #fff; 
 
 /* ── 消息撤回（2026-09-17）：占位样式 ── */
 .msg-recalled { font-size: .82rem; color: var(--muted, #9a8f7d); font-style: italic; opacity: .85; }
+/* 消息操作菜单（右键/长按弹出，像正常聊天软件） */
+.msg-menu-backdrop { position: fixed; inset: 0; z-index: 300; }
+.msg-menu { position: fixed; z-index: 301; min-width: 120px; background: var(--card, #2a2620); border: 1px solid var(--border, rgba(255,255,255,.12)); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.4); overflow: hidden; }
+.msg-menu-item { display: block; width: 100%; padding: .6rem 1rem; background: none; border: none; text-align: left; font-size: .88rem; color: var(--fg, #f2e8d8); cursor: pointer; }
+.msg-menu-item:hover { background: rgba(255,255,255,.08); }
+.msg-menu-item.danger { color: #e57373; }

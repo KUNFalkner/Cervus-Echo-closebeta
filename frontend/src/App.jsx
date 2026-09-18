@@ -588,10 +588,14 @@ const ChatRoom = () => {
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:'smooth'}) },[msgs])
 
   const chatPressTimer = useRef(null)
-  const recallChat = m => {
+  const [msgMenu, setMsgMenu] = useState(null)  // {id, x, y}
+  const openMsgMenu = (m, x, y) => setMsgMenu({id: m.id, x, y})
+  const recallChat = () => {
     const s = wsRef.current
+    if(!msgMenu) return
     if(!s || s.readyState !== WebSocket.OPEN){ setErrTip('连接断开，无法撤回'); return }
-    s.send(JSON.stringify({type:'recall', id:m.id}))
+    s.send(JSON.stringify({type:'recall', id:msgMenu.id}))
+    setMsgMenu(null)
   }
 
   const send = e => {
@@ -620,8 +624,8 @@ const ChatRoom = () => {
       {msgs.length===0
         ? <Empty icon="💬" title="暂无消息" desc="来说点什么吧"/>
         : msgs.map((m,i)=><div key={m.id ?? `local-${i}`} className={`chat-message ${m.user_id===usr.id?'own':''}`}
-            onContextMenu={e=>{ if(m.user_id===usr.id&&!m.recalled){ e.preventDefault(); recallChat(m) } }}
-            onTouchStart={()=>{ if(m.user_id===usr.id&&!m.recalled){ chatPressTimer.current=setTimeout(()=>recallChat(m),550) } }}
+            onContextMenu={e=>{ if(m.user_id===usr.id&&!m.recalled){ e.preventDefault(); openMsgMenu(m, e.clientX, e.clientY) } }}
+            onTouchStart={e=>{ if(m.user_id===usr.id&&!m.recalled){ const t=e.touches[0]; chatPressTimer.current=setTimeout(()=>openMsgMenu(m, t.clientX, t.clientY),550) } }}
             onTouchEnd={()=>{ if(chatPressTimer.current){clearTimeout(chatPressTimer.current);chatPressTimer.current=null} }}
             onTouchMove={()=>{ if(chatPressTimer.current){clearTimeout(chatPressTimer.current);chatPressTimer.current=null} }}>
             <Avatar src={m.avatar} seed={m.nickname} className="chat-avatar" />
@@ -637,6 +641,12 @@ const ChatRoom = () => {
       <input value={input} onChange={e=>setInput(e.target.value)} placeholder={online?'输入消息...':'连接断开，无法发送'} className="glass-input chat-input" disabled={!online}/>
       <button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||!online}>发送</button>
     </form>
+    {msgMenu&&<div className="msg-menu-backdrop" onClick={()=>setMsgMenu(null)}>
+      <div className="msg-menu" style={{left:Math.min(msgMenu.x, window.innerWidth-140), top:Math.min(msgMenu.y, window.innerHeight-100)}}>
+        <button className="msg-menu-item danger" onClick={recallChat}>撤回</button>
+        <button className="msg-menu-item" onClick={()=>setMsgMenu(null)}>取消</button>
+      </div>
+    </div>}
   </div>
 }
 
@@ -717,7 +727,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const [dmSearch,setDmSearch]=useState('');
   const [burnMode,setBurnMode]=useState(null);  // null=永久；any/all/per_user
   const listRef=useRef(null);
-  const wsRef=useRef(null); const dmPressRef=useRef(null);
+  const wsRef=useRef(null); const dmPressRef=useRef(null); const [dmMenu,setDmMenu]=useState(null);
   const typingTimer=useRef(null);
   const meId=user?.id;
   const loadConvs=useCallback(async()=>{ try{ const r=await apiFetch('/dm/conversations'); if(r.ok)setConvs(await r.json()) }catch{} },[]);
@@ -749,7 +759,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     const tmpId='tmp-'+Date.now(); const bm=burnMode; const opt={id:tmpId,conversation_id:activeConv,sender_id:meId,content:input,read:false,created_at:new Date().toISOString(),burn_mode:bm,burned:false,state:bm?'own':'permanent',_pending:true};
     setMessages(prev=>[...prev,opt]); setInput('');
     try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)) }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') }finally{ setSending(false) } };
-  const recallDm=async(m)=>{ if(!confirm('撤回这条私信？'))return; try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages/${m.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===m.id?{...x,recalled:true,content:null}:x)) }catch(e){toast.error(e.message)} };
+  const recallDm=async()=>{ if(!dmMenu)return; try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages/${dmMenu.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===dmMenu.id?{...x,recalled:true,content:null}:x)); setDmMenu(null) }catch(e){toast.error(e.message)} };
   // 阅后即焚：点占位卡调 view 拿明文；view 后按模式后端会焚毁/局部焚毁
   const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/dm/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
     if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
@@ -776,11 +786,17 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     <div className="dm-search-row"><input value={dmSearch} onChange={e=>setDmSearch(e.target.value)} placeholder="搜索对话内容…" className="glass-input dm-search-input"/></div>
     <div className="dm-messages" ref={listRef}>
       {loadingConv?<Spinner/>:shown.length===0?<Empty icon="💬" title={q?'没有匹配的消息':'还没有消息'} desc={q?'换个关键词试试':'发送第一条消息吧'}/>:
-        shown.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`} onContextMenu={e=>{ if(m.sender_id===meId&&!m.recalled&&!m.burn_mode){ e.preventDefault(); recallDm(m) } }} onTouchStart={()=>{ if(m.sender_id===meId&&!m.recalled&&!m.burn_mode){ dmPressRef.current=setTimeout(()=>recallDm(m),550) } }} onTouchEnd={()=>{ if(dmPressRef.current){clearTimeout(dmPressRef.current);dmPressRef.current=null} }} onTouchMove={()=>{ if(dmPressRef.current){clearTimeout(dmPressRef.current);dmPressRef.current=null} }}>{m.recalled?<span className="msg-recalled">消息已撤回</span>:<><BurnMessageContent m={m} meId={meId} onView={viewBurn}/><span className="dm-msg-meta"><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span>{m.sender_id===meId&&!m.burn_mode&&<span className="dm-msg-receipt">{m.read?'已读':'✓'}</span>}</span></>}</div>)}
+        shown.map((m,i)=><div key={m.id??`l-${i}`} className={`dm-message ${m.sender_id===meId?'own':''}`} onContextMenu={e=>{ if(m.sender_id===meId&&!m.recalled&&!m.burn_mode){ e.preventDefault(); setDmMenu({id:m.id,x:e.clientX,y:e.clientY}) } }} onTouchStart={e=>{ if(m.sender_id===meId&&!m.recalled&&!m.burn_mode){ const t=e.touches[0]; dmPressRef.current=setTimeout(()=>setDmMenu({id:m.id,x:t.clientX,y:t.clientY}),550) } }} onTouchEnd={()=>{ if(dmPressRef.current){clearTimeout(dmPressRef.current);dmPressRef.current=null} }} onTouchMove={()=>{ if(dmPressRef.current){clearTimeout(dmPressRef.current);dmPressRef.current=null} }}>{m.recalled?<span className="msg-recalled">消息已撤回</span>:<><BurnMessageContent m={m} meId={meId} onView={viewBurn}/><span className="dm-msg-meta"><span className="dm-msg-time">{fmtChatTime(m.created_at)}</span>{m.sender_id===meId&&!m.burn_mode&&<span className="dm-msg-receipt">{m.read?'已读':'✓'}</span>}</span></>}</div>)}
       {peerTyping&&<div className="dm-typing"><span className="dm-typing-dot"/><span className="dm-typing-text">对方正在输入…</span></div>}
     </div>
     <div className="dm-input-area"><BurnPicker value={burnMode} onChange={setBurnMode}/><form onSubmit={send} className="chat-input-form"><input value={input} onChange={onDmInput} placeholder="输入私信..." className="glass-input chat-input" disabled={sending}/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()||sending}>发送</button></form></div>
   </div>
+  {dmMenu&&<div className="msg-menu-backdrop" onClick={()=>setDmMenu(null)}>
+    <div className="msg-menu" style={{left:Math.min(dmMenu.x, window.innerWidth-140), top:Math.min(dmMenu.y, window.innerHeight-100)}}>
+      <button className="msg-menu-item danger" onClick={recallDm}>撤回</button>
+      <button className="msg-menu-item" onClick={()=>setDmMenu(null)}>取消</button>
+    </div>
+  </div>}
 }
 
 // ── GroupChat（自建群聊）──
@@ -798,7 +814,7 @@ const GroupChat = ({ user, onOpenUser }) => {
   const [amCreator,setAmCreator]=useState(false);
   const [grpName,setGrpName]=useState('');
   const listRef=useRef(null);
-  const wsRef=useRef(null); const groupPressRef=useRef(null);
+  const wsRef=useRef(null); const groupPressRef=useRef(null); const [groupMenu,setGroupMenu]=useState(null);
   const meId=user?.id;
   const loadGroups=useCallback(async()=>{ try{ const r=await apiFetch('/groups'); if(r.ok)setGroups(await r.json()) }catch{} },[]);
   useEffect(()=>{ loadGroups() },[loadGroups]);
@@ -822,7 +838,7 @@ const GroupChat = ({ user, onOpenUser }) => {
     const tmpId='tmp-'+Date.now(); const bm=burnMode;
     setMessages(prev=>[...prev,{id:tmpId,user_id:meId,nickname:user.nickname,avatar:user.avatar,content:bm?null:input,burn_mode:bm,burned:false,state:bm?'own':'permanent',created_at:new Date().toISOString()}]); setInput('');
     try{ const r=await apiFetch(`/groups/${activeGid}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)); loadGroups() }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') } };
-  const recallGroup=async(m)=>{ if(!confirm('撤回这条消息？'))return; try{ const r=await apiFetch(`/groups/${activeGid}/messages/${m.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===m.id?{...x,recalled:true,content:null}:x)) }catch(e){toast.error(e.message)} };
+  const recallGroup=async()=>{ if(!groupMenu)return; try{ const r=await apiFetch(`/groups/${activeGid}/messages/${groupMenu.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===groupMenu.id?{...x,recalled:true,content:null}:x)); setGroupMenu(null) }catch(e){toast.error(e.message)} };
   const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/group/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
     if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
     else if(v.burned){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)) }
@@ -843,13 +859,19 @@ const GroupChat = ({ user, onOpenUser }) => {
     </div>
     <div className="dm-messages" ref={listRef}>
       {loading?<Spinner/>:shown.length===0?<Empty icon="💬" title="还没有消息" desc="发第一条消息吧"/>:
-        shown.map((m,i)=>{ const isOwn=m.user_id===meId; return <div key={m.id??`l-${i}`} className={`dm-message ${isOwn?'own':''}`} onContextMenu={e=>{ if(isOwn&&!m.recalled&&!m.burn_mode){ e.preventDefault(); recallGroup(m) } }} onTouchStart={()=>{ if(isOwn&&!m.recalled&&!m.burn_mode){ groupPressRef.current=setTimeout(()=>recallGroup(m),550) } }} onTouchEnd={()=>{ if(groupPressRef.current){clearTimeout(groupPressRef.current);groupPressRef.current=null} }} onTouchMove={()=>{ if(groupPressRef.current){clearTimeout(groupPressRef.current);groupPressRef.current=null} }}>
+        shown.map((m,i)=>{ const isOwn=m.user_id===meId; return <div key={m.id??`l-${i}`} className={`dm-message ${isOwn?'own':''}`} onContextMenu={e=>{ if(isOwn&&!m.recalled&&!m.burn_mode){ e.preventDefault(); setGroupMenu({id:m.id,x:e.clientX,y:e.clientY}) } }} onTouchStart={e=>{ if(isOwn&&!m.recalled&&!m.burn_mode){ const t=e.touches[0]; groupPressRef.current=setTimeout(()=>setGroupMenu({id:m.id,x:t.clientX,y:t.clientY}),550) } }} onTouchEnd={()=>{ if(groupPressRef.current){clearTimeout(groupPressRef.current);groupPressRef.current=null} }} onTouchMove={()=>{ if(groupPressRef.current){clearTimeout(groupPressRef.current);groupPressRef.current=null} }}>
           <div style={{display:'flex',alignItems:'center',gap:'.3rem'}}><Avatar src={m.avatar} seed={m.nickname} className="group-msg-avatar"/><span className="group-msg-sender">{m.nickname||'匿名用户'}</span></div>
           {m.recalled?<span className="msg-recalled">消息已撤回</span>:<>{m.burn_mode?(m.burned?<span className="burn-card gone">🔥 此消息已焚毁</span>:m.state==='own'||m.revealed?<span className="burn-card revealed">{m.content}</span>:<button className="burn-card" onClick={()=>viewBurn(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>):<span className="dm-msg-content">{m.content}</span>}</>}
         </div> })}
     </div>
     <div className="dm-input-area"><BurnPicker value={burnMode} onChange={setBurnMode}/><form onSubmit={send} className="chat-input-form"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="输入群消息..." className="glass-input chat-input"/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()}>发送</button></form></div>
     {showManage&&<GroupManageModal user={user} gid={activeGid} name={grpName} members={members} amCreator={amCreator} onClose={()=>setShowManage(false)} onChanged={()=>{loadGroups();openGroup(activeGid)}} onOpenUser={onOpenUser}/>}
+    {groupMenu&&<div className="msg-menu-backdrop" onClick={()=>setGroupMenu(null)}>
+      <div className="msg-menu" style={{left:Math.min(groupMenu.x, window.innerWidth-140), top:Math.min(groupMenu.y, window.innerHeight-100)}}>
+        <button className="msg-menu-item danger" onClick={recallGroup}>撤回</button>
+        <button className="msg-menu-item" onClick={()=>setGroupMenu(null)}>取消</button>
+      </div>
+    </div>}
   </div>
 };
 
