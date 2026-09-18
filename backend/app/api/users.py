@@ -469,6 +469,15 @@ def delete_my_account(
     db.query(NotificationModel).filter(
         (NotificationModel.recipient_id == user.id) | (NotificationModel.actor_id == user.id)
     ).delete(synchronize_session=False)
+    # 【站长 2026-09-18】私信痕迹全抹：其会话（含对方视角的壳）与全部私信一起删
+    from app.models.conversation import Conversation, DirectMessage as DMM
+    conv_ids = [r[0] for r in db.query(Conversation.id).filter(
+        (Conversation.user_a == user.id) | (Conversation.user_b == user.id)).all()]
+    if conv_ids:
+        ids_csv = ",".join(map(str, conv_ids))
+        from sqlalchemy import text as _text
+        db.execute(_text(f"DELETE FROM direct_messages WHERE conversation_id IN ({ids_csv})"))
+        db.execute(_text(f"DELETE FROM conversations WHERE id IN ({ids_csv})"))
     db.query(UserModel).filter(UserModel.id == user.id).delete(synchronize_session=False)
     db.commit()
     return {"ok": True}

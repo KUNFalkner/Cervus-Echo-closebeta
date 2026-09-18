@@ -20,6 +20,7 @@ from app.services.crypto import decrypt_text
 
 BURN_MODES = ("all", "per_user")  # "any" 已废除（站长 2026-09-17：发送者先看即焚=收件人永远看不到，无意义）
 DEFAULT_BURN_MODE = "per_user"
+READ_WINDOW = timedelta(seconds=30)      # 站长 2026-09-18：打开后阅读 30 秒才焚毁
 BURN_TTL = timedelta(days=30)          # 30 天没打开也销毁（跟 Snapchat 一致）
 PLACEHOLDER = "🔥 阅后即焚消息"          # 会话列表摘要 / 通知里显示的占位
 BURNED_TEXT = "🔥 此消息已焚毁"
@@ -121,7 +122,9 @@ def after_view(db: Session, source: str, msg, viewer_id: int) -> bool:
     db.flush()
 
     if msg.burn_mode == "per_user":
-        row.burned_at = now
+        # 【站长 2026-09-18】阅读窗：首次点开给 30 秒阅读时间；重复打开不重置倒计时
+        if row.burned_at is None:
+            row.burned_at = now + READ_WINDOW
         db.flush()
         others = (
             db.query(MessageRead)
@@ -133,8 +136,9 @@ def after_view(db: Session, source: str, msg, viewer_id: int) -> bool:
             .count()
         )
         if others == 0:
-            # 所有人都各自焚完 -> 发送者手里那份也变已焚（同 Snapchat）
-            burn_global(db, msg, source)
+            # 【站长 2026-09-18】所有人都各自点开过 → 给最后阅读者保留 30 秒窗，
+            # 到期才全局焚毁（原来立即焚毁=发送后根本来不及看）
+            msg.burned_at = now + READ_WINDOW
             return True
         return False
 
@@ -159,21 +163,30 @@ def render_for(db: Session, source: str, msg, viewer_id: int, now: Optional[date
     now = now or utcnow_naive()
     if msg.burn_mode is None:
         return {"burn_mode": None, "content": msg.content, "burned": False, "state": "permanent"}
-    if msg.burned_at is not None or is_expired(msg, now):
+    if (msg.burned_at is not None and msg.burned_at <= now) or is_expired(msg, now):
         return {"burn_mode": msg.burn_mode, "content": None, "burned": True, "state": "burned"}
+    if msg.burned_at is not None and msg.burned_at > now:
+        # 焚毁已排程（倒计时中）：所有人此刻仍可见明文
+        if _sender_id(msg) == viewer_id:
+            return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "own"}
+        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "revealed"}
     if _sender_id(msg) == viewer_id:
         return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "own"}
     row = _row(db, source, msg.id, viewer_id)
-    if row is not None and row.burned_at is not None:
+    if row is not None and row.burned_at is not None and row.burned_at <= now:
         return {"burn_mode": msg.burn_mode, "content": None, "burned": True, "state": "burned"}
+    if row is not None and row.read_at is not None:
+        # 阅读窗内（已点开，30 秒倒计时中）
+        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "revealed", "burn_at": row.burned_at.isoformat() if row.burned_at else None}
     return {"burn_mode": msg.burn_mode, "content": None, "burned": False, "state": "pending"}
 
 
 def view_plain(db: Session, source: str, msg, viewer_id: int) -> Optional[str]:
     """唯一取明文入口：受众点开看。看完按模式推进焚毁。"""
+    now = utcnow_naive()
     if msg.burn_mode is None:
         return msg.content
-    if msg.burned_at is not None or is_expired(msg):
+    if (msg.burned_at is not None and msg.burned_at <= now) or is_expired(msg):
         # 到期未焚（惰性清扫可能被节流跳过）：点开即硬焚，清密文，不留残余
         if msg.burned_at is None:
             burn_global(db, msg, source, hard=True)

@@ -285,10 +285,18 @@ def admin_delete_user(
         db.execute(text(f"DELETE FROM notifications WHERE actor_id = {target.id}"))
         db.execute(text(f"DELETE FROM reports WHERE reporter_id = {target.id}"))
     ids = str(target.id)
+    # 【站长 2026-09-18】其参与的私信会话整体删除（对方列表的壳也抹掉）
+    from app.models.conversation import Conversation as _Conv
+    conv_ids = [r[0] for r in db.query(_Conv.id).filter(
+        (_Conv.user_a == target.id) | (_Conv.user_b == target.id)).all()]
+    if conv_ids:
+        cid_csv = ",".join(map(str, conv_ids))
+        db.execute(text(f"DELETE FROM direct_messages WHERE conversation_id IN ({cid_csv})"))
+        db.execute(text(f"DELETE FROM conversations WHERE id IN ({cid_csv})"))
     for t, cols_needed in [("comments", ("user_id",)), ("user_likes", ("user_id",)),
                            ("user_stars", ("user_id",)), ("follows", ("follower_id", "followee_id")),
                            ("message_reads", ("user_id",)), ("direct_messages", ("sender_id",)),
-                           ("messages", ("user_id",)), ("conversations", ("user_a", "user_b")),
+                           ("messages", ("user_id",)),
                            ("tarot_history", ("user_id",)), ("votes", ("user_id",)),
                            ("chat_group_members", ("user_id",)), ("post_vectors", ()),
                            ("notifications", ("recipient_id", "actor_id")),
