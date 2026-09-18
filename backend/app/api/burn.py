@@ -94,6 +94,18 @@ def _assert_audience(db: Session, source: str, msg, user_id: int) -> None:
         raise HTTPException(status_code=403, detail="无权查看该消息")
 
 
+async def _broadcast_state(source: str, msg, state: str) -> None:
+    """广播状态帧（revealed / burned）。失败不影响主流程。"""
+    room = _room_of(source, msg)
+    if not room:
+        return
+    try:
+        payload = json.dumps({"type": state, "source": source, "id": msg.id}, ensure_ascii=False)
+        await ws_manager.broadcast(room, payload)
+    except Exception:
+        logger.exception("state broadcast failed room=%s", room)
+
+
 async def _broadcast_burned(source: str, msg) -> None:
     """焚毁状态变化时通知房间内所有人把该条换成「已焚毁」。失败不影响主流程。"""
     room = _room_of(source, msg)
@@ -121,7 +133,10 @@ async def view(
     if plain is None:
         return {"content": None, "burned": True, "state": "burned"}
     if _sender_id_of(msg) != user.id:
-        await _broadcast_burned(source, msg)
+        # 【站长 2026-09-18】30s 阅读窗：查看后不是"已焚毁"，而是"倒计时中"——
+        # 广播 revealed 帧让发送者同步看到明文+倒计时（旧逻辑广播 burned 帧
+        # 导致对方屏幕消息瞬间变灰卡=「点了阅后即焚后对方完全看不到」）
+        await _broadcast_state(source, msg, "revealed")
     return {
         "content": plain,
         "burned": False,

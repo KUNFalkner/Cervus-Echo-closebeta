@@ -764,6 +764,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
       if(d.type==='typing'){ if(d.sender_id!==meId) setPeerTyping(true) }
       else if(d.type==='stop'){ setPeerTyping(false) }
       else if(d.type==='read'){ const ids=new Set(d.message_ids||[]); setMessages(prev=>prev.map(m=>ids.has(m.id)?{...m,read:true}:m)) }
+      else if(d.type==='revealed'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,state:'revealed',revealed:true,burned:false}:m)) }
       else if(d.type==='burned'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,burned:true,content:null,state:'burned'}:m)) }
       else if(d.type==='message'){ if(d.sender_id!==meId) setMessages(prev=>prev.some(x=>x.id===d.id)?prev:[...prev,d]) }
       else if(d.type==='recall'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,recalled:true,content:null}:m)) }
@@ -848,6 +849,7 @@ const GroupChat = ({ user, onOpenUser }) => {
     ws.onmessage=(ev)=>{ try{
       const d=JSON.parse(ev.data)
       if(d.type==='message'){ if(d.sender_id!==meId) setMessages(prev=>prev.some(x=>x.id===d.id)?prev:[...prev,d]) }
+      else if(d.type==='revealed'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,state:'revealed',revealed:true,burned:false}:m)) }
       else if(d.type==='burned'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,burned:true,content:null,state:'burned'}:m)) }
       else if(d.type==='recall'){ setMessages(prev=>prev.map(m=>m.id===d.id?{...m,recalled:true,content:null}:m)) }
     }catch(e){} }

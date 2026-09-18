@@ -163,21 +163,23 @@ def render_for(db: Session, source: str, msg, viewer_id: int, now: Optional[date
     now = now or utcnow_naive()
     if msg.burn_mode is None:
         return {"burn_mode": None, "content": msg.content, "burned": False, "state": "permanent"}
+    # ① 消息级已焚（others==0 后排程的到期时间已过）→ 全体 burned
     if (msg.burned_at is not None and msg.burned_at <= now) or is_expired(msg, now):
         return {"burn_mode": msg.burn_mode, "content": None, "burned": True, "state": "burned"}
-    if msg.burned_at is not None and msg.burned_at > now:
-        # 焚毁已排程（倒计时中）：所有人此刻仍可见明文
-        if _sender_id(msg) == viewer_id:
-            return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "own"}
-        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "revealed"}
-    if _sender_id(msg) == viewer_id:
-        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "own"}
+    # ② 受众各自焚毁（per_user 自己那份到期）→ 该受众 burned
     row = _row(db, source, msg.id, viewer_id)
     if row is not None and row.burned_at is not None and row.burned_at <= now:
         return {"burn_mode": msg.burn_mode, "content": None, "burned": True, "state": "burned"}
+    # ③ 发送者永远可见自己的明文
+    if _sender_id(msg) == viewer_id:
+        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "own"}
+    # ④ 阅读窗内（已点开，倒计时中）→ revealed 显示明文
     if row is not None and row.read_at is not None:
-        # 阅读窗内（已点开，30 秒倒计时中）
         return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "revealed", "burn_at": row.burned_at.isoformat() if row.burned_at else None}
+    # ⑤ 排程焚毁（others==0 全员读过）→ 未读者也进入 revealed 显示明文
+    if msg.burned_at is not None and msg.burned_at > now:
+        return {"burn_mode": msg.burn_mode, "content": _plain(msg), "burned": False, "state": "revealed"}
+    # ⑥ 未读 → 点击查看卡
     return {"burn_mode": msg.burn_mode, "content": None, "burned": False, "state": "pending"}
 
 
