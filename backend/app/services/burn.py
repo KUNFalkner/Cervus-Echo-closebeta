@@ -18,7 +18,7 @@ from app.models.conversation import DirectMessage
 from app.models.message import Message
 from app.services.crypto import decrypt_text
 
-BURN_MODES = ("any", "all", "per_user")
+BURN_MODES = ("all", "per_user")  # "any" 已废除（站长 2026-09-17：发送者先看即焚=收件人永远看不到，无意义）
 DEFAULT_BURN_MODE = "per_user"
 BURN_TTL = timedelta(days=30)          # 30 天没打开也销毁（跟 Snapchat 一致）
 PLACEHOLDER = "🔥 阅后即焚消息"          # 会话列表摘要 / 通知里显示的占位
@@ -119,10 +119,6 @@ def after_view(db: Session, source: str, msg, viewer_id: int) -> bool:
     if row.read_at is None:
         row.read_at = now
     db.flush()
-
-    if msg.burn_mode == "any":
-        burn_global(db, msg, source)
-        return True
 
     if msg.burn_mode == "per_user":
         row.burned_at = now

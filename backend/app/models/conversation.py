@@ -14,6 +14,10 @@ class Conversation(Base):
     last_time = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_message_burned = Column(Boolean, default=False, nullable=True)
+    # 会话隐藏（2026-09-17，站长要求可删除会话）：各视角独立隐藏；
+    # 对方再来新消息时自动取消隐藏（微信语义）
+    hidden_a = Column(Boolean, default=False)
+    hidden_b = Column(Boolean, default=False)
 
     __table_args__ = (
         UniqueConstraint('user_a', 'user_b', name='uq_conv_pair'),

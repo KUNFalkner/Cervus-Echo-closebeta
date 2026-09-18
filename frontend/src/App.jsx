@@ -695,8 +695,7 @@ const PostEditModal = ({post, boards = CATEGORIES, onClose, onSaved}) => {
 
 // ── 阅后即焚辅助组件 ──
 const BURN_MODES = [
-  { key: 'any', label: '🔥 任一读后即焚' },
-  { key: 'all', label: '👥 全部读完才焚' },
+    { key: 'all', label: '👥 全部读完才焚' },
   { key: 'per_user', label: '🙈 按人各自焚' },
 ];
 const BurnPicker = ({ value, onChange }) => (
@@ -727,7 +726,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const [dmSearch,setDmSearch]=useState('');
   const [burnMode,setBurnMode]=useState(null);  // null=永久；any/all/per_user
   const listRef=useRef(null);
-  const wsRef=useRef(null); const dmPressRef=useRef(null); const [dmMenu,setDmMenu]=useState(null);
+  const wsRef=useRef(null); const dmPressRef=useRef(null); const convPressRef=useRef(null); const [dmMenu,setDmMenu]=useState(null); const [convMenu,setConvMenu]=useState(null);
   const typingTimer=useRef(null);
   const meId=user?.id;
   const loadConvs=useCallback(async()=>{ try{ const r=await apiFetch('/dm/conversations'); if(r.ok)setConvs(await r.json()) }catch{} },[]);
@@ -760,6 +759,7 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     setMessages(prev=>[...prev,opt]); setInput('');
     try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)) }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') }finally{ setSending(false) } };
   const recallDm=async()=>{ if(!dmMenu)return; try{ const r=await apiFetch(`/dm/conversations/${activeConv}/messages/${dmMenu.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===dmMenu.id?{...x,recalled:true,content:null}:x)); setDmMenu(null) }catch(e){toast.error(e.message)} };
+  const deleteConv=async()=>{ if(!convMenu)return; try{ const r=await apiFetch(`/dm/conversations/${convMenu.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setConvs(prev=>prev.filter(c=>c.id!==convMenu.id)); if(activeConv===convMenu.id){setActiveConv(null)} toast.success('会话已删除') }catch(e){toast.error(e.message)} finally{ setConvMenu(null) } };
   // 阅后即焚：点占位卡调 view 拿明文；view 后按模式后端会焚毁/局部焚毁
   const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/dm/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
     if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
@@ -769,7 +769,11 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   if(activeConv==null){
     return <div className="dm-page"><div className="dm-list-head">私信</div>
       {convs.length===0?<Empty icon="✉️" title="还没有私信" desc="去对方主页点「私信」开始对话"/>:
-        <div className="dm-list">{convs.map(c=><div key={c.id} className="dm-conv" onClick={()=>openConv(c.id)}>
+        <div className="dm-list">{convs.map(c=><div key={c.id} className="dm-conv" onClick={()=>openConv(c.id)}
+          onContextMenu={e=>{ e.preventDefault(); setConvMenu({id:c.id, name:c.peer?.nickname||'该用户', x:e.clientX, y:e.clientY}) }}
+          onTouchStart={e=>{ const t=e.touches[0]; convPressRef.current=setTimeout(()=>setConvMenu({id:c.id, name:c.peer?.nickname||'该用户', x:t.clientX, y:t.clientY}),550) }}
+          onTouchEnd={()=>{ if(convPressRef.current){clearTimeout(convPressRef.current);convPressRef.current=null} }}
+          onTouchMove={()=>{ if(convPressRef.current){clearTimeout(convPressRef.current);convPressRef.current=null} }}>
           <Avatar src={c.peer?.avatar} seed={c.peer?.nickname} className="dm-conv-avatar"/>
           <div className="dm-conv-info"><div className="dm-conv-top"><span className="dm-conv-name">{c.peer?.nickname||'用户'}</span>{c.unread>0&&<span className="notif-badge">{c.unread>99?'99+':c.unread}</span>}</div><span className="dm-conv-last">{c.last_time ? fmtChatTime(c.last_time) + " · " : ""}{c.last_message||""}</span></div>
         </div>)}</div>}
@@ -795,6 +799,12 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
     <div className="msg-menu" style={{left:Math.min(dmMenu.x, window.innerWidth-140), top:Math.min(dmMenu.y, window.innerHeight-100)}}>
       <button className="msg-menu-item danger" onClick={recallDm}>撤回</button>
       <button className="msg-menu-item" onClick={()=>setDmMenu(null)}>取消</button>
+    </div>
+  </div>}
+  {convMenu&&<div className="msg-menu-backdrop" onClick={()=>setConvMenu(null)}>
+    <div className="msg-menu" style={{left:Math.min(convMenu.x, window.innerWidth-160), top:Math.min(convMenu.y, window.innerHeight-100)}}>
+      <button className="msg-menu-item danger" onClick={deleteConv}>删除会话</button>
+      <button className="msg-menu-item" onClick={()=>setConvMenu(null)}>取消</button>
     </div>
   </div>}
 }

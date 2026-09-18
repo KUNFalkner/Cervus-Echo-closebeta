@@ -60,6 +60,17 @@ def list_conversations(
     convs = (
         db.query(Conversation)
         .filter((Conversation.user_a == user.id) | (Conversation.user_b == user.id))
+        # 【站长 2026-09-17】我删除的会话不再出现在我的列表（对方视角不受影响）
+        .filter(
+            or_(
+                Conversation.user_a != user.id,
+                Conversation.hidden_a.isnot(True),
+            ),
+            or_(
+                Conversation.user_b != user.id,
+                Conversation.hidden_b.isnot(True),
+            ),
+        )
         .order_by(Conversation.last_time.desc())
         .all()
     )
@@ -204,6 +215,9 @@ async def send_message(
         raise HTTPException(status_code=404, detail="会话不存在")
     if not (conv.user_a == user.id or conv.user_b == user.id):
         raise HTTPException(status_code=403, detail="无权访问该会话")
+    # 发消息即解除双方隐藏态（删除会话后对方回信，会话重新出现在列表——微信语义）
+    conv.hidden_a = False
+    conv.hidden_b = False
     content = (body.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="消息不能为空")
@@ -298,3 +312,24 @@ async def recall_dm_message(
     except Exception:
         logging.getLogger(__name__).exception("DM recall broadcast failed")
     return {"id": mid, "recalled": True}
+
+
+@router.delete("/conversations/{conv_id}")
+async def delete_conversation(
+    conv_id: int,
+    user: UserModel = Depends(require_user),
+    db: Session = Depends(get_db),
+):
+    """删除会话（站长 2026-09-17）：仅隐藏我的视图，对方不受影响；
+    对方再来新消息时自动重新出现（微信语义）。"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if conv.user_a == user.id:
+        conv.hidden_a = True
+    elif conv.user_b == user.id:
+        conv.hidden_b = True
+    else:
+        raise HTTPException(status_code=403, detail="无权访问该会话")
+    db.commit()
+    return {"id": conv_id, "deleted": True}
