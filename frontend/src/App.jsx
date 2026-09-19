@@ -729,6 +729,8 @@ const BurnMessageContent = ({ m, meId, onView }) => {
   if(!m.burn_mode) return <span className="dm-msg-content">{m.content}</span>;
   if(m.burned) return <span className="burn-card gone">🔥 此消息已焚毁</span>;
   if(m.state==='own') return <span className="burn-card revealed">{m.content}</span>;
+  // revealed：已点开，30 秒阅读窗内——显示明文（站长 2026-09-18 钦定语义）
+  if(m.state==='revealed'||m.revealed) return <span className="burn-card revealed">{m.content}</span>;
   // pending：点击调 view 拿明文
   return <button className="burn-card" onClick={()=>onView(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>;
 };
@@ -782,7 +784,8 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const deleteConv=async()=>{ if(!convMenu)return; try{ const r=await apiFetch(`/dm/conversations/${convMenu.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'删除失败')); setConvs(prev=>prev.filter(c=>c.id!==convMenu.id)); if(activeConv===convMenu.id){setActiveConv(null)} toast.success('会话已删除') }catch(e){toast.error(e.message)} finally{ setConvMenu(null) } };
   // 阅后即焚：点占位卡调 view 拿明文；view 后按模式后端会焚毁/局部焚毁
   const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/dm/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
-    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
+    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x))
+      setTimeout(()=>setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)), 30000) }
     else if(v.burned){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)) }
   }catch(err){ toast.error(err.message) } };
   useEffect(()=>{ const el=listRef.current; if(!el)return; const m=el.querySelector('.dm-message:last-child'); if(m&&!prefersReduced())gsap.fromTo(m,{opacity:0,y:8},{opacity:1,y:0,duration:.25,ease:'power2.out',clearProps:'opacity,transform'}) },[messages.length]);
@@ -861,7 +864,8 @@ const GroupChat = ({ user, onOpenUser }) => {
     try{ const r=await apiFetch(`/groups/${activeGid}/messages`,{method:'POST',body:JSON.stringify({content:input,burn_mode:bm})}); if(!r.ok)throw new Error(await errMsg(r,'发送失败')); const u=await r.json(); setMessages(prev=>prev.map(m=>m.id===tmpId?u:m)); loadGroups() }catch(err){ setMessages(prev=>prev.filter(m=>m.id!==tmpId)); toast.error(err.message||'发送失败') } };
   const recallGroup=async(m)=>{ try{ const r=await apiFetch(`/groups/${activeGid}/messages/${m.id}`,{method:'DELETE'}); if(!r.ok)throw new Error(await errMsg(r,'撤回失败')); setMessages(prev=>prev.map(x=>x.id===m.id?{...x,recalled:true,content:null}:x)) }catch(e){toast.error(e.message)} };
   const viewBurn=async(m)=>{ try{ const r=await apiFetch(`/burn/group/${m.id}/view`,{method:'POST'}); if(!r.ok)throw new Error(await errMsg(r,'查看失败')); const v=await r.json();
-    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x)) }
+    if(v.content!=null){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,content:v.content,state:'revealed',revealed:true}:x))
+      setTimeout(()=>setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)), 30000) }
     else if(v.burned){ setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)) }
   }catch(err){ toast.error(err.message) } };
   useEffect(()=>{ if(activeGid==null)return; const f=async()=>{ try{ const r=await apiFetch(`/groups/${activeGid}/members`); if(r.ok)setMembers(await r.json()) }catch{} }; f() },[activeGid,showManage]);
