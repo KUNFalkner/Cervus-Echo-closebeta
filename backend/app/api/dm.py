@@ -196,6 +196,7 @@ async def list_messages(
         if getattr(m, "recalled", False):
             item.update({"recalled": True, "content": None, "burn_mode": None})
         out.append(item)
+    db.commit()  # 【2026-09-18】持久化 render_for 创建的 read_at/burned_at（否则倒计时永不生效）
     return out
 
 

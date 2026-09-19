@@ -725,15 +725,18 @@ const BurnPicker = ({ value, onChange }) => (
   </div>
 );
 // 焚毁消息渲染：burned=已焚 / pending=待点击查看 / own=发送者自己 / permanent=普通
-const BurnMessageContent = ({ m, meId, onView }) => {
+const BurnMessageContent = ({ m }) => {
   if(!m.burn_mode) return <span className="dm-msg-content">{m.content}</span>;
   if(m.burned) return <span className="burn-card gone">🔥 此消息已焚毁</span>;
-  if(m.state==='own') return <span className="burn-card revealed">{m.content}</span>;
-  // revealed：已点开，30 秒阅读窗内——显示明文（站长 2026-09-18 钦定语义）
-  if(m.state==='revealed'||m.revealed) return <span className="burn-card revealed">{m.content}</span>;
-  // pending：点击调 view 拿明文
-  return <button className="burn-card" onClick={()=>onView(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>;
+  // 站长钦定语义：焚毁消息直接显示明文 + 30 秒消失倒计时（无点击查看步骤）
+  return <span className="burn-card revealed">{m.content}{m.burn_at&&<span className="burn-countdown">· <Countdown to={m.burn_at}/></span>}</span>;
 };
+// 简易倒计时（秒级，每秒刷新）
+const Countdown = ({ to }) => {
+  const [left,setLeft] = useState(()=>Math.max(0, Math.round((new Date(to)-Date.now())/1000)))
+  useEffect(()=>{ const t=setInterval(()=>setLeft(Math.max(0, Math.round((new Date(to)-Date.now())/1000))),1000); return ()=>clearInterval(t) },[to])
+  return <span>{left}s</span>
+}
 // ── DirectMessages（1:1 私信）──
 const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const toast=useToast();
@@ -753,7 +756,10 @@ const DirectMessages = ({user, openConvId, onOpenConvChange, onOpenUser}) => {
   const loadConvs=useCallback(async()=>{ try{ const r=await apiFetch('/dm/conversations'); if(r.ok)setConvs(await r.json()) }catch{} },[]);
   useEffect(()=>{ loadConvs() },[loadConvs]);
   const openConv=useCallback(async(id)=>{ setActiveConv(id); setLoadingConv(true); setPeerTyping(false); setDmSearch(''); onOpenConvChange&&onOpenConvChange(id);
-    try{ const r=await apiFetch(`/dm/conversations/${id}/messages`); if(r.ok)setMessages(await r.json()) }catch{} finally{ setLoadingConv(false) } },[onOpenConvChange]);
+    try{ const r=await apiFetch(`/dm/conversations/${id}/messages`); if(r.ok){ const arr=await r.json(); setMessages(arr)
+        // 焚毁消息到点自动置灰卡（与后端 burned_at 同步）
+        arr.filter(m=>m.burn_at).forEach(m=>{ const ms=new Date(m.burn_at)-Date.now(); if(ms>0){ setTimeout(()=>setMessages(prev=>prev.map(x=>x.id===m.id?{...x,burned:true,content:null,state:'burned'}:x)), ms+500) } })
+      } }catch{} finally{ setLoadingConv(false) } },[onOpenConvChange]);
   useEffect(()=>{ if(openConvId){ openConv(openConvId) } },[openConvId,openConv]);
   // 会话级 WebSocket：接收「输入中 / 已读 / 新消息」信令（房间 dm/{conv_id}，与聊天共用连接管理器）
   useEffect(()=>{
@@ -886,7 +892,7 @@ const GroupChat = ({ user, onOpenUser }) => {
       {loading?<Spinner/>:shown.length===0?<Empty icon="💬" title="还没有消息" desc="发第一条消息吧"/>:
         shown.map((m,i)=>{ const isOwn=m.user_id===meId; return <div key={m.id??`l-${i}`} className={`dm-message ${isOwn?'own':''}`}>
           <div style={{display:'flex',alignItems:'center',gap:'.3rem'}}><Avatar src={m.avatar} seed={m.nickname} className="group-msg-avatar"/><span className="group-msg-sender">{m.nickname||'匿名用户'}</span></div>
-          {m.recalled?<span className="msg-recalled">消息已撤回</span>:<>{m.burn_mode?(m.burned?<span className="burn-card gone">🔥 此消息已焚毁</span>:m.state==='own'||m.revealed?<span className="burn-card revealed">{m.content}</span>:<button className="burn-card" onClick={()=>viewBurn(m)}><span>🔥 阅后即焚消息</span><span className="burn-tap">👆 点击查看</span></button>):<span className="dm-msg-content">{m.content}</span>}{isOwn&&!m.burn_mode&&<button type="button" className="msg-recall-tag" onClick={()=>recallGroup(m)}>撤回</button>}</>}
+          {m.recalled?<span className="msg-recalled">消息已撤回</span>:<>{m.burn_mode?(m.burned?<span className="burn-card gone">🔥 此消息已焚毁</span>:<span className="burn-card revealed">{m.content}{m.burn_at&&<Countdown to={m.burn_at}/>}</span>):<span className="dm-msg-content">{m.content}</span>}{isOwn&&!m.burn_mode&&<button type="button" className="msg-recall-tag" onClick={()=>recallGroup(m)}>撤回</button>}</>}
         </div> })}
     </div>
     <div className="dm-input-area"><BurnPicker value={burnMode} onChange={setBurnMode}/><form onSubmit={send} className="chat-input-form"><input value={input} onChange={e=>setInput(e.target.value)} placeholder="输入群消息..." className="glass-input chat-input"/><button type="submit" className="glass-button btn-primary chat-send-btn" disabled={!input.trim()}>发送</button></form></div>
